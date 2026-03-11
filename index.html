@@ -50,6 +50,8 @@ textarea.inp{resize:vertical;line-height:1.7;white-space:pre-wrap}select.inp{app
 .doubt-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;background:#fff3dc;color:#8a5e00;font-size:11px;font-weight:700;letter-spacing:.3px}
 .err-box{background:#fff5f5;border:1px solid #ecc;border-radius:10px;padding:12px;margin-top:6px;font-size:12px;color:var(--err)}
 .mem-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;background:#e8f5e9;color:var(--ok);font-size:10px;font-weight:600}
+.face-thumb{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--border)}.face-thumb-sm{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--border)}
+.face-add{width:48px;height:48px;border-radius:50%;border:2px dashed var(--border);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:var(--muted);background:var(--card);transition:all .2s}.face-add:hover{border-color:var(--accent2);color:var(--accent2)}
 </style>
 </head>
 <body>
@@ -66,8 +68,8 @@ const COL=["Bianco","Nero","Grigio","Rosso","Blu","Verde","Giallo","Arancione","
 const SUP=["t-shirt","top","maglia","felpa","camicia","camicia di jeans","giacca","giubbino","giubbino di pelle","cardigan","coprispalle","casacca","piumino","spolverino","pelliccia","body","reggiseno","sciarpa"];
 const LSC={Intimo:["loveskin","intimoreggiseni26","intimoslip26","slipbrasiliana26","slipperizoma26","slipvitaalta26","reggisenipushup26","reggisenibralette26","reggisenibalconcino26","intimobody26","intimopigiami26","intimotopecanotte26"],Sporty:["loveskinleggings","loveskinsporty","loveskintop","loveskin"],"Abbigliamento Daily":["loveskin","loveskinbody","loveskintopecanotte","loveskinpantaloni","loveskincompleto","loveskindaily","loveskinmaglietteet-shirt","loveskinfelpe"]};
 
-let cS=JSON.parse(localStorage.getItem("zs")||"{}"),mod=JSON.parse(localStorage.getItem("zm")||"[]"),ak=localStorage.getItem("za")||"",licMem=JSON.parse(localStorage.getItem("zlm")||"{}");
-let step=ak?0:-1,cfg={br:"",st:"",an:"",ds:"",nm:"",al:"",ts:"",ti:""},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false;
+let cS=JSON.parse(localStorage.getItem("zs")||"{}"),mod=JSON.parse(localStorage.getItem("zm")||"[]"),ak=localStorage.getItem("za")||"",licMem=JSON.parse(localStorage.getItem("zlm")||"{}"),facePh=JSON.parse(localStorage.getItem("zfp")||"{}");
+let step=ak?0:-1,prevStep=-2,cfg={br:"",st:"",an:"",ds:"",nm:"",al:"",ts:"",ti:""},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false,tmpFaces=[];
 
 const pSKU=fn=>fn.replace(/\.[^.]+$/,"").split("__")[0].split("_")[0].toUpperCase();
 const gSuf=sku=>{const t=sku.slice(-2),a={...SFX,...cS};return a[t]?{s:t,tipo:a[t]}:{s:null,tipo:null,u:t};};
@@ -78,31 +80,45 @@ const mT=f=>({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/web
 const gTg=tipo=>SUP.some(s=>(tipo||"").toLowerCase().includes(s))?cfg.ts:cfg.ti;
 const esc=s=>'"'+(s||"").replace(/"/g,'""')+'"';
 
-function mPr(br,tipo,n){
+function resizeImg(file,maxW=200){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas");const s=Math.min(maxW/img.width,maxW/img.height,1);c.width=img.width*s;c.height=img.height*s;c.getContext("2d").drawImage(img,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",0.7));};img.onerror=rej;img.src=r.result;};r.onerror=rej;r.readAsDataURL(file);});}
+
+function addFacePhoto(modelName){const i=document.createElement("input");i.type="file";i.accept="image/*";i.multiple=true;i.onchange=async()=>{const files=Array.from(i.files);for(const f of files){const d=await resizeImg(f);if(!facePh[modelName])facePh[modelName]=[];facePh[modelName].push(d);if(!tmpFaces.length)tmpFaces=facePh[modelName];}localStorage.setItem("zfp",JSON.stringify(facePh));render();};i.click();}
+
+function removeFace(modelName,idx){if(facePh[modelName]){facePh[modelName].splice(idx,1);if(!facePh[modelName].length)delete facePh[modelName];localStorage.setItem("zfp",JSON.stringify(facePh));}render();}
+
+function addTmpFace(){const i=document.createElement("input");i.type="file";i.accept="image/*";i.multiple=true;i.onchange=async()=>{for(const f of Array.from(i.files)){const d=await resizeImg(f);tmpFaces.push(d);}render();};i.click();}
+
+function removeTmpFace(idx){tmpFaces.splice(idx,1);render();}
+
+function mPr(br,tipo,n,modelNames){
 const m=n>1?`Ti vengono fornite ${n} foto dello STESSO articolo da angolazioni diverse. Usale TUTTE per descrivere meglio. Se una foto ha colore diverso ignorala.`:"Singola foto.";
 const knownLic=Object.keys(licMem).length?`\nLICENZE GIÀ NOTE (usa queste se riconosci elementi simili): ${Object.entries(licMem).map(([k,v])=>`"${k}" = ${v}`).join(", ")}`:"";
+const modelInfo=modelNames&&modelNames.length?`\nRICONOSCIMENTO MODELLA: Ti sono state fornite foto di riferimento del volto delle modelle PRIMA delle foto del prodotto. Le modelle sono: ${modelNames.join(", ")}. Identifica quale modella indossa il capo confrontando i volti. Inserisci il nome nel campo "modella_riconosciuta". Se non riesci a identificarla, usa null.`:"";
 return`Sei un catalogatore moda per ${br==="zuiki"?"Zuiki":"Loveskin"}.
 IMPORTANTE: Questo articolo è "${tipo}". NON cambiare il tipo.
-${m}${knownLic}
+${m}${knownLic}${modelInfo}
 
 ATTENZIONE STAMPE/LOGHI/PERSONAGGI: Se vedi QUALSIASI stampa, logo, immagine, disegno, scritta, personaggio, simbolo o decorazione grafica sul capo e NON sei SICURO AL 100% di cosa sia (es: potrebbe essere un personaggio di un cartone, un logo di un brand, un animale di una licenza, una scritta di un marchio), imposta "dubbio_licenza" su true e descrivi in "dubbio_descrizione" ESATTAMENTE cosa vedi nell'immagine (forma, colore, posizione, testo se presente). Non tirare a indovinare: se hai anche il minimo dubbio, segnalalo.
 
+REGOLA COLORE: NON menzionare MAI il colore del prodotto in "dettagli_descrizione". La descrizione va sull'articolo genitore e i figli possono avere colori diversi.
+
 Rispondi SOLO JSON valido (no markdown, no backtick, no testo extra):
-{"modello_dettaglio":"2-3 parole MODELLO/VESTIBILITÀ senza tipo articolo e senza colore","dettagli_descrizione":"Dettagli visibili: cuciture, tasche, chiusure, stampe, scollo, maniche, vestibilità. Italiano corretto con punteggiatura. Max 3 frasi. NON iniziare ripetendo il tipo articolo.","licenza":"Personaggio/brand SICURO AL 100% (Disney, Mickey Mouse, Snoopy, Hello Kitty, Marvel ecc.) oppure null se non sei sicuro","dubbio_licenza":true/false,"dubbio_descrizione":"Descrizione dettagliata di cosa vedi: forma, colore, posizione, testo. Solo se dubbio_licenza=true, altrimenti null","colore_madre":"SOLO colore base tra: ${COL.join(", ")}","categoria_seo":"macro minuscolo attaccato","sottocategoria_seo":"sotto minuscolo attaccato"}`;}
+{"modello_dettaglio":"2-3 parole MODELLO/VESTIBILITÀ senza tipo articolo e senza colore","dettagli_descrizione":"Dettagli visibili: cuciture, tasche, chiusure, stampe, scollo, maniche, vestibilità. Italiano corretto con punteggiatura. Max 3 frasi. NON iniziare ripetendo il tipo articolo. NON menzionare il colore.","licenza":"Personaggio/brand SICURO AL 100% (Disney, Mickey Mouse, Snoopy, Hello Kitty, Marvel ecc.) oppure null se non sei sicuro","dubbio_licenza":true/false,"dubbio_descrizione":"Descrizione dettagliata di cosa vedi: forma, colore, posizione, testo. Solo se dubbio_licenza=true, altrimenti null","colore_madre":"SOLO colore base tra: ${COL.join(", ")}","categoria_seo":"macro minuscolo attaccato","sottocategoria_seo":"sotto minuscolo attaccato"${modelNames&&modelNames.length?',"modella_riconosciuta":"nome modella o null"':""}}`;}
+
 
 function mPrLong(br,tipo,nome,descBreve,colore,licenza,comp){
 return`Sei un copywriter SEO esperto di moda per ${br==="zuiki"?"Zuiki":"Loveskin"}.
 Scrivi una DESCRIZIONE LUNGA ottimizzata SEO per questo prodotto:
 - Tipo: ${tipo}
 - Nome: ${nome}
-- Colore: ${colore}
 - Licenza/Personaggio: ${licenza||"Nessuna"}
 - Composizione: ${comp||"Non specificata"}
 - Descrizione breve: ${descBreve}
 
 REGOLE:
 - Testo di 150-250 parole, fluido e naturale, NON a elenco puntato
-- Includi keywords rilevanti per la ricerca (tipo articolo, colore, stagione, brand, licenza se presente)
+- NON MENZIONARE MAI IL COLORE del prodotto. La descrizione va sull'articolo genitore e i figli hanno colori diversi. Evita qualsiasi riferimento a colori specifici.
+- Includi keywords rilevanti per la ricerca (tipo articolo, stagione, brand, licenza se presente)
 - Includi consigli di stile e abbinamenti
 - Includi occasioni d'uso
 - Usa un tono coinvolgente e aspirazionale ma autentico
@@ -118,8 +134,17 @@ if(!r.ok){const t=await r.text();throw new Error(`HTTP ${r.status}: ${t.slice(0,
 const d=await r.json();if(d.error)throw new Error(d.error.message);return d.content?.map(x=>x.text||"").join("")||"";}
 
 async function aImgs(files,tipo){
-const c=[];for(const f of files)c.push({type:"image",source:{type:"base64",media_type:mT(f),data:await toB(f)}});
-c.push({type:"text",text:mPr(cfg.br,tipo,files.length)});
+const c=[];
+// Add face reference photos for model recognition
+const modelNames=[];
+for(const ml of mod){
+const fp=facePh[ml.nome]||[];
+if(fp.length){modelNames.push(ml.nome);
+c.push({type:"text",text:`[FOTO RIFERIMENTO VOLTO: ${ml.nome}]`});
+for(const fd of fp){const b64=fd.split(",")[1]||fd;c.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}});}}}
+if(modelNames.length)c.push({type:"text",text:"--- FINE FOTO RIFERIMENTO VOLTI. Le foto seguenti sono del PRODOTTO da catalogare ---"});
+for(const f of files)c.push({type:"image",source:{type:"base64",media_type:mT(f),data:await toB(f)}});
+c.push({type:"text",text:mPr(cfg.br,tipo,files.length,modelNames)});
 const raw=await cAI(c);
 try{return JSON.parse(raw.replace(/```json|```/g,"").trim());}catch(e){throw new Error(`Risposta AI non valida (JSON parse): ${raw.slice(0,150)}...`);}}
 
@@ -129,7 +154,13 @@ return await cAI([{type:"text",text:prompt}]);}
 
 function mTags(o){const sa=`${SCMAP[cfg.st]||"pe"}${cfg.an||"26"}`,t=[];if(o.ds)t.push(o.ds+"donna"+sa);if(o.cat)t.push(o.cat+"donna"+sa);if(o.sub&&o.sub!==o.cat)t.push(o.sub+"donna"+sa);if(o.nm)o.nm.toLowerCase().replace(/[^a-zàèéìòù0-9\s-]/g,"").split(/\s+/).filter(w=>w.length>1).forEach(w=>{if(!t.includes(w))t.push(w);});return t.join("; ");}
 function mNm(tipo,ai){const l=ai?.licenza&&ai.licenza!=="null"&&ai.licenza!=null?ai.licenza:"",m=ai?.modello_dettaglio?cap(ai.modello_dettaglio):"";return[tipo,m,l].filter(Boolean).join(" ");}
-function mDs(ai,comp,tipo){return`${ai?.dettagli_descrizione||""}\n\nLa modella indossa la taglia IT ${gTg(tipo)}\nL'altezza della modella è ${cfg.al} cm\n\n${comp?`Composizione: ${comp}`:"Composizione:"}`;}
+function mDs(ai,comp,tipo,recModName){
+const ml=recModName?mod.find(x=>x.nome===recModName):null;
+const alt=ml?ml.altezza:cfg.al;
+const tgSopra=ml?ml.tagliaSopra:cfg.ts;
+const tgSotto=ml?ml.tagliaSotto:cfg.ti;
+const tg=SUP.some(s=>(tipo||"").toLowerCase().includes(s))?tgSopra:tgSotto;
+return`${ai?.dettagli_descrizione||""}\n\nLa modella${recModName?" "+recModName:""} indossa la taglia IT ${tg}\nL'altezza della modella è ${alt} cm\n\n${comp?`Composizione: ${comp}`:"Composizione:"}`;}
 
 async function procF(files){
 const imgs=Array.from(files).filter(f=>f.type.startsWith("image/"));if(!imgs.length)return;
@@ -147,8 +178,10 @@ async function runP(){
 for(const it of items.filter(i=>i.st==="pend")){it.st="load";it.er=null;render();
 try{
 const ai=await aImgs(it.af,it.tp);it.ai=ai;it.nm=mNm(it.tp,ai);it.cl=ai.colore_madre||"";
+// Use recognized model's measurements if available
+if(ai.modella_riconosciuta){const recMod=mod.find(ml=>ml.nome.toLowerCase()===ai.modella_riconosciuta.toLowerCase());if(recMod){it.recMod=recMod.nome;}}
 it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm}):"";
-it.ds=mDs(ai,"",it.tp);
+it.ds=mDs(ai,"",it.tp,it.recMod);
 if(ai.dubbio_licenza){it.doubt=true;it.doubtDesc=ai.dubbio_descrizione||"Stampa/logo non identificato";it.doubtResolved=false;}
 else{it.doubt=false;it.doubtResolved=false;}
 // Generate long description
@@ -165,11 +198,12 @@ it.ai.licenza=v;it.nm=mNm(it.tp,it.ai);it.doubtResolved=true;it.doubt=false;
 // Save to memory
 const key=(it.doubtDesc||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim().slice(0,60);
 if(key){licMem[key]=v;localStorage.setItem("zlm",JSON.stringify(licMem));}
-// Regenerate descriptions with new license
-it.ds=mDs(it.ai,it.cp,it.tp);
+// Regenerate short description with new license info reworked (not copied literally)
+it.ds=mDs(it.ai,it.cp,it.tp,it.recMod);
 render();
-// Regen long desc async
-genLong(it).then(dl=>{it.dl=dl;render();}).catch(()=>{});
+// Regen long desc async with explicit rework instruction
+const reworkPrompt=mPrLong(cfg.br,it.tp,it.nm,it.ds,it.cl,it.ai?.licenza,it.cp)+`\n\nIMPORTANTE: La licenza/personaggio "${v}" è stata appena confermata. Rielabora la descrizione integrando questa informazione in modo naturale e fluido. NON copiare letteralmente "${v}", ma usa questa informazione per arricchire il testo. NON menzionare il colore del prodotto.`;
+cAI([{type:"text",text:reworkPrompt}]).then(dl=>{it.dl=dl;render();}).catch(()=>{});
 }
 
 async function retryErrors(){
@@ -203,10 +237,10 @@ a.download=`catalogo_${cfg.br}_${SCMAP[cfg.st]||""}${cfg.an}_${new Date().toISOS
 
 function uSt(){document.getElementById("si").innerHTML=["Setup","Catalogo","Export"].map((s,i)=>`<span class="step ${i===step?"step-a":i<step?"step-d":"step-p"}">${s}</span>${i<2?'<span class="step-line"></span>':""}`).join("");}
 
-function render(){uSt();const m=document.getElementById("mn");m.innerHTML="";
-if(step===-1)rKey(m);else if(step===0)rSet(m);else if(step===1)rCat(m);else rExp(m);}
+function render(){uSt();const m=document.getElementById("mn");m.innerHTML="";const stepChanged=step!==prevStep;prevStep=step;
+if(step===-1)rKey(m,stepChanged);else if(step===0)rSet(m,stepChanged);else if(step===1)rCat(m,stepChanged);else rExp(m,stepChanged);}
 
-function rKey(m){m.innerHTML=`<div style="max-width:480px;margin:60px auto;animation:fadeUp .5s ease forwards"><div style="background:var(--card);border-radius:16px;padding:32px;border:1px solid var(--border)">
+function rKey(m,anim){m.innerHTML=`<div style="max-width:480px;margin:60px auto;${anim?"animation:fadeUp .5s ease forwards":""}"><div style="background:var(--card);border-radius:16px;padding:32px;border:1px solid var(--border)">
 <div style="font-size:36px;text-align:center;margin-bottom:16px">🔑</div>
 <h2 style="font-size:22px;font-weight:700;text-align:center;margin-bottom:8px">Configurazione API</h2>
 <p style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:24px">Inserisci la tua API key Anthropic</p>
@@ -214,11 +248,11 @@ function rKey(m){m.innerHTML=`<div style="max-width:480px;margin:60px auto;anima
 <button class="btn btn-p" style="width:100%;padding:14px;font-size:15px" onclick="ak=document.getElementById('akI').value.trim();if(ak){localStorage.setItem('za',ak);step=0;render();}">Salva e Continua</button>
 <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:12px">Salvata solo nel tuo browser</p></div></div>`;}
 
-function rSet(m){
+function rSet(m,anim){
 const isSelMod=!nM&&cfg.nm&&mod.find(x=>x.nome===cfg.nm);
 if(!mod.length&&!nM&&!cfg.nm)nM=true;
 let modelleButtons="";
-if(mod.length){modelleButtons=mod.map(ml=>`<div style="display:flex;align-items:center;margin:0 8px 8px 0"><button class="mb ${cfg.nm===ml.nome&&!nM?"act":""}" onclick="cfg.nm='${ml.nome}';cfg.al='${ml.altezza}';cfg.ts='${ml.tagliaSopra}';cfg.ti='${ml.tagliaSotto}';nM=false;render()">${ml.nome} <span style="font-size:10px;opacity:.7;margin-left:6px">${ml.altezza}cm · ${ml.tagliaSopra}/${ml.tagliaSotto}</span></button><button class="md" onclick="mod=mod.filter(x=>x.nome!=='${ml.nome}');localStorage.setItem('zm',JSON.stringify(mod));if(cfg.nm==='${ml.nome}'){cfg.nm='';cfg.al='';cfg.ts='';cfg.ti='';}render()">✕</button></div>`).join("");}
+if(mod.length){modelleButtons=mod.map(ml=>{const fp=facePh[ml.nome]||[];const faceThumb=fp.length?`<img src="${fp[0]}" class="face-thumb-sm" style="margin-right:6px">`:"";return`<div style="display:flex;align-items:center;margin:0 8px 8px 0"><button class="mb ${cfg.nm===ml.nome&&!nM?"act":""}" onclick="cfg.nm='${ml.nome}';cfg.al='${ml.altezza}';cfg.ts='${ml.tagliaSopra}';cfg.ti='${ml.tagliaSotto}';nM=false;render()">${faceThumb}${ml.nome} <span style="font-size:10px;opacity:.7;margin-left:6px">${ml.altezza}cm · ${ml.tagliaSopra}/${ml.tagliaSotto}</span></button><button class="md" onclick="mod=mod.filter(x=>x.nome!=='${ml.nome}');delete facePh['${ml.nome}'];localStorage.setItem('zm',JSON.stringify(mod));localStorage.setItem('zfp',JSON.stringify(facePh));if(cfg.nm==='${ml.nome}'){cfg.nm='';cfg.al='';cfg.ts='';cfg.ti='';}render()">✕</button></div>`;}).join("");}
 let modForm="";
 if(nM){
 modForm=`<div class="grid2" style="margin-top:10px">
@@ -226,18 +260,27 @@ modForm=`<div class="grid2" style="margin-top:10px">
 <div class="field" style="margin-bottom:0"><label>Altezza (cm)</label><input class="inp" id="fAlt" placeholder="173" value="${cfg.al}" oninput="cfg.al=this.value.replace(/[^0-9]/g,'')"></div>
 <div class="field" style="margin-bottom:0"><label>Taglia parte superiore</label><select class="inp" id="fTS" onchange="cfg.ts=this.value"><option value="">Seleziona...</option>${TL.map(t=>`<option ${cfg.ts===t?"selected":""}>${t}</option>`).join("")}</select></div>
 <div class="field" style="margin-bottom:0"><label>Taglia parte inferiore</label><select class="inp" id="fTI" onchange="cfg.ti=this.value"><option value="">Seleziona...</option>${TS.map(t=>`<option ${cfg.ti===t?"selected":""}>${t}</option>`).join("")}</select></div></div>
+<div style="margin-top:14px"><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:8px">Foto Volto (per riconoscimento)</label>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${tmpFaces.map((f,fi)=>`<div style="position:relative"><img src="${f}" class="face-thumb"><button onclick="removeTmpFace(${fi})" style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:var(--err);color:#fff;border:none;font-size:10px;cursor:pointer;line-height:16px;padding:0">✕</button></div>`).join("")}
+<div class="face-add" onclick="addTmpFace()">+</div></div>
+<p style="font-size:10px;color:var(--muted);margin-top:4px">Carica 1+ foto del volto per identificare la modella nelle foto dei capi</p></div>
 <div style="margin-top:12px;display:flex;gap:8px">
 <button class="btn btn-p" style="padding:8px 18px;font-size:12px" onclick="saveNewModella()">💾 Salva modella</button>
-${mod.length?`<button class="btn btn-s" style="padding:8px 18px;font-size:12px" onclick="nM=false;cfg.nm='';cfg.al='';cfg.ts='';cfg.ti='';render()">Annulla</button>`:""}</div>`;
+${mod.length?`<button class="btn btn-s" style="padding:8px 18px;font-size:12px" onclick="nM=false;cfg.nm='';cfg.al='';cfg.ts='';cfg.ti='';tmpFaces=[];render()">Annulla</button>`:""}</div>`;
 } else if(isSelMod){
+const selFaces=facePh[cfg.nm]||[];
 modForm=`<div class="grid2" style="margin-top:10px">
 <div class="field" style="margin-bottom:0"><label>Nome Modella</label><input class="inp" value="${cfg.nm}" disabled></div>
 <div class="field" style="margin-bottom:0"><label>Altezza (cm)</label><input class="inp" value="${cfg.al}" disabled></div>
 <div class="field" style="margin-bottom:0"><label>Taglia parte superiore</label><input class="inp" value="${cfg.ts}" disabled></div>
-<div class="field" style="margin-bottom:0"><label>Taglia parte inferiore</label><input class="inp" value="${cfg.ti}" disabled></div></div>`;}
+<div class="field" style="margin-bottom:0"><label>Taglia parte inferiore</label><input class="inp" value="${cfg.ti}" disabled></div></div>
+<div style="margin-top:14px"><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:8px">Foto Volto</label>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${selFaces.map((f,fi)=>`<div style="position:relative"><img src="${f}" class="face-thumb"><button onclick="removeFace('${cfg.nm}',${fi})" style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:var(--err);color:#fff;border:none;font-size:10px;cursor:pointer;line-height:16px;padding:0">✕</button></div>`).join("")}
+<div class="face-add" onclick="addFacePhoto('${cfg.nm}')">+</div></div>
+${!selFaces.length?`<p style="font-size:10px;color:var(--warn);margin-top:4px">⚠ Nessuna foto volto. Aggiungine per un migliore riconoscimento.</p>`:""}</div>`;}
 const memCount=Object.keys(licMem).length;
 const rdy=cfg.br&&cfg.st&&cfg.an&&cfg.ds&&cfg.al&&cfg.nm&&(cfg.ts||cfg.ti);
-m.innerHTML=`<div style="animation:fadeUp .5s ease forwards">
+m.innerHTML=`<div style="${anim?"animation:fadeUp .5s ease forwards":""}">
 <h2 style="font-size:28px;font-weight:700;margin-bottom:4px">Configurazione Shooting</h2>
 <p style="color:var(--muted);font-size:14px;margin-bottom:32px">Imposta i parametri prima di caricare le foto</p>
 <div class="grid2">
@@ -252,13 +295,19 @@ m.innerHTML=`<div style="animation:fadeUp .5s ease forwards">
 <div style="margin-top:16px;padding:20px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
 <h3 style="font-size:13px;font-weight:600">Modella</h3>
-${!nM&&mod.length?`<button class="btn btn-s" style="padding:5px 14px;font-size:11px" onclick="cfg.nm='';cfg.al='';cfg.ts='';cfg.ti='';nM=true;render()">+ Nuova modella</button>`:""}</div>
+${!nM&&mod.length?`<button class="btn btn-s" style="padding:5px 14px;font-size:11px" onclick="cfg.nm='';cfg.al='';cfg.ts='';cfg.ti='';tmpFaces=[];nM=true;render()">+ Nuova modella</button>`:""}</div>
 <div style="display:flex;flex-wrap:wrap">${modelleButtons}</div>${modForm}</div>
 ${memCount?`<div style="margin-top:16px;padding:16px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
 <h3 style="font-size:13px;font-weight:600">🧠 Memoria Licenze (${memCount})</h3>
 <button class="btn btn-d" style="padding:4px 12px;font-size:11px" onclick="if(confirm('Cancellare tutta la memoria licenze?')){licMem={};localStorage.setItem('zlm','{}');render();}">Svuota</button></div>
 <div style="display:flex;flex-wrap:wrap;gap:6px">${Object.entries(licMem).map(([k,v])=>`<span class="mem-badge">🏷 ${v}</span>`).join("")}</div></div>`:""
+}
+${Object.keys(cS).length?`<div style="margin-top:16px;padding:16px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+<h3 style="font-size:13px;font-weight:600">🧠 Suffissi Memorizzati (${Object.keys(cS).length})</h3>
+<button class="btn btn-d" style="padding:4px 12px;font-size:11px" onclick="if(confirm('Cancellare tutti i suffissi personalizzati?')){cS={};localStorage.setItem('zs','{}');render();}">Svuota</button></div>
+<div style="display:flex;flex-wrap:wrap;gap:6px">${Object.entries(cS).map(([k,v])=>`<span class="mem-badge">📎 ${k} = ${v}</span>`).join("")}</div></div>`:""
 }
 <div style="display:flex;justify-content:flex-end;margin-top:28px;gap:10px">
 <button class="btn btn-s" onclick="step=-1;render()">⚙ API Key</button>
@@ -268,9 +317,11 @@ function saveNewModella(){
 if(!cfg.nm||!cfg.al){alert("Inserisci nome e altezza della modella");return;}
 mod=mod.filter(x=>x.nome!==cfg.nm);
 mod.push({nome:cfg.nm,altezza:cfg.al,tagliaSopra:cfg.ts,tagliaSotto:cfg.ti});
-localStorage.setItem("zm",JSON.stringify(mod));nM=false;render();}
+localStorage.setItem("zm",JSON.stringify(mod));
+if(tmpFaces.length){facePh[cfg.nm]=tmpFaces.slice();localStorage.setItem("zfp",JSON.stringify(facePh));}
+tmpFaces=[];nM=false;render();}
 
-function rCat(m){
+function rCat(m,anim){
 const dc=items.filter(i=>i.st==="done").length,ec=items.filter(i=>i.st==="err").length,doubts=items.filter(i=>i.doubt&&!i.doubtResolved).length,ur=unk.filter(u=>!u.dn);
 let uH="";if(ur.length)uH=`<div class="alert"><p style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:12px">⚠ Suffissi non riconosciuti:</p>${ur.map((u,i)=>{const idx=unk.indexOf(u);return`<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><span class="sbdg">${u.sf}</span><span style="font-size:12px;color:var(--muted);min-width:80px">da ${u.sku}</span><input class="inp" placeholder="Es: Bermuda, Tuta..." style="flex:1;padding:8px 12px;font-size:13px" value="${u.vl}" onblur="unk[${idx}].vl=this.value"><button class="btn btn-p" style="padding:8px 16px;font-size:12px" onclick="resSuf(${idx})">Conferma</button></div>`;}).join("")}</div>`;
 
@@ -297,7 +348,7 @@ else if(it.st==="done"&&it.doubt&&!it.doubtResolved)sH='<span class="doubt-badge
 else if(it.st==="done")sH='<span style="font-size:11px;color:var(--ok);font-weight:600">✓</span>';
 
 let mH="";
-if(it.st==="done")mH=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px"><div><span style="color:var(--muted)">Nome: </span><strong>${it.nm}</strong></div><div><span style="color:var(--muted)">Colore: </span>${it.cl}</div><div><span style="color:var(--muted)">Comp: </span>${it.cp||"—"}</div></div>`;
+if(it.st==="done")mH=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr${it.recMod?" 1fr":""};gap:8px;font-size:12px"><div><span style="color:var(--muted)">Nome: </span><strong>${it.nm}</strong></div><div><span style="color:var(--muted)">Colore: </span>${it.cl}</div><div><span style="color:var(--muted)">Comp: </span>${it.cp||"—"}</div>${it.recMod?`<div><span style="color:var(--muted)">Modella: </span><strong>${it.recMod}</strong></div>`:""}</div>`;
 if(it.st==="load")mH='<div style="display:flex;gap:10px"><div class="shim" style="width:80px"></div><div class="shim" style="width:100px"></div><div class="shim" style="width:70px"></div></div>';
 
 // Error detail
@@ -334,7 +385,7 @@ return`<div class="card ${cardClass}" style="animation-delay:${idx*.03}s">
 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="sku" style="font-size:14px">${it.sku}</span>${it.tp?`<span class="tag-t">${it.tp}</span>`:""} ${np>1?`<span style="font-size:10px;color:var(--muted)">📷 ${np}</span>`:""} ${sH}${it.doubtResolved&&it.ai?.licenza?`<span class="mem-badge">🏷 ${it.ai.licenza}</span>`:""}</div>
 <div style="display:flex;gap:6px">${it.st==="done"?`<button class="btn btn-s" style="padding:5px 12px;font-size:11px" onclick="eI=eI===${idx}?null:${idx};render()">${eI===idx?"Chiudi":"Modifica"}</button>`:""}<button class="btn btn-d" style="padding:5px 12px;font-size:11px" onclick="items.splice(${idx},1);eI=null;render()">✕</button></div></div>${mH}${errH}${dbtH}</div></div>${eH}</div>`;}).join("");
 
-m.innerHTML=`<div style="animation:fadeUp .4s ease forwards">
+m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
 <div><h2 style="font-size:24px;font-weight:700">Catalogo Prodotti</h2><p style="color:var(--muted);font-size:13px">${cfg.br==="zuiki"?"Zuiki":"Loveskin"} — ${cfg.st} ${cfg.an} — Donna — ${cfg.nm} — ${fD(cfg.ds)}</p></div>
 <div style="display:flex;gap:10px"><button class="btn btn-s" onclick="step=0;render()">← Setup</button>
@@ -348,13 +399,13 @@ dz.ondragover=e=>{e.preventDefault();dz.classList.add("ov");};
 dz.ondragleave=()=>dz.classList.remove("ov");
 dz.ondrop=e=>{e.preventDefault();dz.classList.remove("ov");procF(e.dataTransfer.files);};}
 
-function rExp(m){const done=items.filter(i=>i.st==="done");
+function rExp(m,anim){const done=items.filter(i=>i.st==="done");
 let cH="";
 if(cL)cH=`<div style="text-align:center;padding:30px"><div class="spin"></div><p style="font-size:13px;color:var(--muted);animation:pulse 1s infinite">Analisi correlazioni in corso...</p></div>`;
 else if(corr.length)cH=corr.map(cr=>`<div class="cc"><div style="font-size:14px;font-weight:600;margin-bottom:6px">${cr.outfit_name||"Outfit"}</div><div style="margin-bottom:6px">${(cr.skus||[]).map(s=>`<span class="cs">${s}</span>`).join("")}</div><p style="font-size:12px;color:var(--muted)">${cr.motivo||""}</p></div>`).join("");
 else if(cD&&!corr.length)cH='<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Nessun match visivo trovato.</p>';
 const tR=done.map(i=>{const cr=corr.filter(c=>(c.skus||[]).includes(i.sku)).flatMap(c=>(c.skus||[]).filter(s=>s!==i.sku));return`<tr><td class="sku">${i.sku}</td><td>${i.nm}</td><td>${i.tp}</td><td>${i.cl}</td><td>${i.cp||"—"}</td><td>${i.ap?.length||1}</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">${cr.join(", ")||"—"}</td></tr>`;}).join("");
-m.innerHTML=`<div style="animation:fadeUp .4s ease forwards">
+m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px">
 <div><h2 style="font-size:24px;font-weight:700">Correlazioni & Export</h2><p style="color:var(--muted);font-size:13px">${done.length} prodotti pronti</p></div>
 <button class="btn btn-s" onclick="step=1;render()">← Catalogo</button></div>

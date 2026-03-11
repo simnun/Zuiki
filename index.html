@@ -57,6 +57,11 @@ textarea.inp{resize:vertical;line-height:1.7;white-space:pre-wrap}select.inp{app
 .lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s}.lightbox-nav:hover{background:rgba(255,255,255,.3)}
 .lightbox-close{position:absolute;top:20px;right:20px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .thumb-zoom{cursor:zoom-in;transition:transform .15s}.thumb-zoom:hover{transform:scale(1.05)}
+.wizard-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:9998;display:flex;align-items:center;justify-content:center}
+.wizard-card{background:var(--card);border-radius:20px;max-width:520px;width:90%;max-height:90vh;overflow-y:auto;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.wizard-img{width:100%;max-height:50vh;object-fit:contain;border-radius:14px;border:1px solid var(--border);margin-bottom:18px}
+.wizard-progress{height:4px;background:var(--border);border-radius:2px;margin-bottom:20px;overflow:hidden}.wizard-progress-bar{height:100%;background:var(--accent2);border-radius:2px;transition:width .3s}
+.wizard-reworking{text-align:center;padding:40px 20px}
 </style>
 </head>
 <body>
@@ -64,6 +69,7 @@ textarea.inp{resize:vertical;line-height:1.7;white-space:pre-wrap}select.inp{app
 <div class="logo"><div class="logo-icon">Z</div><span>Catalogo AI</span></div>
 <div class="steps" id="si"></div>
 </header>
+<div class="wizard-overlay" id="wiz" style="display:none"></div>
 <div class="lightbox" id="lb" onclick="closeLB(event)">
 <button class="lightbox-close" onclick="closeLB()">✕</button>
 <button class="lightbox-nav" style="left:16px" onclick="event.stopPropagation();navLB(-1)">‹</button>
@@ -77,6 +83,57 @@ function openLB(imgs,idx){lbImgs=imgs;lbIdx=idx||0;document.getElementById("lbIm
 function closeLB(e){if(e&&e.target.tagName==="IMG")return;const lb=document.getElementById("lb");lb.classList.remove("show");setTimeout(()=>lb.style.display="none",200);}
 function navLB(d){lbIdx=(lbIdx+d+lbImgs.length)%lbImgs.length;document.getElementById("lbImg").src=lbImgs[lbIdx];}
 document.addEventListener("keydown",e=>{if(document.getElementById("lb").style.display==="flex"){if(e.key==="Escape")closeLB();if(e.key==="ArrowLeft")navLB(-1);if(e.key==="ArrowRight")navLB(1);}});
+
+let wizDoubts=[],wizIdx=0,wizReworking=false;
+function openWizard(){
+wizDoubts=items.map((it,i)=>({idx:i,it})).filter(x=>x.it.doubt&&!x.it.doubtResolved);
+if(!wizDoubts.length)return;
+wizIdx=0;wizReworking=false;renderWiz();}
+
+function renderWiz(){
+const wiz=document.getElementById("wiz");wiz.style.display="flex";
+if(wizReworking){wiz.innerHTML=`<div class="wizard-card wizard-reworking"><div class="spin" style="width:32px;height:32px;margin:0 auto 16px"></div><h3 style="font-size:18px;font-weight:700;margin-bottom:8px">Rielaborazione in corso...</h3><p style="color:var(--muted);font-size:13px">Sto rigenerando titolo, descrizione breve, descrizione lunga e tag per ${wizDoubts.length} prodott${wizDoubts.length>1?"i":"o"}.</p></div>`;return;}
+const d=wizDoubts[wizIdx];const it=d.it;const np=wizDoubts.length;
+const imgSrc=it.ap?it.ap[0]:it.pv;
+wiz.innerHTML=`<div class="wizard-card">
+<div class="wizard-progress"><div class="wizard-progress-bar" style="width:${((wizIdx+1)/np)*100}%"></div></div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+<span style="font-size:12px;color:var(--muted);font-weight:600">${wizIdx+1} di ${np}</span>
+<span class="sku" style="font-size:14px">${it.sku}</span>
+<span class="tag-t">${it.tp}</span></div>
+<img src="${imgSrc}" class="wizard-img">
+<div class="doubt-box" style="margin-top:0;margin-bottom:16px">
+<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px">
+<span style="font-size:18px">🔍</span>
+<div><p style="font-size:13px;font-weight:600;color:#8a5e00;margin-bottom:4px">Stampa/Logo da identificare</p>
+<p style="font-size:12px;color:var(--muted)">L'AI ha visto: <em>"${it.doubtDesc}"</em></p></div></div>
+<input class="inp" id="wizInput" placeholder="Scrivi le info per chiarire il dubbio..." style="font-size:14px;border-color:#f0d8a8;padding:12px 14px" value="${it.doubtInput||""}" onkeydown="if(event.key==='Enter')wizNext()">
+</div>
+<div style="display:flex;justify-content:space-between;gap:10px">
+${wizIdx>0?`<button class="btn btn-s" onclick="wizPrev()">← Indietro</button>`:'<div></div>'}
+<div style="display:flex;gap:8px">
+<button class="btn btn-s" onclick="wizSkip()">Ignora</button>
+<button class="btn btn-p" onclick="wizNext()">${wizIdx===np-1?"Completa e Rielabora →":"Avanti →"}</button>
+</div></div></div>`;
+setTimeout(()=>{const inp=document.getElementById("wizInput");if(inp)inp.focus();},100);}
+
+function wizPrev(){if(wizIdx>0){wizSaveInput();wizIdx--;renderWiz();}}
+function wizSkip(){const d=wizDoubts[wizIdx];d.it.doubt=false;d.it.doubtResolved=true;wizDoubts.splice(wizIdx,1);if(!wizDoubts.length){closeWiz();render();return;}if(wizIdx>=wizDoubts.length)wizIdx=wizDoubts.length-1;renderWiz();}
+function wizSaveInput(){const inp=document.getElementById("wizInput");if(inp)wizDoubts[wizIdx].it.doubtInput=inp.value;}
+
+async function wizNext(){
+wizSaveInput();
+const d=wizDoubts[wizIdx];const v=d.it.doubtInput?.trim();
+if(v){resolveDoubt(d.idx);}else{d.it.doubt=false;d.it.doubtResolved=true;}
+if(wizIdx<wizDoubts.length-1){wizIdx++;renderWiz();return;}
+// Last one - start auto rework
+const toRework=wizDoubts.filter(d=>d.it.doubtUserInfo);
+if(!toRework.length){closeWiz();render();return;}
+wizReworking=true;renderWiz();
+for(const d of toRework){await reworkItem(d.idx);}
+wizReworking=false;closeWiz();render();}
+
+function closeWiz(){document.getElementById("wiz").style.display="none";}
 const SFX={GB:"Giubbino",GP:"Giubbino Di Pelle",PA:"Pantalone",PJ:"Pantalone Di Jeans",AB:"Abito",MA:"Maglia",FE:"Felpa",TO:"Top",TS:"T-shirt",BO:"Body",GO:"Gonna",GN:"Gonna",MC:"Maglia",SR:"Scarpe",CZ:"Calzini",FR:"Fermacapelli",SC:"Sciarpa",BR:"Borsa",PF:"Portafogli",CV:"Coprispalle",GI:"Giacca",CS:"Casacca",PI:"Piumino",SP:"Spolverino",PE:"Pelliccia",CD:"Cardigan",CA:"Camicia",CJ:"Camicia Di Jeans",SH:"Shorts",SJ:"Shorts Di Jeans",PG:"Pigiama",RG:"Reggiseno",SL:"Slip",LG:"Leggings"};
 const TS=["38","40","42","44","46","48","50","52"],TL=["XS","S","M","L","XL","XXL"];
 const STG=["Primavera/Estate","Autunno/Inverno"],SCMAP={"Primavera/Estate":"pe","Autunno/Inverno":"ai"};
@@ -122,8 +179,10 @@ ATTENZIONE STAMPE/LOGHI/PERSONAGGI: Se vedi QUALSIASI stampa, logo, immagine, di
 
 REGOLA COLORE: NON menzionare MAI il colore del prodotto in "dettagli_descrizione". La descrizione va sull'articolo genitore e i figli possono avere colori diversi.
 
+FOTO FRONTALE: Se ci sono più foto, indica l'indice (0-based) della foto che mostra il capo da DAVANTI (vista frontale). Se c'è una sola foto, usa 0.
+
 Rispondi SOLO JSON valido (no markdown, no backtick, no testo extra):
-{"modello_dettaglio":"2-3 parole MODELLO/VESTIBILITÀ senza tipo articolo e senza colore","dettagli_descrizione":"Dettagli visibili: cuciture, tasche, chiusure, stampe, scollo, maniche, vestibilità. Italiano corretto con punteggiatura. Max 3 frasi. NON iniziare ripetendo il tipo articolo. NON menzionare il colore.","licenza":"Personaggio/brand SICURO AL 100% (Disney, Mickey Mouse, Snoopy, Hello Kitty, Marvel ecc.) oppure null se non sei sicuro","dubbio_licenza":true/false,"dubbio_descrizione":"Descrizione dettagliata di cosa vedi: forma, colore, posizione, testo. Solo se dubbio_licenza=true, altrimenti null","colore_madre":"SOLO colore base tra: ${COL.join(", ")}","categoria_seo":"macro minuscolo attaccato","sottocategoria_seo":"sotto minuscolo attaccato"${modelNames&&modelNames.length?',"modella_riconosciuta":"nome modella o null"':""}}`;}
+{"modello_dettaglio":"2-3 parole MODELLO/VESTIBILITÀ senza tipo articolo e senza colore","dettagli_descrizione":"Dettagli visibili: cuciture, tasche, chiusure, stampe, scollo, maniche, vestibilità. Italiano corretto con punteggiatura. Max 3 frasi. NON iniziare ripetendo il tipo articolo. NON menzionare il colore.","licenza":"Personaggio/brand SICURO AL 100% (Disney, Mickey Mouse, Snoopy, Hello Kitty, Marvel ecc.) oppure null se non sei sicuro","dubbio_licenza":true/false,"dubbio_descrizione":"Descrizione dettagliata di cosa vedi: forma, colore, posizione, testo. Solo se dubbio_licenza=true, altrimenti null","colore_madre":"SOLO colore base tra: ${COL.join(", ")}","categoria_seo":"macro minuscolo attaccato","sottocategoria_seo":"sotto minuscolo attaccato","foto_frontale_idx":0${modelNames&&modelNames.length?',"modella_riconosciuta":"nome modella o null"':""}}`;}
 
 
 function mPrLong(br,tipo,nome,descBreve,colore,licenza,comp){
@@ -202,11 +261,21 @@ async function runP(){
 for(const it of items.filter(i=>i.st==="pend")){it.st="load";it.er=null;render();
 try{
 const ai=await aImgs(it.af,it.tp);it.ai=ai;it.nm=mNm(it.tp,ai);it.cl=ai.colore_madre||"";
+// Reorder: put frontal photo first
+const fIdx=parseInt(ai.foto_frontale_idx)||0;
+if(fIdx>0&&fIdx<it.af.length){const ff=it.af.splice(fIdx,1)[0];it.af.unshift(ff);const fp=it.ap.splice(fIdx,1)[0];it.ap.unshift(fp);it.fl=it.af[0];it.pv=it.ap[0];}
 // Use recognized model's measurements if available
 if(ai.modella_riconosciuta){const recMod=mod.find(ml=>ml.nome.toLowerCase()===ai.modella_riconosciuta.toLowerCase());if(recMod){it.recMod=recMod.nome;}}
 it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null}):"";
 it.ds=mDs(ai,"",it.tp,it.recMod);
-if(ai.dubbio_licenza){it.doubt=true;it.doubtDesc=ai.dubbio_descrizione||"Stampa/logo non identificato";it.doubtResolved=false;}
+if(ai.dubbio_licenza){
+// Check local memory first before flagging doubt
+const dDesc=(ai.dubbio_descrizione||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim().slice(0,60);
+let memMatch=null;
+for(const[k,v]of Object.entries(licMem)){if(dDesc.includes(k)||k.includes(dDesc.slice(0,20))){memMatch=v;break;}}
+if(memMatch){ai.licenza=memMatch;ai.dubbio_licenza=false;it.nm=mNm(it.tp,ai);it.doubt=false;it.doubtResolved=true;
+if(it.tg){const licTag=memMatch.toLowerCase().replace(/[^a-z0-9]/g,"");if(!it.tg.includes(licTag))it.tg+="; "+licTag+"; licenza; licenza"+cfg.an;}}
+else{it.doubt=true;it.doubtDesc=ai.dubbio_descrizione||"Stampa/logo non identificato";it.doubtResolved=false;}}
 else{it.doubt=false;it.doubtResolved=false;}
 // Generate long description
 try{it.dl=await genLong(it);}catch(e){it.dl="[Errore generazione descrizione lunga: "+e.message+"]";}
@@ -218,37 +287,40 @@ items.filter(i=>i.st==="wait"&&i.sf===u.sf).forEach(i=>{i.tp=u.vl.trim();i.st="p
 
 function resolveDoubt(idx){
 const it=items[idx];const v=it.doubtInput?.trim();if(!v)return;
-it.ai.licenza=v;it.nm=mNm(it.tp,it.ai);it.doubtResolved=true;it.doubt=false;
-// Save to memory
+it.doubtResolved=true;it.doubt=false;it.doubtUserInfo=v;
+// Save to memory with description as key
 const key=(it.doubtDesc||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim().slice(0,60);
 if(key){licMem[key]=v;localStorage.setItem("zlm",JSON.stringify(licMem));}
-// Update tags with license
-if(it.ai.licenza){const sa=`${SCMAP[cfg.st]||"pe"}${cfg.an||"26"}`;const licTag=it.ai.licenza.toLowerCase().replace(/[^a-z0-9]/g,"");if(it.tg&&!it.tg.includes(licTag)){it.tg+="; "+licTag+"; licenza; licenza"+cfg.an;}}
+// DON'T put user text directly in licenza/title - it will be reworked by AI later
 render();
 }
 
 async function reworkItem(idx){
 const it=items[idx];if(!it||it.st!=="done")return;
-const v=it.ai?.licenza||"";
+const userInfo=it.doubtUserInfo||it.doubtInput||it.ai?.licenza||"";
 it.reworking=true;render();
 try{
-// Rework title
-it.nm=mNm(it.tp,it.ai);
-// Rework short desc
-const reworkShort=`Sei un catalogatore moda per ${cfg.br==="zuiki"?"Zuiki":"Loveskin"}.
-Riscrivi questa descrizione breve del prodotto "${it.tp}" integrando le seguenti informazioni in modo naturale:
-- Licenza/personaggio confermato: ${v||"nessuna"}
-- Informazione ricevuta dall'utente: "${it.doubtInput||v}"
-IMPORTANTE: NON copiare letteralmente ciò che l'utente ha scritto. Rielabora in modo professionale.
-NON menzionare il colore del prodotto.
-Mantieni le informazioni sulla modella e composizione.
+// Ask AI to extract proper license name and generate title/descriptions
+const reworkAll=`Sei un catalogatore moda per ${cfg.br==="zuiki"?"Zuiki":"Loveskin"}.
+L'utente ha chiarito un dubbio su una stampa/logo presente su questo prodotto "${it.tp}".
+L'AI aveva visto: "${it.doubtDesc}"
+L'utente ha scritto: "${userInfo}"
+
+COMPITO 1 - NOME LICENZA: Estrai SOLO il nome breve e corretto della licenza/personaggio (es: "SuperGirl", "Mickey Mouse", "Snoopy"). Se l'utente ha scritto una frase, estrapolane solo il nome. Max 2-3 parole.
+COMPITO 2 - NOME PRODOTTO: Genera il nome prodotto completo formato: "${it.tp} [modello 2-3 parole] [nome licenza breve]"
+COMPITO 3 - DESCRIZIONE BREVE: Riscrivi la descrizione breve integrando la licenza in modo naturale. NON copiare ciò che ha scritto l'utente. NON menzionare il colore. Mantieni info su modella e composizione.
 Descrizione originale: ${it.ds}
-Rispondi SOLO con la nuova descrizione, nient'altro.`;
-const newDs=await cAI([{type:"text",text:reworkShort}]);
-it.ds=newDs;
+
+Rispondi SOLO JSON valido: {"licenza":"nome breve","nome_prodotto":"nome completo","descrizione_breve":"testo"}`;
+const raw=await cAI([{type:"text",text:reworkAll}]);
+const rw=JSON.parse(raw.replace(/```json|```/g,"").trim());
+if(rw.licenza)it.ai.licenza=rw.licenza;
+if(rw.nome_prodotto)it.nm=rw.nome_prodotto;
+if(rw.descrizione_breve)it.ds=rw.descrizione_breve;
+// Update tags with license
+if(it.ai.licenza){const licTag=it.ai.licenza.toLowerCase().replace(/[^a-z0-9]/g,"");if(it.tg&&!it.tg.includes(licTag)){it.tg+="; "+licTag+"; licenza; licenza"+(cfg.an||"26");}}
 // Rework long desc
-const reworkLong=mPrLong(cfg.br,it.tp,it.nm,it.ds,it.cl,it.ai?.licenza,it.cp)+`\n\nIMPORTANTE: La licenza/personaggio "${v}" è stata confermata. Rielabora integrando questa informazione in modo naturale e fluido. NON copiare letteralmente "${v}". NON menzionare il colore.`;
-it.dl=await cAI([{type:"text",text:reworkLong}]);
+it.dl=await cAI([{type:"text",text:mPrLong(cfg.br,it.tp,it.nm,it.ds,it.cl,it.ai?.licenza,it.cp)}]);
 }catch(e){console.error("Rework error:",e);}
 it.reworking=false;render();
 }
@@ -331,7 +403,6 @@ modForm=`<div class="grid2" style="margin-top:10px">
 <div style="margin-top:12px;display:flex;gap:8px">
 <button class="btn btn-p" style="padding:8px 18px;font-size:12px" onclick="saveNewModella()">💾 Salva modella</button>
 ${mod.length?`<button class="btn btn-s" style="padding:8px 18px;font-size:12px" onclick="nM=false;tmpFaces=[];render()">Annulla</button>`:""}</div>`;}
-const memCount=Object.keys(licMem).length;
 const rdy=cfg.br&&cfg.st&&cfg.an&&cfg.ds&&cfg.selMods.length>0;
 m.innerHTML=`<div style="${anim?"animation:fadeUp .5s ease forwards":""}">
 <h2 style="font-size:28px;font-weight:700;margin-bottom:4px">Configurazione Shooting</h2>
@@ -351,18 +422,6 @@ m.innerHTML=`<div style="${anim?"animation:fadeUp .5s ease forwards":""}">
 ${!nM&&mod.length?`<button class="btn btn-s" style="padding:5px 14px;font-size:11px" onclick="tmpFaces=[];nM=true;render()">+ Nuova modella</button>`:""}</div>
 ${mod.length&&!nM?'<p style="font-size:10px;color:var(--muted);margin-bottom:8px">Clicca per selezionare/deselezionare una o più modelle</p>':""}
 <div style="display:flex;flex-wrap:wrap">${modelleButtons}</div>${selModsInfo}${modForm}</div>
-${memCount?`<div style="margin-top:16px;padding:16px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-<h3 style="font-size:13px;font-weight:600">🧠 Memoria Licenze (${memCount})</h3>
-<button class="btn btn-d" style="padding:4px 12px;font-size:11px" onclick="if(confirm('Cancellare tutta la memoria licenze?')){licMem={};localStorage.setItem('zlm','{}');render();}">Svuota</button></div>
-<div style="display:flex;flex-wrap:wrap;gap:6px">${Object.entries(licMem).map(([k,v])=>`<span class="mem-badge">🏷 ${v}</span>`).join("")}</div></div>`:""
-}
-${Object.keys(cS).length?`<div style="margin-top:16px;padding:16px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-<h3 style="font-size:13px;font-weight:600">🧠 Suffissi Memorizzati (${Object.keys(cS).length})</h3>
-<button class="btn btn-d" style="padding:4px 12px;font-size:11px" onclick="if(confirm('Cancellare tutti i suffissi personalizzati?')){cS={};localStorage.setItem('zs','{}');render();}">Svuota</button></div>
-<div style="display:flex;flex-wrap:wrap;gap:6px">${Object.entries(cS).map(([k,v])=>`<span class="mem-badge">📎 ${k} = ${v}</span>`).join("")}</div></div>`:""
-}
 <div style="display:flex;justify-content:flex-end;margin-top:28px;gap:10px">
 <button class="btn btn-s" onclick="step=-1;render()">⚙ API Key</button>
 <button class="btn btn-p" ${rdy?"":"disabled"} onclick="step=1;render()">Inizia Catalogazione →</button></div></div>`;}
@@ -395,7 +454,8 @@ if(ec>0)errBanner=`<div class="alert-d" style="display:flex;justify-content:spac
 let doubtBanner="";
 if(doubts>0)doubtBanner=`<div class="alert" style="display:flex;justify-content:space-between;align-items:center">
 <div><span class="doubt-badge">⚠ DUBBIO LOGO/IMMAGINE</span>
-<span style="font-size:12px;color:var(--muted);margin-left:8px">${doubts} articol${doubts>1?"i":"o"} con stampe/loghi da identificare</span></div></div>`;
+<span style="font-size:12px;color:var(--muted);margin-left:8px">${doubts} articol${doubts>1?"i":"o"} con stampe/loghi da identificare</span></div>
+<button class="btn btn-w" style="padding:8px 18px;font-size:12px" onclick="openWizard()">🔍 Risolvi Dubbi (${doubts})</button></div>`;
 
 let iH=items.map((it,idx)=>{
 const np=it.ap?.length||1;
@@ -415,17 +475,10 @@ if(it.st==="load")mH='<div style="display:flex;gap:10px"><div class="shim" style
 let errH="";
 if(it.st==="err")errH=`<div class="err-box"><p style="font-weight:600;margin-bottom:6px">${friendlyErr(it.er)}</p><details style="margin-top:6px"><summary style="font-size:10px;color:var(--muted);cursor:pointer">Dettaglio tecnico</summary><p style="font-family:'JetBrains Mono',monospace;font-size:10px;word-break:break-all;margin-top:4px;color:var(--muted)">${it.er||"Errore sconosciuto"}</p></details><button class="btn btn-p" style="padding:6px 14px;font-size:11px;margin-top:8px" onclick="retryOne(${idx})">🔄 Riprova</button></div>`;
 
-// Doubt box
+// Doubt indicator (resolved via wizard)
 let dbtH="";
 if(it.st==="done"&&it.doubt&&!it.doubtResolved){
-dbtH=`<div class="doubt-box"><div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px">
-<span style="font-size:18px">🔍</span>
-<div><p style="font-size:13px;font-weight:600;color:#8a5e00;margin-bottom:4px">Stampa/Logo non identificato con certezza</p>
-<p style="font-size:12px;color:var(--muted)">L'AI ha visto: <em>"${it.doubtDesc}"</em></p></div></div>
-<div style="display:flex;gap:8px;align-items:center">
-<input class="inp" placeholder="Es: Krypto (SuperGirl, Warner Bros)" style="flex:1;padding:8px 12px;font-size:13px;border-color:#f0d8a8" value="${it.doubtInput||""}" onblur="items[${idx}].doubtInput=this.value" onkeydown="if(event.key==='Enter'){items[${idx}].doubtInput=this.value;resolveDoubt(${idx})}">
-<button class="btn btn-w" style="padding:8px 16px;font-size:12px;white-space:nowrap" onclick="items[${idx}].doubtInput=items[${idx}].doubtInput||'';resolveDoubt(${idx})">✓ Conferma e Memorizza</button>
-<button class="btn btn-s" style="padding:8px 12px;font-size:11px;white-space:nowrap" onclick="items[${idx}].doubt=false;items[${idx}].doubtResolved=true;render()">Ignora</button></div></div>`;}
+dbtH=`<div style="padding:8px 12px;background:#fffbf0;border:1px solid #f0d8a8;border-radius:8px;margin-top:6px;font-size:12px;color:#8a5e00;display:flex;align-items:center;gap:6px"><span>🔍</span> <em>${it.doubtDesc}</em> <button class="btn btn-w" style="padding:4px 12px;font-size:11px;margin-left:auto" onclick="openWizard()">Risolvi</button></div>`;}
 
 let eH="";if(eI===idx&&it.st==="done"){
 const gl=np>1?`<div style="margin-bottom:14px"><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:8px">Tutte le foto (${np})</label><div style="display:flex;gap:8px;flex-wrap:wrap">${it.ap.map((p,pi)=>`<img src="${p}" class="thumb thumb-zoom" style="width:64px;height:80px;border-radius:8px" onclick="openLB(${allP.replace(/&quot;/g,"'")},${pi})">`).join("")}</div></div>`:"";

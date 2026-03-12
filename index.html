@@ -421,7 +421,7 @@ function rKey(m,anim){m.innerHTML=`<div style="max-width:480px;margin:60px auto;
 <button class="btn btn-p" style="width:100%;padding:14px;font-size:15px" onclick="ak=document.getElementById('akI').value.trim();if(ak){localStorage.setItem('za',ak);step=0;render();}">Salva e Continua</button>
 <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:12px">Salvata solo nel tuo browser</p></div></div>`;}
 
-function toggleMod(nome){const i=cfg.selMods.indexOf(nome);if(i>=0)cfg.selMods.splice(i,1);else{cfg.selMods.push(nome);cfg.noModel=false;}render();}
+function toggleMod(nome){const i=cfg.selMods.indexOf(nome);if(i>=0)cfg.selMods.splice(i,1);else cfg.selMods.push(nome);render();}
 function rSet(m,anim){
 if(!mod.length&&!nM)nM=true;
 let newNm="",newAl="",newTs="",newTi="";
@@ -466,7 +466,7 @@ m.innerHTML=`<div style="${anim?"animation:fadeUp .5s ease forwards":""}">
 ${!nM&&mod.length?`<button class="btn btn-s" style="padding:5px 14px;font-size:11px" onclick="tmpFaces=[];tmpNm='';tmpAl='';tmpTs='';tmpTi='';nM=true;render()">+ Nuova modella</button>`:""}</div>
 ${mod.length&&!nM?'<p style="font-size:10px;color:var(--muted);margin-bottom:8px">Clicca per selezionare/deselezionare una o più modelle</p>':""}
 <div style="display:flex;flex-wrap:wrap">${modelleButtons}</div>
-${!nM?`<div style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)"><input type="checkbox" ${cfg.noModel?"checked":""} onchange="cfg.noModel=this.checked;if(this.checked)cfg.selMods=[];render()"> Senza modella (manichino / still life)</label></div>`:""}
+${!nM?`<div style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)"><input type="checkbox" ${cfg.noModel?"checked":""} onchange="cfg.noModel=this.checked;render()"> Includi anche capi senza modella (manichino / still life)</label></div>`:""}
 ${selModsInfo}${modForm}</div>
 <div style="display:flex;justify-content:flex-end;margin-top:28px;gap:10px">
 <button class="btn btn-s" onclick="step=-1;render()">⚙ API Key</button>
@@ -512,7 +512,7 @@ if(procPhase==="analyzing"){
 const wc=items.filter(i=>i.st==="wait").length;
 m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-<div><h2 style="font-size:24px;font-weight:700">Catalogo Prodotti</h2><p style="color:var(--muted);font-size:13px">${cfg.br==="zuiki"?"Zuiki":"Loveskin"} — ${cfg.st} ${cfg.an} — Donna — ${cfg.noModel?"Still life":cfg.selMods.join(", ")} — ${fD(cfg.ds)}</p></div>
+<div><h2 style="font-size:24px;font-weight:700">Catalogo Prodotti</h2><p style="color:var(--muted);font-size:13px">${cfg.br==="zuiki"?"Zuiki":"Loveskin"} — ${cfg.st} ${cfg.an} — Donna — ${[...cfg.selMods,cfg.noModel?"Still life":""].filter(Boolean).join(", ")||"—"} — ${fD(cfg.ds)}</p></div>
 <button class="btn btn-s" onclick="step=0;render()">← Setup</button></div>
 ${uH}
 <div style="max-width:500px;margin:60px auto;text-align:center">
@@ -580,7 +580,7 @@ return`<div class="card ${cardClass}" style="animation-delay:${idx*.03}s">
 
 m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-<div><h2 style="font-size:24px;font-weight:700">Catalogo Prodotti</h2><p style="color:var(--muted);font-size:13px">${cfg.br==="zuiki"?"Zuiki":"Loveskin"} — ${cfg.st} ${cfg.an} — Donna — ${cfg.noModel?"Still life":cfg.selMods.join(", ")} — ${fD(cfg.ds)}</p></div>
+<div><h2 style="font-size:24px;font-weight:700">Catalogo Prodotti</h2><p style="color:var(--muted);font-size:13px">${cfg.br==="zuiki"?"Zuiki":"Loveskin"} — ${cfg.st} ${cfg.an} — Donna — ${[...cfg.selMods,cfg.noModel?"Still life":""].filter(Boolean).join(", ")||"—"} — ${fD(cfg.ds)}</p></div>
 <div style="display:flex;gap:10px"><button class="btn btn-s" onclick="step=0;render()">← Setup</button>
 <button class="btn btn-g" ${dc?"":"disabled"} onclick="step=2;render()">Correlazioni & Export →</button></div></div>
 ${errBanner}${doubtBanner}${uH}

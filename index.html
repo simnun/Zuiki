@@ -211,7 +211,7 @@ REGOLE:
 
 let lastAICall=0;
 async function cAI(content,retries=0){
-const now=Date.now(),wait=Math.max(0,1200-(now-lastAICall));
+const now=Date.now(),wait=Math.max(0,300-(now-lastAICall));
 if(wait>0)await new Promise(r=>setTimeout(r,wait));
 lastAICall=Date.now();
 const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":ak,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content}]})});

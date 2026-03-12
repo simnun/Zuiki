@@ -135,7 +135,7 @@ for(const d of toRework){await reworkItem(d.idx);rwDone++;render();}
 procPhase="";render();}
 
 function closeWiz(){document.getElementById("wiz").style.display="none";}
-const SFX={GB:"Giubbino",GP:"Giubbino Di Pelle",PA:"Pantalone",PJ:"Pantalone Di Jeans",AB:"Abito",MA:"Maglia",FE:"Felpa",TO:"Top",TS:"T-shirt",BO:"Body",GO:"Gonna",GN:"Gonna",MC:"Maglia",SR:"Scarpe",CZ:"Calzini",FR:"Fermacapelli",SC:"Sciarpa",BR:"Borsa",PF:"Portafogli",CV:"Coprispalle",GI:"Giacca",CS:"Casacca",PI:"Piumino",SP:"Spolverino",PE:"Pelliccia",CD:"Cardigan",CA:"Camicia",CJ:"Camicia Di Jeans",SH:"Shorts",SJ:"Shorts Di Jeans",PG:"Pigiama",RG:"Reggiseno",SL:"Slip",LG:"Leggings"};
+const SFX={GB:"Giubbino",GP:"Giubbino Di Pelle",PA:"Pantalone",PJ:"Pantalone Di Jeans",AB:"Abito",MA:"Maglia",FE:"Felpa",TO:"Top",TS:"T-shirt",BO:"Body",GO:"Gonna",GN:"Gonna",MC:"Maglia",SR:"Scarpe",CZ:"Calzini",FR:"Fermacapelli",SC:"Sciarpa",BR:"Borsa",PF:"Portafogli",CV:"Coprispalle",GI:"Giacca",CS:"Casacca",PI:"Piumino",SP:"Spolverino",PE:"Pelliccia",CD:"Cardigan",CA:"Camicia",CJ:"Camicia Di Jeans",SH:"Shorts",SJ:"Shorts Di Jeans",PG:"Pigiama",RG:"Reggiseno",SL:"Slip",LG:"Leggings",CN:"Canotta"};
 const TS=["38","40","42","44","46","48","50","52"],TL=["XS","S","M","L","XL","XXL"];
 const STG=["Primavera/Estate","Autunno/Inverno"],SCMAP={"Primavera/Estate":"pe","Autunno/Inverno":"ai"};
 const COL=["Bianco","Nero","Grigio","Rosso","Blu","Verde","Giallo","Arancione","Rosa","Viola","Marrone","Beige","Azzurro","Bordeaux","Oro","Argento","Panna","Corallo","Turchese","Lilla"];
@@ -209,11 +209,7 @@ REGOLE:
 - NON usare markdown, elenchi puntati o formattazione speciale
 - Rispondi SOLO con il testo della descrizione, nient'altro`;}
 
-let lastAICall=0;
 async function cAI(content,retries=0){
-const now=Date.now(),wait=Math.max(0,300-(now-lastAICall));
-if(wait>0)await new Promise(r=>setTimeout(r,wait));
-lastAICall=Date.now();
 const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":ak,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content}]})});
 if(r.status===429&&retries<5){const delay=Math.pow(2,retries)*2000;await new Promise(r=>setTimeout(r,delay));return cAI(content,retries+1);}
 if(!r.ok){const t=await r.text();throw new Error(`HTTP ${r.status}: ${t.slice(0,200)}`);}
@@ -267,7 +263,8 @@ procPhase="analyzing";render();await runP();}
 async function runP(){
 const pending=items.filter(i=>i.st==="pend");
 if(pending.length){procPhase="analyzing";procStart=Date.now();}
-for(const it of pending){it.st="load";it.er=null;render();
+const CONC=2;
+async function procOne(it){it.st="load";it.er=null;render();
 const t0=Date.now();
 try{
 const ai=await aImgs(it.af,it.tp);it.ai=ai;it.nm=mNm(it.tp,ai);it.cl=ai.colore_madre||"";
@@ -287,6 +284,7 @@ else{it.doubt=false;it.doubtResolved=false;}
 try{it.dl=await genLong(it);}catch(e){it.dl="[Errore generazione descrizione lunga: "+e.message+"]";}
 it.st="done";procTimes.push(Date.now()-t0);
 }catch(e){it.st="err";it.er=e.message;procTimes.push(Date.now()-t0);}render();}
+for(let i=0;i<pending.length;i+=CONC){const batch=pending.slice(i,i+CONC);await Promise.all(batch.map(it=>procOne(it)));}
 procStart=0;
 // Auto-open wizard if doubts, otherwise show results
 const pendingDoubts=items.filter(i=>i.doubt&&!i.doubtResolved);

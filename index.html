@@ -126,12 +126,13 @@ wizSaveInput();
 const d=wizDoubts[wizIdx];const v=d.it.doubtInput?.trim();
 if(v){resolveDoubt(d.idx);}else{d.it.doubt=false;d.it.doubtResolved=true;}
 if(wizIdx<wizDoubts.length-1){wizIdx++;renderWiz();return;}
-// Last one - start auto rework
+// Last one - close wizard, rework with progress bar
 const toRework=wizDoubts.filter(d=>d.it.doubtUserInfo);
-if(!toRework.length){closeWiz();render();return;}
-wizReworking=true;renderWiz();
-for(const d of toRework){await reworkItem(d.idx);}
-wizReworking=false;closeWiz();render();}
+closeWiz();
+if(!toRework.length){procPhase="";render();return;}
+procPhase="reworking";rwTotal=toRework.length;rwDone=0;render();
+for(const d of toRework){await reworkItem(d.idx);rwDone++;render();}
+procPhase="";render();}
 
 function closeWiz(){document.getElementById("wiz").style.display="none";}
 const SFX={GB:"Giubbino",GP:"Giubbino Di Pelle",PA:"Pantalone",PJ:"Pantalone Di Jeans",AB:"Abito",MA:"Maglia",FE:"Felpa",TO:"Top",TS:"T-shirt",BO:"Body",GO:"Gonna",GN:"Gonna",MC:"Maglia",SR:"Scarpe",CZ:"Calzini",FR:"Fermacapelli",SC:"Sciarpa",BR:"Borsa",PF:"Portafogli",CV:"Coprispalle",GI:"Giacca",CS:"Casacca",PI:"Piumino",SP:"Spolverino",PE:"Pelliccia",CD:"Cardigan",CA:"Camicia",CJ:"Camicia Di Jeans",SH:"Shorts",SJ:"Shorts Di Jeans",PG:"Pigiama",RG:"Reggiseno",SL:"Slip",LG:"Leggings"};
@@ -145,7 +146,7 @@ let cS=JSON.parse(localStorage.getItem("zs")||"{}"),mod=JSON.parse(localStorage.
 const PWD="AldoSimone2026";
 function isAuth(){const d=localStorage.getItem("zauth");if(!d)return false;try{const o=JSON.parse(d);return Date.now()-o.ts<2*24*60*60*1000;}catch{return false;}}
 function doAuth(){localStorage.setItem("zauth",JSON.stringify({ts:Date.now()}));}
-let step=isAuth()?(ak?0:-1):-2,prevStep=-99,cfg={br:"",st:"",an:"",ds:"",selMods:[]},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false,tmpFaces=[],pwErr=false,tmpNm="",tmpAl="",tmpTs="",tmpTi="",procStart=0,procTimes=[];
+let step=isAuth()?(ak?0:-1):-2,prevStep=-99,cfg={br:"",st:"",an:"",ds:"",selMods:[]},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false,tmpFaces=[],pwErr=false,tmpNm="",tmpAl="",tmpTs="",tmpTi="",procStart=0,procTimes=[],procPhase="",rwTotal=0,rwDone=0;
 
 const pSKU=fn=>fn.replace(/\.[^.]+$/,"").split("__")[0].split("_")[0].toUpperCase();
 const gSuf=sku=>{const t=sku.slice(-2),a={...SFX,...cS};return a[t]?{s:t,tipo:a[t]}:{s:null,tipo:null,u:t};};
@@ -256,24 +257,21 @@ const{s,tipo,u}=gSuf(sku);
 if(!s&&u&&!unk.find(x=>x.sf===u))unk.push({sf:u,sku,dn:false,vl:""});
 items.push({id:Math.random(),sku,fl:sf[0],af:sf,pv:URL.createObjectURL(sf[0]),ap:sf.map(f=>URL.createObjectURL(f)),
 st:s?"pend":"wait",ai:null,cp:"",tg:"",nm:"",ds:"",dl:"",cl:"",tp:tipo||"",sf:s||u||"",er:null,doubt:false,doubtDesc:"",doubtInput:"",doubtResolved:false});}
-render();await runP();}
+procPhase="analyzing";render();await runP();}
 
 async function runP(){
 const pending=items.filter(i=>i.st==="pend");
-if(pending.length&&!procStart)procStart=Date.now();
+if(pending.length){procPhase="analyzing";procStart=Date.now();}
 for(const it of pending){it.st="load";it.er=null;render();
 const t0=Date.now();
 try{
 const ai=await aImgs(it.af,it.tp);it.ai=ai;it.nm=mNm(it.tp,ai);it.cl=ai.colore_madre||"";
-// Reorder: put frontal photo first
 const fIdx=parseInt(ai.foto_frontale_idx)||0;
 if(fIdx>0&&fIdx<it.af.length){const ff=it.af.splice(fIdx,1)[0];it.af.unshift(ff);const fp=it.ap.splice(fIdx,1)[0];it.ap.unshift(fp);it.fl=it.af[0];it.pv=it.ap[0];}
-// Use recognized model's measurements if available
 if(ai.modella_riconosciuta){const recMod=mod.find(ml=>ml.nome.toLowerCase()===ai.modella_riconosciuta.toLowerCase());if(recMod){it.recMod=recMod.nome;}}
 it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null}):"";
 it.ds=mDs(ai,"",it.tp,it.recMod);
 if(ai.dubbio_licenza){
-// Check local memory first before flagging doubt
 const dDesc=(ai.dubbio_descrizione||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim().slice(0,60);
 let memMatch=null;
 for(const[k,v]of Object.entries(licMem)){if(dDesc.includes(k)||k.includes(dDesc.slice(0,20))){memMatch=v;break;}}
@@ -281,14 +279,14 @@ if(memMatch){ai.licenza=memMatch;ai.dubbio_licenza=false;it.nm=mNm(it.tp,ai);it.
 if(it.tg){const licTag=memMatch.toLowerCase().replace(/[^a-z0-9]/g,"");if(!it.tg.includes(licTag))it.tg+="; "+licTag+"; licenza; licenza"+cfg.an;}}
 else{it.doubt=true;it.doubtDesc=ai.dubbio_descrizione||"Stampa/logo non identificato";it.doubtResolved=false;}}
 else{it.doubt=false;it.doubtResolved=false;}
-// Generate long description
 try{it.dl=await genLong(it);}catch(e){it.dl="[Errore generazione descrizione lunga: "+e.message+"]";}
 it.st="done";procTimes.push(Date.now()-t0);
 }catch(e){it.st="err";it.er=e.message;procTimes.push(Date.now()-t0);}render();}
 procStart=0;
-// Auto-open wizard if there are unresolved doubts
+// Auto-open wizard if doubts, otherwise show results
 const pendingDoubts=items.filter(i=>i.doubt&&!i.doubtResolved);
-if(pendingDoubts.length)setTimeout(()=>openWizard(),400);}
+if(pendingDoubts.length){procPhase="";render();setTimeout(()=>openWizard(),400);}
+else{procPhase="";render();}}
 
 async function resSuf(idx){const u=unk[idx];if(!u.vl.trim())return;cS[u.sf]=u.vl.trim();localStorage.setItem("zs",JSON.stringify(cS));u.dn=true;
 items.filter(i=>i.st==="wait"&&i.sf===u.sf).forEach(i=>{i.tp=u.vl.trim();i.st="pend";});render();await runP();}
@@ -494,6 +492,36 @@ if(doubts>0)doubtBanner=`<div class="alert" style="display:flex;justify-content:
 <span style="font-size:12px;color:var(--muted);margin-left:8px">${doubts} articol${doubts>1?"i":"o"} con stampe/loghi da identificare</span></div>
 <button class="btn btn-w" style="padding:8px 18px;font-size:12px" onclick="openWizard()">🔍 Risolvi Dubbi (${doubts})</button></div>`;
 
+// During analyzing/reworking, show only progress bar
+if(procPhase==="analyzing"){
+const wc=items.filter(i=>i.st==="wait").length;
+m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+<div><h2 style="font-size:24px;font-weight:700">Catalogo Prodotti</h2><p style="color:var(--muted);font-size:13px">${cfg.br==="zuiki"?"Zuiki":"Loveskin"} — ${cfg.st} ${cfg.an} — Donna — ${cfg.selMods.join(", ")} — ${fD(cfg.ds)}</p></div>
+<button class="btn btn-s" onclick="step=0;render()">← Setup</button></div>
+${uH}
+<div style="max-width:500px;margin:60px auto;text-align:center">
+<div class="spin" style="width:40px;height:40px;margin:0 auto 20px"></div>
+<h3 style="font-size:20px;font-weight:700;margin-bottom:8px">Analisi in corso...</h3>
+<p style="color:var(--muted);font-size:14px;margin-bottom:24px">${completed} di ${total} prodotti analizzati${etaStr?" — ~"+etaStr+" rimanenti":""}</p>
+<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:12px"><div style="height:100%;border-radius:4px;transition:width .3s;width:${total?(completed/total*100):0}%;background:var(--ok)"></div></div>
+<p style="font-size:11px;color:var(--muted)">${wc>0?wc+" in attesa · ":""}${lc>0?"1 in elaborazione · ":""}${dc} completat${dc!==1?"i":"o"}${ec>0?" · "+ec+" error"+( ec!==1?"i":"e"):""}</p>
+</div></div>`;
+const dz2=document.getElementById("dz");if(dz2){dz2.ondragover=e=>{e.preventDefault();dz2.classList.add("ov");};dz2.ondragleave=()=>dz2.classList.remove("ov");dz2.ondrop=e=>{e.preventDefault();dz2.classList.remove("ov");procF(e.dataTransfer.files);};}
+return;}
+
+if(procPhase==="reworking"){
+m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+<div><h2 style="font-size:24px;font-weight:700">Catalogo Prodotti</h2><p style="color:var(--muted);font-size:13px">${cfg.br==="zuiki"?"Zuiki":"Loveskin"} — ${cfg.st} ${cfg.an}</p></div></div>
+<div style="max-width:500px;margin:60px auto;text-align:center">
+<div class="spin" style="width:40px;height:40px;margin:0 auto 20px"></div>
+<h3 style="font-size:20px;font-weight:700;margin-bottom:8px">Rielaborazione dubbi...</h3>
+<p style="color:var(--muted);font-size:14px;margin-bottom:24px">${rwDone} di ${rwTotal} prodotti rielaborati</p>
+<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;border-radius:4px;transition:width .3s;width:${rwTotal?(rwDone/rwTotal*100):0}%;background:var(--accent2)"></div></div>
+</div></div>`;
+return;}
+
 let iH=items.map((it,idx)=>{
 const np=it.ap?.length||1;
 const allP=JSON.stringify(it.ap||[it.pv]).replace(/"/g,'&quot;');
@@ -533,7 +561,7 @@ return`<div class="card ${cardClass}" style="animation-delay:${idx*.03}s">
 <div style="display:flex;gap:16px;padding:16px;align-items:flex-start"><div style="display:flex;gap:4px;flex-shrink:0">${th}</div>
 <div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="sku" style="font-size:14px">${it.sku}</span>${it.tp?`<span class="tag-t">${it.tp}</span>`:""} ${np>1?`<span style="font-size:10px;color:var(--muted)">📷 ${np}</span>`:""} ${sH}${it.doubtResolved&&it.ai?.licenza?`<span class="mem-badge">🏷 ${it.ai.licenza}</span>`:""} ${it.reworking?'<span style="font-size:11px;color:var(--muted);animation:pulse 1s infinite">Rielaborazione...</span>':""}</div>
-<div style="display:flex;gap:6px">${it.st==="done"&&it.doubtResolved&&it.ai?.licenza&&!it.reworking?`<button class="btn btn-w" style="padding:5px 12px;font-size:11px" onclick="reworkItem(${idx})">🔄 Rielabora</button>`:""} ${it.st==="done"&&!it.reworking?`<button class="btn btn-s" style="padding:5px 12px;font-size:11px;background:#fff8ee;color:#8a5e00;border-color:#f0d8a8" onclick="items[${idx}].corrOpen=!items[${idx}].corrOpen;render()">💡 Suggerisci correzioni</button>`:""} ${it.st==="done"?`<button class="btn btn-s" style="padding:5px 12px;font-size:11px" onclick="eI=eI===${idx}?null:${idx};render()">${eI===idx?"Chiudi":"Mostra"}</button>`:""}<button class="btn btn-d" style="padding:5px 12px;font-size:11px" onclick="items.splice(${idx},1);eI=null;render()">✕</button></div></div>${mH}${errH}${dbtH}${it.corrOpen?`<div style="padding:8px 12px;background:#fff8ee;border:1px solid #f0d8a8;border-radius:8px;margin-top:6px;display:flex;gap:8px;align-items:center"><span style="font-size:14px">💡</span><input class="inp" style="flex:1;font-size:13px;border-color:#f0d8a8;padding:8px 12px" placeholder="Es: vede pois invece che applicazioni perle o strass" value="${it.corrHint||""}" oninput="items[${idx}].corrHint=this.value" onkeydown="if(event.key==='Enter')suggestCorr(${idx})"><button class="btn btn-p" style="padding:6px 14px;font-size:11px;white-space:nowrap" onclick="suggestCorr(${idx})">Rielabora</button></div>`:""}</div></div>${eH}</div>`;}).join("");
+<div style="display:flex;gap:6px">${it.st==="done"&&!it.reworking?`<button class="btn btn-s" style="padding:5px 12px;font-size:11px;background:#fff8ee;color:#8a5e00;border-color:#f0d8a8" onclick="items[${idx}].corrOpen=!items[${idx}].corrOpen;render()">💡 Suggerisci correzioni</button>`:""} ${it.st==="done"?`<button class="btn btn-s" style="padding:5px 12px;font-size:11px" onclick="eI=eI===${idx}?null:${idx};render()">${eI===idx?"Chiudi":"Mostra"}</button>`:""}<button class="btn btn-d" style="padding:5px 12px;font-size:11px" onclick="items.splice(${idx},1);eI=null;render()">✕</button></div></div>${mH}${errH}${dbtH}${it.corrOpen?`<div style="padding:8px 12px;background:#fff8ee;border:1px solid #f0d8a8;border-radius:8px;margin-top:6px;display:flex;gap:8px;align-items:center"><span style="font-size:14px">💡</span><input class="inp" style="flex:1;font-size:13px;border-color:#f0d8a8;padding:8px 12px" placeholder="Es: vede pois invece che applicazioni perle o strass" value="${it.corrHint||""}" oninput="items[${idx}].corrHint=this.value" onkeydown="if(event.key==='Enter')suggestCorr(${idx})"><button class="btn btn-p" style="padding:6px 14px;font-size:11px;white-space:nowrap" onclick="suggestCorr(${idx})">Rielabora</button></div>`:""}</div></div>${eH}</div>`;}).join("");
 
 m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">

@@ -145,7 +145,7 @@ let cS=JSON.parse(localStorage.getItem("zs")||"{}"),mod=JSON.parse(localStorage.
 const PWD="AldoSimone2026";
 function isAuth(){const d=localStorage.getItem("zauth");if(!d)return false;try{const o=JSON.parse(d);return Date.now()-o.ts<2*24*60*60*1000;}catch{return false;}}
 function doAuth(){localStorage.setItem("zauth",JSON.stringify({ts:Date.now()}));}
-let step=isAuth()?(ak?0:-1):-2,prevStep=-99,cfg={br:"",st:"",an:"",ds:"",selMods:[]},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false,tmpFaces=[],pwErr=false;
+let step=isAuth()?(ak?0:-1):-2,prevStep=-99,cfg={br:"",st:"",an:"",ds:"",selMods:[]},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false,tmpFaces=[],pwErr=false,tmpNm="",tmpAl="",tmpTs="",tmpTi="",procStart=0,procTimes=[];
 
 const pSKU=fn=>fn.replace(/\.[^.]+$/,"").split("__")[0].split("_")[0].toUpperCase();
 const gSuf=sku=>{const t=sku.slice(-2),a={...SFX,...cS};return a[t]?{s:t,tipo:a[t]}:{s:null,tipo:null,u:t};};
@@ -163,9 +163,10 @@ function addFacePhoto(modelName){const i=document.createElement("input");i.type=
 
 function removeFace(modelName,idx){if(facePh[modelName]){facePh[modelName].splice(idx,1);if(!facePh[modelName].length)delete facePh[modelName];localStorage.setItem("zfp",JSON.stringify(facePh));}render();}
 
-function addTmpFace(){const i=document.createElement("input");i.type="file";i.accept="image/*";i.multiple=true;i.onchange=async()=>{for(const f of Array.from(i.files)){const d=await resizeImg(f);tmpFaces.push(d);}render();};i.click();}
+function saveTmpForm(){const n=document.getElementById("fNome"),a=document.getElementById("fAlt"),s=document.getElementById("fTS"),t=document.getElementById("fTI");if(n)tmpNm=n.value;if(a)tmpAl=a.value;if(s)tmpTs=s.value;if(t)tmpTi=t.value;}
+function addTmpFace(){const i=document.createElement("input");i.type="file";i.accept="image/*";i.multiple=true;i.onchange=async()=>{saveTmpForm();for(const f of Array.from(i.files)){const d=await resizeImg(f);tmpFaces.push(d);}render();};i.click();}
 
-function removeTmpFace(idx){tmpFaces.splice(idx,1);render();}
+function removeTmpFace(idx){saveTmpForm();tmpFaces.splice(idx,1);render();}
 
 function mPr(br,tipo,n,modelNames){
 const m=n>1?`Ti vengono fornite ${n} foto dello STESSO articolo da angolazioni diverse. Usale TUTTE per descrivere meglio. Se una foto ha colore diverso ignorala.`:"Singola foto.";
@@ -258,7 +259,10 @@ st:s?"pend":"wait",ai:null,cp:"",tg:"",nm:"",ds:"",dl:"",cl:"",tp:tipo||"",sf:s|
 render();await runP();}
 
 async function runP(){
-for(const it of items.filter(i=>i.st==="pend")){it.st="load";it.er=null;render();
+const pending=items.filter(i=>i.st==="pend");
+if(pending.length&&!procStart)procStart=Date.now();
+for(const it of pending){it.st="load";it.er=null;render();
+const t0=Date.now();
 try{
 const ai=await aImgs(it.af,it.tp);it.ai=ai;it.nm=mNm(it.tp,ai);it.cl=ai.colore_madre||"";
 // Reorder: put frontal photo first
@@ -279,8 +283,12 @@ else{it.doubt=true;it.doubtDesc=ai.dubbio_descrizione||"Stampa/logo non identifi
 else{it.doubt=false;it.doubtResolved=false;}
 // Generate long description
 try{it.dl=await genLong(it);}catch(e){it.dl="[Errore generazione descrizione lunga: "+e.message+"]";}
-it.st="done";
-}catch(e){it.st="err";it.er=e.message;}render();}}
+it.st="done";procTimes.push(Date.now()-t0);
+}catch(e){it.st="err";it.er=e.message;procTimes.push(Date.now()-t0);}render();}
+procStart=0;
+// Auto-open wizard if there are unresolved doubts
+const pendingDoubts=items.filter(i=>i.doubt&&!i.doubtResolved);
+if(pendingDoubts.length)setTimeout(()=>openWizard(),400);}
 
 async function resSuf(idx){const u=unk[idx];if(!u.vl.trim())return;cS[u.sf]=u.vl.trim();localStorage.setItem("zs",JSON.stringify(cS));u.dn=true;
 items.filter(i=>i.st==="wait"&&i.sf===u.sf).forEach(i=>{i.tp=u.vl.trim();i.st="pend";});render();await runP();}
@@ -324,6 +332,31 @@ it.dl=await cAI([{type:"text",text:mPrLong(cfg.br,it.tp,it.nm,it.ds,it.cl,it.ai?
 }catch(e){console.error("Rework error:",e);}
 it.reworking=false;render();
 }
+
+async function suggestCorr(idx){
+const it=items[idx];if(!it||it.st!=="done")return;
+const hint=it.corrHint?.trim();if(!hint){alert("Scrivi prima cosa ha sbagliato l'AI");return;}
+it.reworking=true;it.corrOpen=false;render();
+try{
+const c=[];
+for(const f of it.af)c.push({type:"image",source:{type:"base64",media_type:mT(f),data:await toB(f)}});
+c.push({type:"text",text:`Sei un catalogatore moda per ${cfg.br==="zuiki"?"Zuiki":"Loveskin"}.
+Hai già analizzato questo "${it.tp}" ma hai commesso un errore.
+L'utente ti corregge: "${hint}"
+Analisi precedente: modello="${it.ai?.modello_dettaglio}", licenza="${it.ai?.licenza}", descrizione="${it.ai?.dettagli_descrizione}"
+
+Riesamina le foto tenendo conto della correzione dell'utente.
+REGOLA COLORE: NON menzionare MAI il colore.
+Rispondi SOLO JSON: {"modello_dettaglio":"2-3 parole","dettagli_descrizione":"max 3 frasi senza colore","licenza":"nome o null","colore_madre":"colore base","categoria_seo":"macro","sottocategoria_seo":"sotto"}`});
+const raw=await cAI(c);const ai=JSON.parse(raw.replace(/```json|```/g,"").trim());
+it.ai=Object.assign(it.ai||{},ai);
+it.nm=mNm(it.tp,it.ai);it.cl=ai.colore_madre||it.cl;
+it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null}):"";
+it.ds=mDs(it.ai,"",it.tp,it.recMod);
+try{it.dl=await genLong(it);}catch(e){it.dl="[Errore: "+e.message+"]";}
+it.corrHint="";
+}catch(e){console.error("Correction error:",e);}
+it.reworking=false;render();}
 
 async function retryErrors(){
 const errs=items.filter(i=>i.st==="err");
@@ -392,17 +425,17 @@ ${!fp.length?`<span style="font-size:10px;color:var(--warn)">⚠ Nessuna foto vo
 let modForm="";
 if(nM){
 modForm=`<div class="grid2" style="margin-top:10px">
-<div class="field" style="margin-bottom:0"><label>Nome Modella</label><input class="inp" id="fNome" placeholder="Es: Valentina" oninput="this.dataset.v=this.value"></div>
-<div class="field" style="margin-bottom:0"><label>Altezza (cm)</label><input class="inp" id="fAlt" placeholder="173" oninput="this.dataset.v=this.value.replace(/[^0-9]/g,'');this.value=this.dataset.v"></div>
-<div class="field" style="margin-bottom:0"><label>Taglia parte superiore</label><select class="inp" id="fTS"><option value="">Seleziona...</option>${TL.map(t=>`<option>${t}</option>`).join("")}</select></div>
-<div class="field" style="margin-bottom:0"><label>Taglia parte inferiore</label><select class="inp" id="fTI"><option value="">Seleziona...</option>${TS.map(t=>`<option>${t}</option>`).join("")}</select></div></div>
+<div class="field" style="margin-bottom:0"><label>Nome Modella</label><input class="inp" id="fNome" placeholder="Es: Valentina" value="${tmpNm}" oninput="tmpNm=this.value"></div>
+<div class="field" style="margin-bottom:0"><label>Altezza (cm)</label><input class="inp" id="fAlt" placeholder="173" value="${tmpAl}" oninput="this.value=this.value.replace(/[^0-9]/g,'');tmpAl=this.value"></div>
+<div class="field" style="margin-bottom:0"><label>Taglia parte superiore</label><select class="inp" id="fTS" onchange="tmpTs=this.value"><option value="">Seleziona...</option>${TL.map(t=>`<option ${tmpTs===t?"selected":""}>${t}</option>`).join("")}</select></div>
+<div class="field" style="margin-bottom:0"><label>Taglia parte inferiore</label><select class="inp" id="fTI" onchange="tmpTi=this.value"><option value="">Seleziona...</option>${TS.map(t=>`<option ${tmpTi===t?"selected":""}>${t}</option>`).join("")}</select></div></div>
 <div style="margin-top:14px"><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:8px">Foto Volto (per riconoscimento)</label>
 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${tmpFaces.map((f,fi)=>`<div style="position:relative"><img src="${f}" class="face-thumb"><button onclick="removeTmpFace(${fi})" style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:var(--err);color:#fff;border:none;font-size:10px;cursor:pointer;line-height:16px;padding:0">✕</button></div>`).join("")}
 <div class="face-add" onclick="addTmpFace()">+</div></div>
 <p style="font-size:10px;color:var(--muted);margin-top:4px">Carica 1+ foto del volto per identificare la modella nelle foto dei capi</p></div>
 <div style="margin-top:12px;display:flex;gap:8px">
 <button class="btn btn-p" style="padding:8px 18px;font-size:12px" onclick="saveNewModella()">💾 Salva modella</button>
-${mod.length?`<button class="btn btn-s" style="padding:8px 18px;font-size:12px" onclick="nM=false;tmpFaces=[];render()">Annulla</button>`:""}</div>`;}
+${mod.length?`<button class="btn btn-s" style="padding:8px 18px;font-size:12px" onclick="nM=false;tmpFaces=[];tmpNm='';tmpAl='';tmpTs='';tmpTi='';render()">Annulla</button>`:""}</div>`;}
 const rdy=cfg.br&&cfg.st&&cfg.an&&cfg.ds&&cfg.selMods.length>0;
 m.innerHTML=`<div style="${anim?"animation:fadeUp .5s ease forwards":""}">
 <h2 style="font-size:28px;font-weight:700;margin-bottom:4px">Configurazione Shooting</h2>
@@ -419,7 +452,7 @@ m.innerHTML=`<div style="${anim?"animation:fadeUp .5s ease forwards":""}">
 <div style="margin-top:16px;padding:20px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
 <h3 style="font-size:13px;font-weight:600">Modelle${cfg.selMods.length?` (${cfg.selMods.length} selezionat${cfg.selMods.length>1?"e":"a"})`:""}</h3>
-${!nM&&mod.length?`<button class="btn btn-s" style="padding:5px 14px;font-size:11px" onclick="tmpFaces=[];nM=true;render()">+ Nuova modella</button>`:""}</div>
+${!nM&&mod.length?`<button class="btn btn-s" style="padding:5px 14px;font-size:11px" onclick="tmpFaces=[];tmpNm='';tmpAl='';tmpTs='';tmpTi='';nM=true;render()">+ Nuova modella</button>`:""}</div>
 ${mod.length&&!nM?'<p style="font-size:10px;color:var(--muted);margin-bottom:8px">Clicca per selezionare/deselezionare una o più modelle</p>':""}
 <div style="display:flex;flex-wrap:wrap">${modelleButtons}</div>${selModsInfo}${modForm}</div>
 <div style="display:flex;justify-content:flex-end;margin-top:28px;gap:10px">
@@ -437,10 +470,14 @@ mod.push({nome:nm,altezza:al,tagliaSopra:ts,tagliaSotto:ti});
 localStorage.setItem("zm",JSON.stringify(mod));
 if(tmpFaces.length){facePh[nm]=tmpFaces.slice();localStorage.setItem("zfp",JSON.stringify(facePh));}
 if(!cfg.selMods.includes(nm))cfg.selMods.push(nm);
-tmpFaces=[];nM=false;render();}
+tmpFaces=[];tmpNm="";tmpAl="";tmpTs="";tmpTi="";nM=false;render();}
 
+function fmtTime(ms){const s=Math.ceil(ms/1000);if(s<60)return s+"s";const m=Math.floor(s/60),rs=s%60;return m+"m "+rs+"s";}
 function rCat(m,anim){
-const dc=items.filter(i=>i.st==="done").length,ec=items.filter(i=>i.st==="err").length,doubts=items.filter(i=>i.doubt&&!i.doubtResolved).length,ur=unk.filter(u=>!u.dn);
+const dc=items.filter(i=>i.st==="done").length,ec=items.filter(i=>i.st==="err").length,lc=items.filter(i=>i.st==="load").length,doubts=items.filter(i=>i.doubt&&!i.doubtResolved).length,ur=unk.filter(u=>!u.dn);
+const completed=dc+ec,total=items.length,remaining=total-completed;
+const avgTime=procTimes.length?procTimes.reduce((a,b)=>a+b,0)/procTimes.length:0;
+const etaStr=remaining>0&&avgTime>0?fmtTime(remaining*avgTime):"";
 let uH="";if(ur.length)uH=`<div class="alert"><p style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:12px">⚠ Suffissi non riconosciuti:</p>${ur.map((u,i)=>{const idx=unk.indexOf(u);return`<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><span class="sbdg">${u.sf}</span><span style="font-size:12px;color:var(--muted);min-width:80px">da ${u.sku}</span><input class="inp" placeholder="Es: Bermuda, Tuta..." style="flex:1;padding:8px 12px;font-size:13px" value="${u.vl}" onblur="unk[${idx}].vl=this.value"><button class="btn btn-p" style="padding:8px 16px;font-size:12px" onclick="resSuf(${idx})">Conferma</button></div>`;}).join("")}</div>`;
 
 // Error banner
@@ -496,7 +533,7 @@ return`<div class="card ${cardClass}" style="animation-delay:${idx*.03}s">
 <div style="display:flex;gap:16px;padding:16px;align-items:flex-start"><div style="display:flex;gap:4px;flex-shrink:0">${th}</div>
 <div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="sku" style="font-size:14px">${it.sku}</span>${it.tp?`<span class="tag-t">${it.tp}</span>`:""} ${np>1?`<span style="font-size:10px;color:var(--muted)">📷 ${np}</span>`:""} ${sH}${it.doubtResolved&&it.ai?.licenza?`<span class="mem-badge">🏷 ${it.ai.licenza}</span>`:""} ${it.reworking?'<span style="font-size:11px;color:var(--muted);animation:pulse 1s infinite">Rielaborazione...</span>':""}</div>
-<div style="display:flex;gap:6px">${it.st==="done"&&it.doubtResolved&&it.ai?.licenza&&!it.reworking?`<button class="btn btn-w" style="padding:5px 12px;font-size:11px" onclick="reworkItem(${idx})">🔄 Rielabora</button>`:""} ${it.st==="done"?`<button class="btn btn-s" style="padding:5px 12px;font-size:11px" onclick="eI=eI===${idx}?null:${idx};render()">${eI===idx?"Chiudi":"Modifica"}</button>`:""}<button class="btn btn-d" style="padding:5px 12px;font-size:11px" onclick="items.splice(${idx},1);eI=null;render()">✕</button></div></div>${mH}${errH}${dbtH}</div></div>${eH}</div>`;}).join("");
+<div style="display:flex;gap:6px">${it.st==="done"&&it.doubtResolved&&it.ai?.licenza&&!it.reworking?`<button class="btn btn-w" style="padding:5px 12px;font-size:11px" onclick="reworkItem(${idx})">🔄 Rielabora</button>`:""} ${it.st==="done"&&!it.reworking?`<button class="btn btn-s" style="padding:5px 12px;font-size:11px;background:#fff8ee;color:#8a5e00;border-color:#f0d8a8" onclick="items[${idx}].corrOpen=!items[${idx}].corrOpen;render()">💡 Suggerisci correzioni</button>`:""} ${it.st==="done"?`<button class="btn btn-s" style="padding:5px 12px;font-size:11px" onclick="eI=eI===${idx}?null:${idx};render()">${eI===idx?"Chiudi":"Mostra"}</button>`:""}<button class="btn btn-d" style="padding:5px 12px;font-size:11px" onclick="items.splice(${idx},1);eI=null;render()">✕</button></div></div>${mH}${errH}${dbtH}${it.corrOpen?`<div style="padding:8px 12px;background:#fff8ee;border:1px solid #f0d8a8;border-radius:8px;margin-top:6px;display:flex;gap:8px;align-items:center"><span style="font-size:14px">💡</span><input class="inp" style="flex:1;font-size:13px;border-color:#f0d8a8;padding:8px 12px" placeholder="Es: vede pois invece che applicazioni perle o strass" value="${it.corrHint||""}" oninput="items[${idx}].corrHint=this.value" onkeydown="if(event.key==='Enter')suggestCorr(${idx})"><button class="btn btn-p" style="padding:6px 14px;font-size:11px;white-space:nowrap" onclick="suggestCorr(${idx})">Rielabora</button></div>`:""}</div></div>${eH}</div>`;}).join("");
 
 m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
@@ -504,6 +541,10 @@ m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <div style="display:flex;gap:10px"><button class="btn btn-s" onclick="step=0;render()">← Setup</button>
 <button class="btn btn-g" ${dc?"":"disabled"} onclick="step=2;render()">Correlazioni & Export →</button></div></div>
 ${errBanner}${doubtBanner}${uH}
+${total>0?`<div style="margin-bottom:16px;padding:14px 18px;background:var(--card);border-radius:12px;border:1px solid var(--border);display:flex;align-items:center;gap:14px">
+<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">${lc>0?"Analisi in corso...":"Analisi completata"}</span><span style="font-size:12px;color:var(--muted)">${completed}/${total}${etaStr?" — ~"+etaStr+" rimanenti":""}</span></div>
+<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;border-radius:3px;transition:width .3s;width:${total?(completed/total*100):0}%;background:${ec>0&&dc>0?"linear-gradient(90deg,var(--ok) "+Math.round(dc/completed*100)+"%,var(--err) 100%)":"var(--ok)"}"></div></div></div>
+${lc>0?'<div class="spin" style="width:18px;height:18px;margin:0;flex-shrink:0"></div>':""}</div>`:""}
 <div class="drop" id="dz" style="padding:${items.length?"18px":"48px"}" onclick="const i=document.createElement('input');i.type='file';i.accept='image/*';i.multiple=true;i.onchange=()=>procF(i.files);i.click()">
 ${!items.length?'<div style="font-size:36px;margin-bottom:8px">📸</div>':""}
 <p style="font-size:${items.length?"13px":"15px"};font-weight:${items.length?"400":"600"};color:${items.length?"var(--muted)":"var(--text)"}">Trascina le foto dei prodotti</p></div>${iH}</div>`;

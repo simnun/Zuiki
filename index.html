@@ -263,7 +263,7 @@ procPhase="analyzing";render();await runP();}
 async function runP(){
 const pending=items.filter(i=>i.st==="pend");
 if(pending.length){procPhase="analyzing";procStart=Date.now();}
-const CONC=2;
+const CONC=3;
 async function procOne(it){it.st="load";it.er=null;render();
 const t0=Date.now();
 try{

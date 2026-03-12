@@ -143,7 +143,7 @@ const SUP=["t-shirt","top","maglia","felpa","camicia","camicia di jeans","giacca
 const LSC={Intimo:["loveskin","intimoreggiseni26","intimoslip26","slipbrasiliana26","slipperizoma26","slipvitaalta26","reggisenipushup26","reggisenibralette26","reggisenibalconcino26","intimobody26","intimopigiami26","intimotopecanotte26"],Sporty:["loveskinleggings","loveskinsporty","loveskintop","loveskin"],"Abbigliamento Daily":["loveskin","loveskinbody","loveskintopecanotte","loveskinpantaloni","loveskincompleto","loveskindaily","loveskinmaglietteet-shirt","loveskinfelpe"]};
 
 let cS=JSON.parse(localStorage.getItem("zs")||"{}"),mod=JSON.parse(localStorage.getItem("zm")||"[]"),ak=localStorage.getItem("za")||"",licMem=JSON.parse(localStorage.getItem("zlm")||"{}"),facePh=JSON.parse(localStorage.getItem("zfp")||"{}");
-const PWD="AldoSimone2026";
+const PWD="S99";
 function isAuth(){const d=localStorage.getItem("zauth");if(!d)return false;try{const o=JSON.parse(d);return Date.now()-o.ts<2*24*60*60*1000;}catch{return false;}}
 function doAuth(){localStorage.setItem("zauth",JSON.stringify({ts:Date.now()}));}
 let step=isAuth()?(ak?0:-1):-2,prevStep=-99,cfg={br:"",st:"",an:"",ds:"",selMods:[]},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false,tmpFaces=[],pwErr=false,tmpNm="",tmpAl="",tmpTs="",tmpTi="",procStart=0,procTimes=[],procPhase="",rwTotal=0,rwDone=0;

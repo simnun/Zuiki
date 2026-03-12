@@ -146,7 +146,7 @@ let cS=JSON.parse(localStorage.getItem("zs")||"{}"),mod=JSON.parse(localStorage.
 const PWD="S99";
 function isAuth(){const d=localStorage.getItem("zauth");if(!d)return false;try{const o=JSON.parse(d);return Date.now()-o.ts<2*24*60*60*1000;}catch{return false;}}
 function doAuth(){localStorage.setItem("zauth",JSON.stringify({ts:Date.now()}));}
-let step=isAuth()?(ak?0:-1):-2,prevStep=-99,cfg={br:"",st:"",an:"",ds:"",selMods:[],noModel:false},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false,tmpFaces=[],pwErr=false,tmpNm="",tmpAl="",tmpTs="",tmpTi="",procStart=0,procTimes=[],procPhase="",rwTotal=0,rwDone=0;
+let step=isAuth()?(ak?0:-1):-2,prevStep=-99,cfg={br:"",st:"",an:"",ds:"",selMods:[],noModel:false,shootType:""},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false,tmpFaces=[],pwErr=false,tmpNm="",tmpAl="",tmpTs="",tmpTi="",procStart=0,procTimes=[],procPhase="",rwTotal=0,rwDone=0;
 
 const pSKU=fn=>fn.replace(/\.[^.]+$/,"").split("__")[0].split("_")[0].toUpperCase();
 const gSuf=sku=>{const t=sku.slice(-2),a={...SFX,...cS};return a[t]?{s:t,tipo:a[t]}:{s:null,tipo:null,u:t};};
@@ -423,11 +423,8 @@ function rKey(m,anim){m.innerHTML=`<div style="max-width:480px;margin:60px auto;
 
 function toggleMod(nome){const i=cfg.selMods.indexOf(nome);if(i>=0)cfg.selMods.splice(i,1);else cfg.selMods.push(nome);render();}
 function rSet(m,anim){
-if(!mod.length&&!nM)nM=true;
-let newNm="",newAl="",newTs="",newTi="";
 let modelleButtons="";
 if(mod.length){modelleButtons=mod.map(ml=>{const fp=facePh[ml.nome]||[];const faceThumb=fp.length?`<img src="${fp[0]}" class="face-thumb-sm" style="margin-right:6px">`:"";const isSel=cfg.selMods.includes(ml.nome);return`<div style="display:flex;align-items:center;margin:0 8px 8px 0"><button class="mb ${isSel&&!nM?"act":""}" onclick="toggleMod('${ml.nome}')">${faceThumb}${ml.nome} <span style="font-size:10px;opacity:.7;margin-left:6px">${ml.altezza}cm · ${ml.tagliaSopra}/${ml.tagliaSotto}</span></button><button class="md" onclick="mod=mod.filter(x=>x.nome!=='${ml.nome}');delete facePh['${ml.nome}'];localStorage.setItem('zm',JSON.stringify(mod));localStorage.setItem('zfp',JSON.stringify(facePh));cfg.selMods=cfg.selMods.filter(n=>n!=='${ml.nome}');render()">✕</button></div>`;}).join("");}
-// Show selected models details
 let selModsInfo="";
 if(!nM&&cfg.selMods.length){selModsInfo=cfg.selMods.map(nm=>{const ml=mod.find(x=>x.nome===nm);if(!ml)return"";const fp=facePh[nm]||[];return`<div style="margin-top:10px;padding:12px;background:var(--card);border-radius:8px;border:1px solid var(--border)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong style="font-size:13px">${ml.nome}</strong><span style="font-size:11px;color:var(--muted)">${ml.altezza}cm · ${ml.tagliaSopra}/${ml.tagliaSotto}</span></div>
 <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${fp.map((f,fi)=>`<div style="position:relative"><img src="${f}" class="face-thumb" style="width:36px;height:36px"><button onclick="removeFace('${nm}',${fi})" style="position:absolute;top:-3px;right:-3px;width:14px;height:14px;border-radius:50%;background:var(--err);color:#fff;border:none;font-size:8px;cursor:pointer;line-height:14px;padding:0">✕</button></div>`).join("")}
@@ -446,8 +443,19 @@ modForm=`<div class="grid2" style="margin-top:10px">
 <p style="font-size:10px;color:var(--muted);margin-top:4px">Carica 1+ foto del volto per identificare la modella nelle foto dei capi</p></div>
 <div style="margin-top:12px;display:flex;gap:8px">
 <button class="btn btn-p" style="padding:8px 18px;font-size:12px" onclick="saveNewModella()">💾 Salva modella</button>
-${mod.length?`<button class="btn btn-s" style="padding:8px 18px;font-size:12px" onclick="nM=false;tmpFaces=[];tmpNm='';tmpAl='';tmpTs='';tmpTi='';render()">Annulla</button>`:""}</div>`;}
-const rdy=cfg.br&&cfg.st&&cfg.an&&cfg.ds&&(cfg.selMods.length>0||cfg.noModel);
+<button class="btn btn-s" style="padding:8px 18px;font-size:12px" onclick="nM=false;tmpFaces=[];tmpNm='';tmpAl='';tmpTs='';tmpTi='';render()">Annulla</button></div>`;}
+const needsModel=cfg.shootType==="model"||cfg.shootType==="mixed";
+const rdy=cfg.br&&cfg.st&&cfg.an&&cfg.ds&&cfg.shootType&&(cfg.shootType==="still"||(cfg.selMods.length>0));
+// Modelle section (only if shootType requires models)
+let modSection="";
+if(needsModel){modSection=`<div style="margin-top:16px;padding:20px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+<h3 style="font-size:13px;font-weight:600">Modelle${cfg.selMods.length?` (${cfg.selMods.length} selezionat${cfg.selMods.length>1?"e":"a"})`:""}</h3>
+${!nM&&mod.length?`<button class="btn btn-s" style="padding:5px 14px;font-size:11px" onclick="tmpFaces=[];tmpNm='';tmpAl='';tmpTs='';tmpTi='';nM=true;render()">+ Nuova modella</button>`:""}</div>
+${mod.length&&!nM?'<p style="font-size:10px;color:var(--muted);margin-bottom:8px">Clicca per selezionare/deselezionare le modelle di questo shooting</p>':""}
+${!mod.length&&!nM?'<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Nessuna modella salvata. Aggiungine una per iniziare.</p>':""}
+<div style="display:flex;flex-wrap:wrap">${modelleButtons}</div>
+${selModsInfo}${modForm}</div>`;}
 m.innerHTML=`<div style="${anim?"animation:fadeUp .5s ease forwards":""}">
 <h2 style="font-size:28px;font-weight:700;margin-bottom:4px">Configurazione Shooting</h2>
 <p style="color:var(--muted);font-size:14px;margin-bottom:32px">Imposta i parametri prima di caricare le foto</p>
@@ -460,17 +468,15 @@ m.innerHTML=`<div style="${anim?"animation:fadeUp .5s ease forwards":""}">
 <button class="brand-btn ${cfg.st==="Primavera/Estate"?"active":""}" onclick="cfg.st='Primavera/Estate';render()">Primavera/Estate</button>
 <button class="brand-btn ${cfg.st==="Autunno/Inverno"?"active":""}" onclick="cfg.st='Autunno/Inverno';render()">Autunno/Inverno</button></div></div>
 <div class="field"><label>Anno (es: 26)</label><input class="inp" placeholder="26" maxlength="2" value="${cfg.an}" oninput="cfg.an=this.value.replace(/[^0-9]/g,'').slice(0,2)"></div></div>
-<div style="margin-top:16px;padding:20px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-<h3 style="font-size:13px;font-weight:600">Modelle${cfg.selMods.length?` (${cfg.selMods.length} selezionat${cfg.selMods.length>1?"e":"a"})`:""}</h3>
-${!nM&&mod.length?`<button class="btn btn-s" style="padding:5px 14px;font-size:11px" onclick="tmpFaces=[];tmpNm='';tmpAl='';tmpTs='';tmpTi='';nM=true;render()">+ Nuova modella</button>`:""}</div>
-${mod.length&&!nM?'<p style="font-size:10px;color:var(--muted);margin-bottom:8px">Clicca per selezionare/deselezionare una o più modelle</p>':""}
-<div style="display:flex;flex-wrap:wrap">${modelleButtons}</div>
-${!nM?`<div style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)"><input type="checkbox" ${cfg.noModel?"checked":""} onchange="cfg.noModel=this.checked;render()"> Includi anche capi senza modella (manichino / still life)</label></div>`:""}
-${selModsInfo}${modForm}</div>
+<div style="margin-top:16px"><div class="field"><label>Tipo Shooting</label><div style="display:flex;gap:10px">
+<button class="brand-btn ${cfg.shootType==="model"?"active":""}" onclick="cfg.shootType='model';if(!mod.length)nM=true;render()">Con Modella</button>
+<button class="brand-btn ${cfg.shootType==="still"?"active":""}" onclick="cfg.shootType='still';cfg.noModel=true;cfg.selMods=[];nM=false;render()">Still Life</button>
+<button class="brand-btn ${cfg.shootType==="mixed"?"active":""}" onclick="cfg.shootType='mixed';cfg.noModel=true;if(!mod.length)nM=true;render()">Misto</button>
+</div></div></div>
+${modSection}
 <div style="display:flex;justify-content:flex-end;margin-top:28px;gap:10px">
 <button class="btn btn-s" onclick="step=-1;render()">⚙ API Key</button>
-<button class="btn btn-p" ${rdy?"":"disabled"} onclick="step=1;render()">Inizia Catalogazione →</button></div></div>`;}
+<button class="btn btn-p" ${rdy?"":"disabled"} onclick="cfg.noModel=cfg.shootType==='still'||cfg.shootType==='mixed';step=1;render()">Inizia Catalogazione →</button></div></div>`;}
 
 function saveNewModella(){
 const nm=document.getElementById("fNome")?.value?.trim();

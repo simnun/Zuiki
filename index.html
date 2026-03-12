@@ -58,8 +58,8 @@ textarea.inp{resize:vertical;line-height:1.7;white-space:pre-wrap}select.inp{app
 .lightbox-close{position:absolute;top:20px;right:20px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .thumb-zoom{cursor:zoom-in;transition:transform .15s}.thumb-zoom:hover{transform:scale(1.05)}
 .wizard-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:9998;display:flex;align-items:center;justify-content:center}
-.wizard-card{background:var(--card);border-radius:20px;max-width:520px;width:90%;max-height:90vh;overflow-y:auto;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
-.wizard-img{width:100%;max-height:50vh;object-fit:contain;border-radius:14px;border:1px solid var(--border);margin-bottom:18px}
+.wizard-card{background:var(--card);border-radius:20px;max-width:480px;width:90%;max-height:85vh;overflow:hidden;padding:20px 24px;box-shadow:0 20px 60px rgba(0,0,0,.4);display:flex;flex-direction:column}
+.wizard-img{width:100%;max-height:35vh;object-fit:contain;border-radius:14px;border:1px solid var(--border);margin-bottom:12px;flex-shrink:1;min-height:0}
 .wizard-progress{height:4px;background:var(--border);border-radius:2px;margin-bottom:20px;overflow:hidden}.wizard-progress-bar{height:100%;background:var(--accent2);border-radius:2px;transition:width .3s}
 .wizard-reworking{text-align:center;padding:40px 20px}
 </style>
@@ -96,20 +96,20 @@ if(wizReworking){wiz.innerHTML=`<div class="wizard-card wizard-reworking"><div c
 const d=wizDoubts[wizIdx];const it=d.it;const np=wizDoubts.length;
 const imgSrc=it.ap?it.ap[0]:it.pv;
 wiz.innerHTML=`<div class="wizard-card">
-<div class="wizard-progress"><div class="wizard-progress-bar" style="width:${((wizIdx+1)/np)*100}%"></div></div>
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+<div class="wizard-progress" style="flex-shrink:0"><div class="wizard-progress-bar" style="width:${((wizIdx+1)/np)*100}%"></div></div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-shrink:0">
 <span style="font-size:12px;color:var(--muted);font-weight:600">${wizIdx+1} di ${np}</span>
 <span class="sku" style="font-size:14px">${it.sku}</span>
 <span class="tag-t">${it.tp}</span></div>
 <img src="${imgSrc}" class="wizard-img">
-<div class="doubt-box" style="margin-top:0;margin-bottom:16px">
-<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px">
-<span style="font-size:18px">🔍</span>
-<div><p style="font-size:13px;font-weight:600;color:#8a5e00;margin-bottom:4px">Stampa/Logo da identificare</p>
-<p style="font-size:12px;color:var(--muted)">L'AI ha visto: <em>"${it.doubtDesc}"</em></p></div></div>
-<input class="inp" id="wizInput" placeholder="Scrivi le info per chiarire il dubbio..." style="font-size:14px;border-color:#f0d8a8;padding:12px 14px" value="${it.doubtInput||""}" onkeydown="if(event.key==='Enter')wizNext()">
+<div class="doubt-box" style="margin-top:0;margin-bottom:12px;flex-shrink:0">
+<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px">
+<span style="font-size:16px">🔍</span>
+<div><p style="font-size:13px;font-weight:600;color:#8a5e00;margin-bottom:2px">Stampa/Logo da identificare</p>
+<p style="font-size:11px;color:var(--muted);line-height:1.3">L'AI ha visto: <em>"${it.doubtDesc}"</em></p></div></div>
+<input class="inp" id="wizInput" placeholder="Scrivi le info per chiarire il dubbio..." style="font-size:14px;border-color:#f0d8a8;padding:10px 14px" value="${it.doubtInput||""}" onkeydown="if(event.key==='Enter')wizNext()">
 </div>
-<div style="display:flex;justify-content:space-between;gap:10px">
+<div style="display:flex;justify-content:space-between;gap:10px;flex-shrink:0">
 ${wizIdx>0?`<button class="btn btn-s" onclick="wizPrev()">← Indietro</button>`:'<div></div>'}
 <div style="display:flex;gap:8px">
 <button class="btn btn-s" onclick="wizSkip()">Ignora</button>
@@ -131,7 +131,7 @@ const toRework=wizDoubts.filter(d=>d.it.doubtUserInfo);
 closeWiz();
 if(!toRework.length){procPhase="";render();return;}
 procPhase="reworking";rwTotal=toRework.length;rwDone=0;render();
-for(const d of toRework){await reworkItem(d.idx);rwDone++;render();}
+await runPool(toRework,5,async(d)=>{await reworkItem(d.idx);rwDone++;render();});
 procPhase="";render();}
 
 function closeWiz(){document.getElementById("wiz").style.display="none";}
@@ -260,10 +260,10 @@ items.push({id:Math.random(),sku,fl:sf[0],af:sf,pv:URL.createObjectURL(sf[0]),ap
 st:s?"pend":"wait",ai:null,cp:"",tg:"",nm:"",ds:"",dl:"",cl:"",tp:tipo||"",sf:s||u||"",er:null,doubt:false,doubtDesc:"",doubtInput:"",doubtResolved:false});}
 procPhase="analyzing";render();await runP();}
 
+async function runPool(tasks,conc,fn){let i=0;async function worker(){while(i<tasks.length){const t=tasks[i++];await fn(t);}}await Promise.all(Array.from({length:Math.min(conc,tasks.length)},()=>worker()));}
 async function runP(){
 const pending=items.filter(i=>i.st==="pend");
 if(pending.length){procPhase="analyzing";procStart=Date.now();}
-const CONC=3;
 async function procOne(it){it.st="load";it.er=null;render();
 const t0=Date.now();
 try{
@@ -284,7 +284,7 @@ else{it.doubt=false;it.doubtResolved=false;}
 try{it.dl=await genLong(it);}catch(e){it.dl="[Errore generazione descrizione lunga: "+e.message+"]";}
 it.st="done";procTimes.push(Date.now()-t0);
 }catch(e){it.st="err";it.er=e.message;procTimes.push(Date.now()-t0);}render();}
-for(let i=0;i<pending.length;i+=CONC){const batch=pending.slice(i,i+CONC);await Promise.all(batch.map(it=>procOne(it)));}
+await runPool(pending,5,procOne);
 procStart=0;
 // Auto-open wizard if doubts, otherwise show results
 const pendingDoubts=items.filter(i=>i.doubt&&!i.doubtResolved);

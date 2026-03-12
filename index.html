@@ -239,7 +239,7 @@ if(o.lic){const licTag=o.lic.toLowerCase().replace(/[^a-z0-9]/g,"");if(licTag&&!
 return t.join("; ");}
 function mNm(tipo,ai){const l=ai?.licenza&&ai.licenza!=="null"&&ai.licenza!=null?ai.licenza:"",m=ai?.modello_dettaglio?cap(ai.modello_dettaglio):"";return[tipo,m,l].filter(Boolean).join(" ");}
 function mDs(ai,comp,tipo,recModName){
-if(cfg.noModel)return`${ai?.dettagli_descrizione||""}\n\n${comp?`Composizione: ${comp}`:"Composizione:"}`;
+if(cfg.shootType==="still")return`${ai?.dettagli_descrizione||""}\n\n${comp?`Composizione: ${comp}`:"Composizione:"}`;
 const ml=recModName?mod.find(x=>x.nome===recModName):null;
 if(!ml&&cfg.selMods.length===1){const singleMl=mod.find(x=>x.nome===cfg.selMods[0]);if(singleMl){return mDs(ai,comp,tipo,singleMl.nome);}}
 const alt=ml?ml.altezza:"";

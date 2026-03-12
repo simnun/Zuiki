@@ -209,7 +209,9 @@ REGOLE:
 - NON usare markdown, elenchi puntati o formattazione speciale
 - Rispondi SOLO con il testo della descrizione, nient'altro`;}
 
-async function cAI(content,retries=0){
+const rlQueue=[];let rlTokens=40;const RL_MAX=40;setInterval(()=>{rlTokens=Math.min(RL_MAX,rlTokens+RL_MAX);while(rlTokens>0&&rlQueue.length){rlTokens--;rlQueue.shift()();}},60000);
+function rlWait(){if(rlTokens>0){rlTokens--;return Promise.resolve();}return new Promise(r=>rlQueue.push(r));}
+async function cAI(content,retries=0){await rlWait();
 const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":ak,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content}]})});
 if(r.status===429&&retries<5){const delay=Math.pow(2,retries)*2000;await new Promise(r=>setTimeout(r,delay));return cAI(content,retries+1);}
 if(!r.ok){const t=await r.text();throw new Error(`HTTP ${r.status}: ${t.slice(0,200)}`);}

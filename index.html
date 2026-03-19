@@ -135,7 +135,7 @@ await runPool(toRework,5,async(d)=>{await reworkItem(d.idx);rwDone++;render();})
 procPhase="";render();}
 
 function closeWiz(){document.getElementById("wiz").style.display="none";}
-const SFX={GB:"Giubbino",GP:"Giubbino Di Pelle",PA:"Pantalone",PJ:"Pantalone Di Jeans",AB:"Abito",MA:"Maglia",FE:"Felpa",TO:"Top",TS:"T-shirt",BO:"Body",GO:"Gonna",GN:"Gonna",MC:"Maglia",SR:"Scarpe",CZ:"Calzini",FR:"Fermacapelli",SC:"Sciarpa",BR:"Borsa",PF:"Portafogli",CV:"Coprispalle",GI:"Giacca",CS:"Casacca",PI:"Piumino",SP:"Spolverino",PE:"Pelliccia",CD:"Cardigan",CA:"Camicia",CJ:"Camicia Di Jeans",SH:"Shorts",SJ:"Shorts Di Jeans",PG:"Pigiama",RG:"Reggiseno",SL:"Slip",LG:"Leggings",CN:"Canotta"};
+const SFX={GB:"Giubbino",GP:"Giubbino Di Pelle",PA:"Pantaloni",PJ:"Jeans",AB:"Abito",MA:"Maglia",FE:"Felpa",TO:"Top",TS:"T-shirt",BO:"Body",GO:"Gonna",GN:"Gonna",MC:"Maglia",SR:"Scarpe",CZ:"Calzini",FR:"Fermacapelli",SC:"Sciarpa",BR:"Borsa",PF:"Portafogli",CV:"Coprispalle",GI:"Giacca",CS:"Casacca",PI:"Piumino",SP:"Spolverino",PE:"Pelliccia",CD:"Cardigan",CA:"Camicia",CJ:"Camicia Di Jeans",SH:"Shorts",SJ:"Shorts Di Jeans",PG:"Pigiama",RG:"Reggiseno",SL:"Slip",LG:"Leggings",CN:"Canotta"};
 const TS=["38","40","42","44","46","48","50","52"],TL=["XS","S","M","L","XL","XXL"];
 const STG=["Primavera/Estate","Autunno/Inverno"],SCMAP={"Primavera/Estate":"pe","Autunno/Inverno":"ai"};
 const COL=["Bianco","Nero","Grigio","Rosso","Blu","Verde","Giallo","Arancione","Rosa","Viola","Marrone","Beige","Azzurro","Bordeaux","Oro","Argento","Panna","Corallo","Turchese","Lilla"];
@@ -181,10 +181,16 @@ ATTENZIONE STAMPE/LOGHI/PERSONAGGI: Se vedi QUALSIASI stampa, logo, immagine, di
 
 REGOLA COLORE: NON menzionare MAI il colore del prodotto in "dettagli_descrizione". La descrizione va sull'articolo genitore e i figli possono avere colori diversi.
 
+REGOLA TIPO ARTICOLO IN DESCRIZIONE: La "dettagli_descrizione" DEVE iniziare nominando il tipo articolo (es: "T-shirt con...", "Canotta a...", "Jeans a..."). Prima nomina il tipo, poi descrivi i dettagli.
+
+REGOLA JEANS E PANTALONI:
+- Se il tipo articolo contiene "Jeans" o il codice SKU finisce con "PJ" o "SJ", chiama il capo SEMPRE "Jeans", MAI "pantaloni" o "pantaloni di jeans".
+- Se il tipo articolo è un pantalone (NON jeans), usa SEMPRE il plurale "Pantaloni", MAI il singolare "Pantalone".
+
 FOTO FRONTALE: Se ci sono più foto, indica l'indice (0-based) della foto che mostra il capo da DAVANTI (vista frontale). Se c'è una sola foto, usa 0.
 
 Rispondi SOLO JSON valido (no markdown, no backtick, no testo extra):
-{"modello_dettaglio":"2-3 parole MODELLO/VESTIBILITÀ senza tipo articolo e senza colore","dettagli_descrizione":"Dettagli visibili: cuciture, tasche, chiusure, stampe, scollo, maniche, vestibilità. Italiano corretto con punteggiatura. Max 3 frasi. NON iniziare ripetendo il tipo articolo. NON menzionare il colore.","licenza":"Personaggio/brand SICURO AL 100% (Disney, Mickey Mouse, Snoopy, Hello Kitty, Marvel ecc.) oppure null se non sei sicuro","dubbio_licenza":true/false,"dubbio_descrizione":"Descrizione dettagliata di cosa vedi: forma, colore, posizione, testo. Solo se dubbio_licenza=true, altrimenti null","colore_madre":"SOLO colore base tra: ${COL.join(", ")}","categoria_seo":"macro minuscolo attaccato","sottocategoria_seo":"sotto minuscolo attaccato","foto_frontale_idx":0${modelNames&&modelNames.length?',"modella_riconosciuta":"nome modella o null"':""}}`;}
+{"modello_dettaglio":"2-3 parole MODELLO/VESTIBILITÀ senza tipo articolo e senza colore","dettagli_descrizione":"INIZIA con il tipo articolo, poi descrivi dettagli visibili: cuciture, tasche, chiusure, stampe, scollo, maniche, vestibilità. Italiano corretto con punteggiatura. Max 3 frasi. NON menzionare il colore.","licenza":"Personaggio/brand SICURO AL 100% (Disney, Mickey Mouse, Snoopy, Hello Kitty, Marvel ecc.) oppure null se non sei sicuro","dubbio_licenza":true/false,"dubbio_descrizione":"Descrizione dettagliata di cosa vedi: forma, colore, posizione, testo. Solo se dubbio_licenza=true, altrimenti null","colore_madre":"SOLO colore base tra: ${COL.join(", ")}","categoria_seo":"macro minuscolo attaccato","sottocategoria_seo":"sotto minuscolo attaccato","foto_frontale_idx":0${modelNames&&modelNames.length?',"modella_riconosciuta":"nome modella o null"':""}${cfg.br==="loveskin"?',"vestibilita":"per reggiseni: pushup/bralette/balconcino/triangolo o null. Per slip: brasiliana/perizoma/vitaalta/classico o null. Altrimenti null","is_sporty":"true se capo sportivo/athleisure, false altrimenti"':""}}`;}}
 
 
 function mPrLong(br,tipo,nome,descBreve,colore,licenza,comp){
@@ -199,6 +205,7 @@ Scrivi una DESCRIZIONE LUNGA ottimizzata SEO per questo prodotto:
 REGOLE:
 - Testo di 150-250 parole, fluido e naturale, NON a elenco puntato
 - NON MENZIONARE MAI IL COLORE del prodotto. La descrizione va sull'articolo genitore e i figli hanno colori diversi. Evita qualsiasi riferimento a colori specifici.
+- Se il tipo è "Jeans" o contiene "Jeans", chiamali SEMPRE "Jeans", MAI "pantaloni" o "pantaloni di jeans". Se è un pantalone (non jeans), usa SEMPRE il plurale "Pantaloni".
 - Includi keywords rilevanti per la ricerca (tipo articolo, stagione, brand, licenza se presente)
 - Includi consigli di stile e abbinamenti
 - Includi occasioni d'uso
@@ -234,9 +241,39 @@ async function genLong(it){
 const prompt=mPrLong(cfg.br,it.tp,it.nm,it.ds,it.cl,it.ai?.licenza,it.cp);
 return await cAI([{type:"text",text:prompt}]);}
 
-function mTags(o){const sa=`${SCMAP[cfg.st]||"pe"}${cfg.an||"26"}`,t=[];if(o.ds)t.push(o.ds+"donna"+sa);if(o.cat)t.push(o.cat+"donna"+sa);if(o.sub&&o.sub!==o.cat)t.push(o.sub+"donna"+sa);if(o.nm)o.nm.toLowerCase().replace(/[^a-zàèéìòù0-9\s-]/g,"").split(/\s+/).filter(w=>w.length>1).forEach(w=>{if(!t.includes(w))t.push(w);});
-if(o.lic){const licTag=o.lic.toLowerCase().replace(/[^a-z0-9]/g,"");if(licTag&&!t.includes(licTag))t.push(licTag);if(!t.includes("licenza"))t.push("licenza");const licAnno="licenza"+(cfg.an||"26");if(!t.includes(licAnno))t.push(licAnno);}
-return t.join("; ");}
+const MACRO_MAP={"t-shirt":"maglietteet-shirt","top":"topecanotte","canotta":"topecanotte","maglia":"maglie","felpa":"felpe","camicia":"camicie","camicia di jeans":"camicie","giacca":"giacche","giubbino":"giubbini","giubbino di pelle":"giubbini","cardigan":"cardigan","coprispalle":"coprispalle","casacca":"casacche","piumino":"piumini","spolverino":"spolverini","pelliccia":"pellicce","body":"body","pantaloni":"pantaloni","jeans":"jeans","gonna":"gonne","shorts":"shorts","shorts di jeans":"shorts","abito":"abiti","leggings":"leggings","pigiama":"pigiami","reggiseno":"reggiseni","slip":"slip","scarpe":"scarpe","calzini":"calzini","sciarpa":"sciarpe","borsa":"borse"};
+function mTags(o){const sa=`${SCMAP[cfg.st]||"pe"}${cfg.an||"26"}`,an=cfg.an||"26",t=[];
+if(o.ds)t.push(o.ds+"donna"+sa);
+t.push("donna"+sa);
+const tipoLow=(o.tipo||"").toLowerCase();const macroKey=MACRO_MAP[tipoLow];if(macroKey)t.push(macroKey+"donna"+sa);
+if(o.cat)t.push(o.cat+"donna"+sa);if(o.sub&&o.sub!==o.cat)t.push(o.sub+"donna"+sa);
+if(o.nm)o.nm.toLowerCase().replace(/[^a-zàèéìòù0-9\s-]/g,"").split(/\s+/).filter(w=>w.length>1).forEach(w=>{if(!t.includes(w))t.push(w);});
+if(o.lic){const licTag=o.lic.toLowerCase().replace(/[^a-z0-9]/g,"");if(licTag&&!t.includes(licTag))t.push(licTag);if(!t.includes("licenza"))t.push("licenza");const licAnno="licenza"+an;if(!t.includes(licAnno))t.push(licAnno);}
+return t.join("; ")+";"}
+const INTIMO_SFX=new Set(["RG","SL"]);
+const ABBIG_SFX=new Set(["TO","TS","CN"]);
+const INTIMO_CAT_MAP={"reggiseno":"reggiseni","slip":"slip","body":"body","pigiama":"pigiami","top":"topecanotte","canotta":"topecanotte"};
+function mTagsLoveskin(o){const an=cfg.an||"26",sa=`${SCMAP[cfg.st]||"pe"}${an}`,t=[];
+const sfx=(o.sfx||"").toUpperCase();const tipoLow=(o.tipo||"").toLowerCase();
+const isIntimo=INTIMO_SFX.has(sfx)||["reggiseno","slip"].some(k=>tipoLow.includes(k));
+const isAbbig=ABBIG_SFX.has(sfx)||!isIntimo;
+t.push("loveskin");
+t.push("donna"+sa);
+if(isIntimo){
+const catKey=Object.keys(INTIMO_CAT_MAP).find(k=>tipoLow.includes(k));
+const catPlural=catKey?INTIMO_CAT_MAP[catKey]:tipoLow.replace(/[^a-z]/g,"");
+if(catPlural)t.push("intimo"+catPlural+an);
+if(tipoLow.includes("reggiseno")&&o.vestibilita){t.push("reggiseni"+o.vestibilita.toLowerCase().replace(/[^a-z]/g,"")+an);}
+if(tipoLow.includes("slip")&&o.vestibilita){t.push("slip"+o.vestibilita.toLowerCase().replace(/[^a-z]/g,"")+an);}
+}else{
+t.push("loveskindaily");
+const macroKey=MACRO_MAP[tipoLow];if(macroKey)t.push("loveskin"+macroKey);
+if(o.sporty)t.push("loveskinsporty");
+}
+const macroKey=MACRO_MAP[tipoLow];if(macroKey&&!t.includes(macroKey+"donna"+sa))t.push(macroKey+"donna"+sa);
+if(o.lic){const licTag=o.lic.toLowerCase().replace(/[^a-z0-9]/g,"");if(licTag&&!t.includes(licTag))t.push(licTag);if(!t.includes("licenza"))t.push("licenza");}
+return t.join("; ")+";"}
+
 function mNm(tipo,ai){const l=ai?.licenza&&ai.licenza!=="null"&&ai.licenza!=null?ai.licenza:"",m=ai?.modello_dettaglio?cap(ai.modello_dettaglio):"";return[tipo,m,l].filter(Boolean).join(" ");}
 function mDs(ai,comp,tipo,recModName){
 if(cfg.shootType==="still")return`${ai?.dettagli_descrizione||""}\n\n${comp?`Composizione: ${comp}`:"Composizione:"}`;
@@ -272,7 +309,7 @@ const ai=await aImgs(it.af,it.tp);it.ai=ai;it.nm=mNm(it.tp,ai);it.cl=ai.colore_m
 const fIdx=parseInt(ai.foto_frontale_idx)||0;
 if(fIdx>0&&fIdx<it.af.length){const ff=it.af.splice(fIdx,1)[0];it.af.unshift(ff);const fp=it.ap.splice(fIdx,1)[0];it.ap.unshift(fp);it.fl=it.af[0];it.pv=it.ap[0];}
 if(ai.modella_riconosciuta){const recMod=mod.find(ml=>ml.nome.toLowerCase()===ai.modella_riconosciuta.toLowerCase());if(recMod){it.recMod=recMod.nome;}}
-it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null}):"";
+it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,tipo:it.tp}):mTagsLoveskin({tipo:it.tp,sfx:it.sf,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,vestibilita:ai.vestibilita||null,sporty:!!ai.is_sporty});
 it.ds=mDs(ai,"",it.tp,it.recMod);
 if(ai.dubbio_licenza){
 const dDesc=(ai.dubbio_descrizione||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim().slice(0,60);
@@ -328,7 +365,7 @@ if(rw.licenza)it.ai.licenza=rw.licenza;
 if(rw.nome_prodotto)it.nm=rw.nome_prodotto;
 if(rw.descrizione_breve)it.ds=rw.descrizione_breve;
 // Update tags with license
-if(it.ai.licenza){const licTag=it.ai.licenza.toLowerCase().replace(/[^a-z0-9]/g,"");if(it.tg&&!it.tg.includes(licTag)){it.tg+="; "+licTag+"; licenza; licenza"+(cfg.an||"26");}}
+if(it.ai.licenza){const licTag=it.ai.licenza.toLowerCase().replace(/[^a-z0-9]/g,"");if(it.tg&&!it.tg.includes(licTag)){let base=it.tg.replace(/;?\s*$/,"");it.tg=base+"; "+licTag+"; licenza; licenza"+(cfg.an||"26")+";";}}
 // Rework long desc
 it.dl=await cAI([{type:"text",text:mPrLong(cfg.br,it.tp,it.nm,it.ds,it.cl,it.ai?.licenza,it.cp)}]);
 }catch(e){console.error("Rework error:",e);}
@@ -353,11 +390,12 @@ IMPORTANTE: La correzione dell'utente è un'INDICAZIONE per guidarti, NON testo 
 - Il nome licenza deve essere SOLO il nome ufficiale breve (es: "Supergirl", "Mickey Mouse", "Snoopy")
 - Il modello_dettaglio descrive VESTIBILITÀ/TAGLIO (es: "Girocollo Slim"), NON la licenza
 REGOLA COLORE: NON menzionare MAI il colore.
-Rispondi SOLO JSON: {"modello_dettaglio":"2-3 parole vestibilità/taglio","dettagli_descrizione":"max 3 frasi senza colore","licenza":"nome ufficiale breve o null","colore_madre":"colore base","categoria_seo":"macro","sottocategoria_seo":"sotto"}`});
+REGOLA TIPO ARTICOLO: La dettagli_descrizione DEVE iniziare nominando il tipo articolo. Se è Jeans (o SKU con PJ/SJ), scrivi SEMPRE "Jeans", MAI "pantaloni". Se è un pantalone (non jeans), usa SEMPRE "Pantaloni" al plurale.
+Rispondi SOLO JSON: {"modello_dettaglio":"2-3 parole vestibilità/taglio","dettagli_descrizione":"max 3 frasi senza colore, inizia con tipo articolo","licenza":"nome ufficiale breve o null","colore_madre":"colore base","categoria_seo":"macro","sottocategoria_seo":"sotto"}`});
 const raw=await cAI(c);const ai=JSON.parse(raw.replace(/```json|```/g,"").trim());
 it.ai=Object.assign(it.ai||{},ai);
 it.nm=mNm(it.tp,it.ai);it.cl=ai.colore_madre||it.cl;
-it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null}):"";
+it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,tipo:it.tp}):mTagsLoveskin({tipo:it.tp,sfx:it.sf,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,vestibilita:ai.vestibilita||null,sporty:!!ai.is_sporty});
 it.ds=mDs(it.ai,"",it.tp,it.recMod);
 try{it.dl=await genLong(it);}catch(e){it.dl="[Errore: "+e.message+"]";}
 it.corrHint="";

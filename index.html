@@ -150,6 +150,12 @@ let step=isAuth()?(ak?0:-1):-2,prevStep=-99,cfg={br:"",st:"",an:"",ds:"",selMods
 
 const pSKU=fn=>fn.replace(/\.[^.]+$/,"").split("__")[0].split("_")[0].toUpperCase();
 const gSuf=sku=>{const t=sku.slice(-2),a={...SFX,...cS};return a[t]?{s:t,tipo:a[t]}:{s:null,tipo:null,u:t};};
+function syncTipo(it){if(it._synced)return;const a={...SFX,...cS};const newTp=a[it.sf];let changed=false;
+if(newTp&&newTp!==it.tp){const oldTp=it.tp;it.tp=newTp;if(it.nm)it.nm=it.nm.replace(oldTp,newTp);changed=true;
+if(it.ds){it.ds=it.ds.replace(/\bPantalone Di Jeans\b/gi,"Jeans").replace(/\bpantaloni di jeans\b/gi,"Jeans").replace(/\bPantalone\b/g,"Pantaloni").replace(/\bpantalone\b/g,"pantaloni");}
+if(it.dl){it.dl=it.dl.replace(/\bPantalone Di Jeans\b/gi,"Jeans").replace(/\bpantaloni di jeans\b/gi,"Jeans").replace(/\bPantalone\b/g,"Pantaloni").replace(/\bpantalone\b/g,"pantaloni");}}
+if(it.st==="done"&&it.ai&&(changed||!it.tg||!it.tg.endsWith(";"))){it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:it.ai?.categoria_seo||"",sub:it.ai?.sottocategoria_seo||"",nm:it.nm,lic:it.ai?.licenza&&it.ai.licenza!=="null"?it.ai.licenza:null,tipo:it.tp}):mTagsLoveskin({tipo:it.tp,sfx:it.sf,lic:it.ai?.licenza&&it.ai.licenza!=="null"?it.ai.licenza:null,vestibilita:it.ai?.vestibilita||null,sporty:!!it.ai?.is_sporty});}
+if(it.st==="done")it._synced=true;}
 const fD=r=>{const d=r.replace(/\D/g,"");return d.length<=2?d:d.length<=4?d.slice(0,2)+"/"+d.slice(2):d.slice(0,2)+"/"+d.slice(2,4)+"/"+d.slice(4,8);};
 const cap=s=>s?s.split(" ").map(w=>w[0].toUpperCase()+w.slice(1).toLowerCase()).join(" "):"";
 const toB=f=>new Promise((r,j)=>{const x=new FileReader();x.onload=()=>r(x.result.split(",")[1]);x.onerror=j;x.readAsDataURL(f);});
@@ -438,7 +444,7 @@ a.download=`catalogo_${cfg.br}_${SCMAP[cfg.st]||""}${cfg.an}_${new Date().toISOS
 
 function uSt(){document.getElementById("si").innerHTML=step<0?"":["Setup","Catalogo","Export"].map((s,i)=>`<span class="step ${i===step?"step-a":i<step?"step-d":"step-p"}">${s}</span>${i<2?'<span class="step-line"></span>':""}`).join("");}
 
-function render(){uSt();const m=document.getElementById("mn");m.innerHTML="";const stepChanged=step!==prevStep;prevStep=step;
+function render(){items.forEach(syncTipo);uSt();const m=document.getElementById("mn");m.innerHTML="";const stepChanged=step!==prevStep;prevStep=step;
 if(step===-2)rLogin(m,stepChanged);else if(step===-1)rKey(m,stepChanged);else if(step===0)rSet(m,stepChanged);else if(step===1)rCat(m,stepChanged);else rExp(m,stepChanged);}
 
 function rLogin(m,anim){m.innerHTML=`<div style="max-width:400px;margin:80px auto;${anim?"animation:fadeUp .5s ease forwards":""}"><div style="background:var(--card);border-radius:16px;padding:32px;border:1px solid var(--border)">

@@ -159,7 +159,7 @@ if(it.st==="done")it._synced=true;}
 const fD=r=>{const d=r.replace(/\D/g,"");return d.length<=2?d:d.length<=4?d.slice(0,2)+"/"+d.slice(2):d.slice(0,2)+"/"+d.slice(2,4)+"/"+d.slice(4,8);};
 const cap=s=>s?s.split(" ").map(w=>w[0].toUpperCase()+w.slice(1).toLowerCase()).join(" "):"";
 const toB=f=>new Promise((r,j)=>{const x=new FileReader();x.onload=()=>r(x.result.split(",")[1]);x.onerror=j;x.readAsDataURL(f);});
-const mT=f=>({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif"}[f.name.toLowerCase().split(".").pop()]||"image/jpeg");
+const mT=f=>({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif",bmp:"image/bmp",tiff:"image/tiff",tif:"image/tiff",heic:"image/heic",heif:"image/heif",avif:"image/avif",svg:"image/svg+xml"}[f.name.toLowerCase().split(".").pop()]||f.type||"image/jpeg");
 const gTg=tipo=>SUP.some(s=>(tipo||"").toLowerCase().includes(s))?cfg.ts:cfg.ti;
 const esc=s=>'"'+(s||"").replace(/"/g,'""')+'"';
 function friendlyErr(e){const s=e||"";if(s.includes("401"))return"Chiave API non valida o scaduta. Controlla la API key nelle impostazioni.";if(s.includes("429"))return"Troppe richieste in poco tempo. Attendi qualche secondo e riprova.";if(s.includes("500")||s.includes("529"))return"Problema temporaneo del server AI. Riprova tra poco.";if(s.includes("413")||s.includes("too large")||s.includes("too many images"))return"Le foto sono troppo pesanti o troppe. Prova con meno foto o foto più leggere.";if(s.includes("network")||s.includes("fetch")||s.includes("Failed"))return"Errore di connessione. Controlla la tua connessione internet.";if(s.includes("timeout"))return"La richiesta ha impiegato troppo tempo. Riprova.";if(s.includes("JSON parse"))return"L'AI ha risposto in un formato non valido. Riprova.";if(s.includes("credit")||s.includes("billing"))return"Credito API esaurito. Ricarica il tuo account Anthropic.";return"Errore imprevisto durante l'analisi. Riprova o contatta il supporto.";}
@@ -195,8 +195,10 @@ REGOLA JEANS E PANTALONI:
 
 FOTO FRONTALE: Se ci sono più foto, indica l'indice (0-based) della foto che mostra il capo da DAVANTI (vista frontale). Se c'è una sola foto, usa 0.
 
+FOTO STILL LIFE: Se ci sono più foto, indica gli indici (0-based) delle foto scattate SENZA modella (still life, flat lay, prodotto appoggiato). Se tutte le foto hanno la modella o c'è una sola foto, usa un array vuoto [].
+
 Rispondi SOLO JSON valido (no markdown, no backtick, no testo extra):
-{"modello_dettaglio":"2-3 parole MODELLO/VESTIBILITÀ senza tipo articolo e senza colore","dettagli_descrizione":"INIZIA con il tipo articolo, poi descrivi dettagli visibili: cuciture, tasche, chiusure, stampe, scollo, maniche, vestibilità. Italiano corretto con punteggiatura. Max 3 frasi. NON menzionare il colore.","licenza":"Personaggio/brand SICURO AL 100% (Disney, Mickey Mouse, Snoopy, Hello Kitty, Marvel ecc.) oppure null se non sei sicuro","dubbio_licenza":true/false,"dubbio_descrizione":"Descrizione dettagliata di cosa vedi: forma, colore, posizione, testo. Solo se dubbio_licenza=true, altrimenti null","colore_madre":"SOLO colore base tra: ${COL.join(", ")}","categoria_seo":"macro minuscolo attaccato","sottocategoria_seo":"sotto minuscolo attaccato","foto_frontale_idx":0${modelNames&&modelNames.length?',"modella_riconosciuta":"nome modella o null"':""}${cfg.br==="loveskin"?',"vestibilita":"per reggiseni: pushup/bralette/balconcino/triangolo o null. Per slip: brasiliana/perizoma/vitaalta/classico o null. Altrimenti null","is_sporty":"true se capo sportivo/athleisure, false altrimenti"':""}}`;}
+{"modello_dettaglio":"2-3 parole MODELLO/VESTIBILITÀ senza tipo articolo e senza colore","dettagli_descrizione":"INIZIA con il tipo articolo, poi descrivi dettagli visibili: cuciture, tasche, chiusure, stampe, scollo, maniche, vestibilità. Italiano corretto con punteggiatura. Max 3 frasi. NON menzionare il colore.","licenza":"Personaggio/brand SICURO AL 100% (Disney, Mickey Mouse, Snoopy, Hello Kitty, Marvel ecc.) oppure null se non sei sicuro","dubbio_licenza":true/false,"dubbio_descrizione":"Descrizione dettagliata di cosa vedi: forma, colore, posizione, testo. Solo se dubbio_licenza=true, altrimenti null","colore_madre":"SOLO colore base tra: ${COL.join(", ")}","categoria_seo":"macro minuscolo attaccato","sottocategoria_seo":"sotto minuscolo attaccato","foto_frontale_idx":0,"foto_still_life_indices":[]${modelNames&&modelNames.length?',"modella_riconosciuta":"nome modella o null"':""}${cfg.br==="loveskin"?',"vestibilita":"per reggiseni: pushup/bralette/balconcino/triangolo o null. Per slip: brasiliana/perizoma/vitaalta/classico o null. Altrimenti null","is_sporty":"true se capo sportivo/athleisure, false altrimenti"':""}}`;}
 
 function mPrLong(br,tipo,nome,descBreve,colore,licenza,comp){
 return`Sei un copywriter SEO esperto di moda per ${br==="zuiki"?"Zuiki":"Loveskin"}.
@@ -254,7 +256,7 @@ const tipoLow=(o.tipo||"").toLowerCase();const macroKey=MACRO_MAP[tipoLow];if(ma
 if(o.cat)t.push(o.cat+"donna"+sa);if(o.sub&&o.sub!==o.cat)t.push(o.sub+"donna"+sa);
 if(o.nm)o.nm.toLowerCase().replace(/[^a-zàèéìòù0-9\s-]/g,"").split(/\s+/).filter(w=>w.length>1).forEach(w=>{if(!t.includes(w))t.push(w);});
 if(o.lic){const licTag=o.lic.toLowerCase().replace(/[^a-z0-9]/g,"");if(licTag&&!t.includes(licTag))t.push(licTag);if(!t.includes("licenza"))t.push("licenza");const licAnno="licenza"+an;if(!t.includes(licAnno))t.push(licAnno);}
-return t.join("; ")+";"}
+return[...new Set(t)].join("; ")+";"}
 const INTIMO_SFX=new Set(["RG","SL"]);
 const ABBIG_SFX=new Set(["TO","TS","CN"]);
 const INTIMO_CAT_MAP={"reggiseno":"reggiseni","slip":"slip","body":"body","pigiama":"pigiami","top":"topecanotte","canotta":"topecanotte"};
@@ -277,9 +279,10 @@ if(o.sporty)t.push("loveskinsporty");
 }
 const macroKey=MACRO_MAP[tipoLow];if(macroKey&&!t.includes(macroKey+"donna"+sa))t.push(macroKey+"donna"+sa);
 if(o.lic){const licTag=o.lic.toLowerCase().replace(/[^a-z0-9]/g,"");if(licTag&&!t.includes(licTag))t.push(licTag);if(!t.includes("licenza"))t.push("licenza");}
-return t.join("; ")+";"}
+return[...new Set(t)].join("; ")+";"}
 
-function mNm(tipo,ai){const l=ai?.licenza&&ai.licenza!=="null"&&ai.licenza!=null?ai.licenza:"",m=ai?.modello_dettaglio?cap(ai.modello_dettaglio):"";return[tipo,m,l].filter(Boolean).join(" ");}
+function dedupWords(s){return s.split(" ").filter((w,i,a)=>i===0||w.toLowerCase()!==a[i-1].toLowerCase()).join(" ");}
+function mNm(tipo,ai){const l=ai?.licenza&&ai.licenza!=="null"&&ai.licenza!=null?ai.licenza:"",m=ai?.modello_dettaglio?cap(ai.modello_dettaglio):"";return dedupWords([tipo,m,l].filter(Boolean).join(" "));}
 function mDs(ai,comp,tipo,recModName){
 if(cfg.shootType==="still")return`${ai?.dettagli_descrizione||""}\n\n${comp?`Composizione: ${comp}`:"Composizione:"}`;
 const ml=recModName?mod.find(x=>x.nome===recModName):null;
@@ -292,7 +295,8 @@ const modInfo=ml?`\n\nLa modella indossa la taglia IT ${tg}\nL'altezza della mod
 return`${ai?.dettagli_descrizione||""}${modInfo}\n\n${comp?`Composizione: ${comp}`:"Composizione:"}`;}
 
 async function procF(files){
-const imgs=Array.from(files).filter(f=>f.type.startsWith("image/"));if(!imgs.length)return;
+const imgExts=new Set(["jpg","jpeg","png","webp","gif","bmp","tiff","tif","heic","heif","avif","svg"]);
+const imgs=Array.from(files).filter(f=>f.type.startsWith("image/")||imgExts.has(f.name.toLowerCase().split(".").pop()));if(!imgs.length)return;
 const gr={};for(const f of imgs){const s=pSKU(f.name);(gr[s]=gr[s]||[]).push(f);}
 const ex=new Set(items.map(i=>i.sku));
 for(const[sku,sf]of Object.entries(gr)){
@@ -313,7 +317,13 @@ try{
 const ai=await aImgs(it.af,it.tp);it.ai=ai;it.nm=mNm(it.tp,ai);it.cl=ai.colore_madre||"";
 const fIdx=parseInt(ai.foto_frontale_idx)||0;
 if(fIdx>0&&fIdx<it.af.length){const ff=it.af.splice(fIdx,1)[0];it.af.unshift(ff);const fp=it.ap.splice(fIdx,1)[0];it.ap.unshift(fp);it.fl=it.af[0];it.pv=it.ap[0];}
-if(ai.modella_riconosciuta){const recMod=mod.find(ml=>ml.nome.toLowerCase()===ai.modella_riconosciuta.toLowerCase());if(recMod){it.recMod=recMod.nome;}}
+// Move still life photos to the end (keep front photo first)
+const slIdx=Array.isArray(ai.foto_still_life_indices)?ai.foto_still_life_indices:[];
+if(slIdx.length>0&&it.af.length>1){const slSet=new Set(slIdx);const modelPh=[],stillPh=[],modelPp=[],stillPp=[];
+for(let pi=0;pi<it.af.length;pi++){if(pi>0&&slSet.has(pi)){stillPh.push(it.af[pi]);stillPp.push(it.ap[pi]);}else{modelPh.push(it.af[pi]);modelPp.push(it.ap[pi]);}}
+it.af=[...modelPh,...stillPh];it.ap=[...modelPp,...stillPp];it.fl=it.af[0];it.pv=it.ap[0];}
+if(ai.modella_riconosciuta){const recMod=mod.find(ml=>ml.nome.toLowerCase()===ai.modella_riconosciuta.toLowerCase());if(recMod){it.recMod=recMod.nome;it.modelUnknown=false;}else{it.modelUnknown=true;it.recMod=null;}}
+else if(cfg.shootType==="model"||cfg.shootType==="mixed"){it.modelUnknown=true;it.recMod=null;}
 it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,tipo:it.tp}):mTagsLoveskin({tipo:it.tp,sfx:it.sf,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,vestibilita:ai.vestibilita||null,sporty:!!ai.is_sporty});
 it.ds=mDs(ai,"",it.tp,it.recMod);
 if(ai.dubbio_licenza){
@@ -597,7 +607,7 @@ else if(it.st==="done"&&it.doubt&&!it.doubtResolved)sH='<span class="doubt-badge
 else if(it.st==="done")sH='<span style="font-size:11px;color:var(--ok);font-weight:600">✓</span>';
 
 let mH="";
-if(it.st==="done")mH=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr${it.recMod?" 1fr":""};gap:8px;font-size:12px"><div><span style="color:var(--muted)">Nome: </span><strong>${it.nm}</strong></div><div><span style="color:var(--muted)">Colore: </span>${it.cl}</div><div><span style="color:var(--muted)">Comp: </span>${it.cp||"—"}</div>${it.recMod?`<div><span style="color:var(--muted)">Modella: </span><strong>${it.recMod}</strong></div>`:""}</div>`;
+if(it.st==="done"){const showModCol=it.recMod||it.modelUnknown;mH=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr${showModCol?" 1fr":""};gap:8px;font-size:12px"><div><span style="color:var(--muted)">Nome: </span><strong>${it.nm}</strong></div><div><span style="color:var(--muted)">Colore: </span>${it.cl}</div><div><span style="color:var(--muted)">Comp: </span>${it.cp||"—"}</div>${it.recMod?`<div><span style="color:var(--muted)">Modella: </span><strong>${it.recMod}</strong></div>`:it.modelUnknown?`<div><span style="color:var(--muted)">Modella: </span><strong style="color:var(--err)">Non riconosciuta</strong> <select class="inp" style="display:inline;width:auto;padding:2px 6px;font-size:11px;margin-left:4px;border-color:var(--err)" onchange="if(this.value){items[${idx}].recMod=this.value;items[${idx}].modelUnknown=false;items[${idx}].ds=mDs(items[${idx}].ai,'',items[${idx}].tp,this.value);render();}"><option value="">Seleziona...</option>${mod.map(ml=>`<option value="${ml.nome}">${ml.nome}</option>`).join("")}</select></div>`:""}</div>`;}
 if(it.st==="load")mH='<div style="display:flex;gap:10px"><div class="shim" style="width:80px"></div><div class="shim" style="width:100px"></div><div class="shim" style="width:70px"></div></div>';
 
 // Error detail

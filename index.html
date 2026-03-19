@@ -296,9 +296,11 @@ if(o.lic){const licTag=o.lic.toLowerCase().replace(/[^a-z0-9]/g,"");if(licTag&&!
 return[...new Set(t)].join("; ")+";"}
 
 function dedupWords(s){return s.split(" ").filter((w,i,a)=>i===0||w.toLowerCase()!==a[i-1].toLowerCase()).join(" ");}
+function fmtComp(raw){if(!raw)return"";return raw.replace(/(\d+)\s*%\s*/g,"$1% ").trim().split(/\s+(?=\d+%)/).join(", ").replace(/,\s*$/,"")+".";}
 function mNm(tipo,ai){const l=ai?.licenza&&ai.licenza!=="null"&&ai.licenza!=null?ai.licenza:"",m=ai?.modello_dettaglio?cap(ai.modello_dettaglio):"";return dedupWords([tipo,m,l].filter(Boolean).join(" "));}
 function mDs(ai,comp,tipo,recModName){
-if(cfg.shootType==="still")return`${ai?.dettagli_descrizione||""}\n\n${comp?`Composizione: ${comp}`:"Composizione:"}`;
+const compFmt=fmtComp(comp);
+if(cfg.shootType==="still")return`${ai?.dettagli_descrizione||""}\n\n${compFmt?`Composizione:\u00A0${compFmt}`:"Composizione:"}`;
 const ml=recModName?mod.find(x=>x.nome===recModName):null;
 if(!ml&&cfg.selMods.length===1){const singleMl=mod.find(x=>x.nome===cfg.selMods[0]);if(singleMl){return mDs(ai,comp,tipo,singleMl.nome);}}
 const alt=ml?ml.altezza:"";
@@ -306,7 +308,7 @@ const tgSopra=ml?ml.tagliaSopra:"";
 const tgSotto=ml?ml.tagliaSotto:"";
 const tg=SUP.some(s=>(tipo||"").toLowerCase().includes(s))?tgSopra:tgSotto;
 const modInfo=ml?`\n\nLa modella indossa la taglia IT ${tg}\nL'altezza della modella è ${alt} cm`:"";
-return`${ai?.dettagli_descrizione||""}${modInfo}\n\n${comp?`Composizione: ${comp}`:"Composizione:"}`;}
+return`${ai?.dettagli_descrizione||""}${modInfo}\n\n${compFmt?`Composizione:\u00A0${compFmt}`:"Composizione:"}`;}
 
 async function procF(files){
 const imgExts=new Set(["jpg","jpeg","png","webp","gif","bmp","tiff","tif","heic","heif","avif","svg"]);
@@ -589,7 +591,7 @@ res({rows:json.length-1,matched:Object.keys(excelMap).length});}catch(err){rej(e
 
 function getExcelInfo(sku){return excelMap[sku.toUpperCase()]||null;}
 
-function wrapHtml(text){if(!text)return"";return text.split("\n").filter(l=>l.trim()).map(l=>`<p class="p1" style="margin: 0px">${l.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</p>`).join("\n");}
+function wrapHtml(text){if(!text)return"";const pStyle='style="margin: 0px; font-variant-numeric: normal; font-variant-east-asian: normal; font-variant-alternates: normal; font-kerning: auto; font-optical-sizing: auto; font-feature-settings: normal; font-variation-settings: normal; font-stretch: normal; font-size: 12px; line-height: normal; font-family: &quot;Helvetica Neue&quot;; color: rgb(69, 69, 69);"';const pOpen=`<p class="p1" ${pStyle}>`;const pBr=`${pOpen}<br></p>`;return text.split("\n").map(l=>{const t=l.trim();if(!t)return pBr;return`${pOpen}${t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\u00A0/g,"&nbsp;")}</p>`;}).join("");}
 
 function genMetaTitle(it){const br=cfg.br==="zuiki"?"Zuiki":"Loveskin";const ex=getExcelInfo(it.sku);const tipo=it.tp||"";const nm=it.nm||tipo;return`${nm} | ${br}`;}
 
@@ -612,28 +614,46 @@ DESCRIVI in italiano in una singola frase (max 200 caratteri):
 NON usare virgolette. Rispondi SOLO con la frase descrittiva, nient'altro.`});
 return await cAI(c);}
 
+async function classifyPhotoColors(it){
+const ex=getExcelInfo(it.sku);
+const colori=(ex?.colori||it.cl||"").split(";").map(c=>c.trim()).filter(Boolean);
+if(colori.length<=1){return it.af.map(()=>colori[0]||it.cl||"Colore");}
+// Ask AI to classify each photo into available colors
+const c=[];
+for(const f of it.af)c.push({type:"image",source:{type:"base64",media_type:mT(f),data:await toB(f)}});
+c.push({type:"text",text:`Hai ${it.af.length} foto dello stesso articolo "${it.tp}" (codice ${it.sku}).
+I colori disponibili per questo articolo sono: ${colori.join(", ")}
+Per OGNI foto (da 0 a ${it.af.length-1}), indica a quale colore appartiene il capo principale indossato/mostrato.
+Rispondi SOLO con un JSON array di stringhe, uno per foto, usando ESATTAMENTE i nomi colore dalla lista sopra.
+Esempio per 4 foto: ["Nero","Nero","Rosa","Rosa"]`});
+try{const raw=await cAI(c);return JSON.parse(raw.replace(/```json|```/g,"").trim());}
+catch(e){console.error("Color classify error:",e);return it.af.map(()=>colori[0]||it.cl||"Colore");}}
+
 async function downloadPhotos(){
 const done=items.filter(i=>i.st==="done");if(!done.length)return;
 const zip=new JSZip();
-const canvas=document.createElement("canvas");const ctx=canvas.getContext("2d");
 
 for(const it of done){
-const ex=getExcelInfo(it.sku);
-const colori=(ex?.colori||it.cl||"").split(";").map(c=>c.trim()).filter(Boolean);
-const firstColor=colori[0]||it.cl||"Colore";
+// Classify each photo by color via AI
+const photoColors=await classifyPhotoColors(it);
 
-// Main product image (3/4 front of first color) → CODICEARTICOLO_1
+// Group photos by color, preserving order
+const colorGroups={};
+for(let pi=0;pi<it.af.length;pi++){
+const col=(photoColors[pi]||"Colore").trim();
+if(!colorGroups[col])colorGroups[col]=[];
+colorGroups[col].push({file:it.af[pi],idx:pi});}
+
+// Main product image (3/4 front) → CODICEARTICOLO_1
 if(it.af.length>0){
 try{const blob=await convertToPng(it.af[0]);zip.file(`${it.sku}_1.png`,blob);}catch(e){console.error("PNG convert error:",e);}}
 
-// Per-color images
-// For now we treat all photos as belonging to the detected color
-// Order: 3/4 front (idx 0), scontornata/back (if available), detail/closeup, full model, rest
-const photos=it.af;
-for(let pi=0;pi<photos.length;pi++){
-try{const blob=await convertToPng(photos[pi]);
-const colorName=firstColor.replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ]/g,"");
-zip.file(`${it.sku}_${colorName}_${pi+1}.png`,blob);}catch(e){console.error("PNG convert error:",e);}}}
+// Per-color images with sequential numbering per color
+for(const[color,photos]of Object.entries(colorGroups)){
+const colorName=color.replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ]/g,"").replace(/\s+/g,"_");
+for(let ci=0;ci<photos.length;ci++){
+try{const blob=await convertToPng(photos[ci].file);
+zip.file(`${it.sku}_${colorName}_${ci+1}.png`,blob);}catch(e){console.error("PNG convert error:",e);}}}}
 
 const content=await zip.generateAsync({type:"blob"});
 const a=document.createElement("a");a.href=URL.createObjectURL(content);
@@ -736,7 +756,7 @@ else if(it.st==="done")sH='<span style="font-size:11px;color:var(--ok);font-weig
 
 let mH="";
 const exD=it.excelInfo||getExcelInfo(it.sku);
-if(it.st==="done"){const showModCol=it.recMod||it.modelUnknown;mH=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr${showModCol?" 1fr":""};gap:8px;font-size:12px"><div><span style="color:var(--muted)">Nome: </span><strong>${it.nm}</strong></div><div><span style="color:var(--muted)">Colore: </span>${it.cl}</div><div><span style="color:var(--muted)">Comp: </span>${it.cp||"—"}</div>${it.recMod?`<div><span style="color:var(--muted)">Modella: </span><strong>${it.recMod}</strong></div>`:it.modelUnknown?`<div><span style="color:var(--muted)">Modella: </span><strong style="color:var(--err)">Non riconosciuta</strong> <select class="inp" style="display:inline;width:auto;padding:2px 6px;font-size:11px;margin-left:4px;border-color:var(--err)" onchange="if(this.value){items[${idx}].recMod=this.value;items[${idx}].modelUnknown=false;items[${idx}].ds=mDs(items[${idx}].ai,'',items[${idx}].tp,this.value);render();}"><option value="">Seleziona...</option>${mod.map(ml=>`<option value="${ml.nome}">${ml.nome}</option>`).join("")}</select></div>`:""}</div>${exD?`<div style="margin-top:6px;padding:8px 12px;background:#f8f6f0;border:1px solid var(--border);border-radius:8px;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11px"><span style="color:var(--muted)">📊 Excel:</span>${exD.anno?`<span><b>Anno:</b> ${exD.anno}</span>`:""} ${exD.stagione?`<span><b>Stag:</b> ${exD.stagione}</span>`:""} ${exD.tipoArticolo?`<span><b>Tipo:</b> ${exD.tipoArticolo}</span>`:""} ${exD.brand?`<span><b>Brand:</b> ${exD.brand}</span>`:""} ${exD.caratteristica?`<span><b>Caratt:</b> ${exD.caratteristica}</span>`:""} ${exD.colori?`<span><b>Colori:</b> ${exD.colori}</span>`:""} ${exD.composizione?`<span><b>Comp:</b> ${exD.composizione}</span>`:""}</div>`:""}`;}
+if(it.st==="done"){const showModCol=it.recMod||it.modelUnknown;mH=`<div style="display:grid;grid-template-columns:1fr 1fr${showModCol?" 1fr":""};gap:8px;font-size:12px"><div><span style="color:var(--muted)">Nome: </span><strong>${it.nm}</strong></div><div><span style="color:var(--muted)">Comp: </span>${fmtComp(it.cp)||"—"}</div>${it.recMod?`<div><span style="color:var(--muted)">Modella: </span><strong>${it.recMod}</strong></div>`:it.modelUnknown?`<div><span style="color:var(--muted)">Modella: </span><strong style="color:var(--err)">Non riconosciuta</strong> <select class="inp" style="display:inline;width:auto;padding:2px 6px;font-size:11px;margin-left:4px;border-color:var(--err)" onchange="if(this.value){items[${idx}].recMod=this.value;items[${idx}].modelUnknown=false;items[${idx}].ds=mDs(items[${idx}].ai,'',items[${idx}].tp,this.value);render();}"><option value="">Seleziona...</option>${mod.map(ml=>`<option value="${ml.nome}">${ml.nome}</option>`).join("")}</select></div>`:""}</div>${exD?`<div style="margin-top:6px;padding:8px 12px;background:#f8f6f0;border:1px solid var(--border);border-radius:8px;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11px"><span style="color:var(--muted)">📊 Excel:</span>${exD.anno?`<span><b>Anno:</b> ${exD.anno}</span>`:""} ${exD.stagione?`<span><b>Stag:</b> ${exD.stagione}</span>`:""} ${exD.tipoArticolo?`<span><b>Tipo:</b> ${exD.tipoArticolo}</span>`:""} ${exD.brand?`<span><b>Brand:</b> ${exD.brand}</span>`:""} ${exD.caratteristica?`<span><b>Caratt:</b> ${exD.caratteristica}</span>`:""} ${exD.colori?`<span><b>Colori:</b> ${exD.colori}</span>`:""} ${exD.composizione?`<span><b>Comp:</b> ${exD.composizione}</span>`:""}</div>`:""}`;}
 if(it.st==="load")mH='<div style="display:flex;gap:10px"><div class="shim" style="width:80px"></div><div class="shim" style="width:100px"></div><div class="shim" style="width:70px"></div></div>';
 
 // Error detail
@@ -750,10 +770,9 @@ dbtH=`<div style="padding:8px 12px;background:#fffbf0;border:1px solid #f0d8a8;b
 
 let eH="";if(eI===idx&&it.st==="done"){
 const gl=np>1?`<div style="margin-bottom:14px"><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:8px">Tutte le foto (${np})</label><div style="display:flex;gap:8px;flex-wrap:wrap">${it.ap.map((p,pi)=>`<img src="${p}" class="thumb thumb-zoom" style="width:64px;height:80px;border-radius:8px" onclick="openLB(${allP.replace(/&quot;/g,"'")},${pi})">`).join("")}</div></div>`:"";
-eH=`<div style="padding:0 16px 16px;border-top:1px solid var(--border);padding-top:16px">${gl}<div class="grid3">
+eH=`<div style="padding:0 16px 16px;border-top:1px solid var(--border);padding-top:16px">${gl}<div class="grid2">
 <div class="field"><label>Nome Prodotto</label><input class="inp" value="${it.nm}" onblur="items[${idx}].nm=this.value"></div>
-<div class="field"><label>Colore Madre</label><select class="inp" onchange="items[${idx}].cl=this.value"><option value="">Seleziona...</option>${COL.map(c=>`<option ${it.cl===c?"selected":""}>${c}</option>`).join("")}</select></div>
-<div class="field"><label>Composizione</label><input class="inp" placeholder="es: 100% cotone" value="${it.cp}" onblur="items[${idx}].cp=this.value;items[${idx}].ds=items[${idx}].ds.replace(/Composizione:.*$/s,'Composizione: '+this.value)"></div></div>
+<div class="field"><label>Composizione</label><input class="inp" placeholder="es: 100% cotone" value="${it.cp}" onblur="items[${idx}].cp=this.value;items[${idx}].ds=items[${idx}].ds.replace(/Composizione:.*$/s,'Composizione:\\u00A0'+fmtComp(this.value))"></div></div>
 <div class="field"><label>Descrizione Breve</label><textarea class="inp" rows="5" style="font-size:13px" onblur="items[${idx}].ds=this.value">${it.ds}</textarea></div>
 <div class="field"><label>Descrizione Lunga (SEO)</label><textarea class="inp" rows="8" style="font-size:13px" onblur="items[${idx}].dl=this.value">${it.dl}</textarea><button class="btn btn-s" style="padding:5px 14px;font-size:11px;margin-top:6px" onclick="(async()=>{items[${idx}].dl='Generazione in corso...';render();try{items[${idx}].dl=await genLong(items[${idx}]);}catch(e){items[${idx}].dl='Errore: '+e.message;}render();})()">🔄 Rigenera desc. lunga</button></div>
 <div class="field"><label>Tag SEO</label><textarea class="inp" rows="2" style="font-size:12px;font-family:'JetBrains Mono',monospace" onblur="items[${idx}].tg=this.value">${it.tg}</textarea></div>
@@ -793,7 +812,7 @@ let cH="";
 if(cL)cH=`<div style="text-align:center;padding:30px"><div class="spin"></div><p style="font-size:13px;color:var(--muted);animation:pulse 1s infinite">Analisi correlazioni in corso...</p></div>`;
 else if(corr.length)cH=corr.map(cr=>`<div class="cc"><div style="font-size:14px;font-weight:600;margin-bottom:6px">${cr.outfit_name||"Outfit"}</div><div style="margin-bottom:6px">${(cr.skus||[]).map(s=>`<span class="cs">${s}</span>`).join("")}</div><p style="font-size:12px;color:var(--muted)">${cr.motivo||""}</p></div>`).join("");
 else if(cD&&!corr.length)cH='<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Nessun match visivo trovato.</p>';
-const tR=done.map(i=>{const cr=corr.filter(c=>(c.skus||[]).includes(i.sku)).flatMap(c=>(c.skus||[]).filter(s=>s!==i.sku));return`<tr><td class="sku">${i.sku}</td><td>${i.nm}</td><td>${i.tp}</td><td>${i.cl}</td><td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(i.metaTitle||"").replace(/"/g,"&quot;")}">${i.metaTitle||"—"}</td><td>${i.ap?.length||1}</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">${cr.join("; ")||"—"}</td></tr>`;}).join("");
+const tR=done.map(i=>{const cr=corr.filter(c=>(c.skus||[]).includes(i.sku)).flatMap(c=>(c.skus||[]).filter(s=>s!==i.sku));const exi=getExcelInfo(i.sku);const cols=(exi?.colori||"").split(";").map(c=>c.trim()).filter(Boolean).join(", ");return`<tr><td class="sku">${i.sku}</td><td>${i.nm}</td><td>${i.tp}</td><td style="font-size:11px">${cols||"—"}</td><td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(i.metaTitle||"").replace(/"/g,"&quot;")}">${i.metaTitle||"—"}</td><td>${i.ap?.length||1}</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">${cr.join("; ")||"—"}</td></tr>`;}).join("");
 m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px">
 <div><h2 style="font-size:24px;font-weight:700">Correlazioni & Export</h2><p style="color:var(--muted);font-size:13px">${done.length} prodotti pronti</p></div>
@@ -804,7 +823,7 @@ m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <button class="btn btn-p" ${done.length<2||cL?"disabled":""} onclick="fCorr()">${cL?"Analisi...":cD?"Ricalcola":"Trova Correlazioni"}</button></div>${cH}</div>
 <div style="background:var(--card);border-radius:14px;border:1px solid var(--border);overflow:hidden;margin-bottom:20px">
 <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-size:14px;font-weight:600">Anteprima</div>
-<div style="overflow-x:auto"><table class="tbl"><thead><tr>${["SKU","Nome","Tipo","Colore","Meta Titolo","Foto","Correlati"].map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${tR}</tbody></table></div></div>
+<div style="overflow-x:auto"><table class="tbl"><thead><tr>${["SKU","Nome","Tipo","Colori","Meta Titolo","Foto","Correlati"].map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${tR}</tbody></table></div></div>
 <div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap">
 ${excelWb?`<button class="btn btn-g" ${done.length?"":"disabled"} style="padding:14px 40px;font-size:15px;border-radius:12px" onclick="exportExcel()">📊 Scarica Excel (${done.length} prodotti)</button>`
 :`<button class="btn btn-g" ${done.length?"":"disabled"} style="padding:14px 40px;font-size:15px;border-radius:12px" onclick="expCSV()">⬇ Scarica CSV (${done.length} prodotti)</button>`}

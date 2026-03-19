@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Catalogo AI — Zuiki</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#f5f1ea;--card:#fffdf8;--border:#e4dfd4;--accent:#1a1a1a;--accent2:#c45d3e;--muted:#8a847a;--text:#2a2824;--subtle:#f0ece4;--warn:#a06800;--warnbg:#fff8ee;--warnbd:#f0d8a8;--err:#c44;--ok:#1a6b3c}
@@ -147,6 +149,7 @@ const PWD="S99";
 function isAuth(){const d=localStorage.getItem("zauth");if(!d)return false;try{const o=JSON.parse(d);return Date.now()-o.ts<2*24*60*60*1000;}catch{return false;}}
 function doAuth(){localStorage.setItem("zauth",JSON.stringify({ts:Date.now()}));}
 let step=isAuth()?(ak?0:-1):-2,prevStep=-99,cfg={br:"",st:"",an:"",ds:"",selMods:[],noModel:false,shootType:""},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false,tmpFaces=[],pwErr=false,tmpNm="",tmpAl="",tmpTs="",tmpTi="",procStart=0,procTimes=[],procPhase="",rwTotal=0,rwDone=0;
+let excelWb=null,excelRows=[],excelMap={},excelFileName="";
 
 const pSKU=fn=>fn.replace(/\.[^.]+$/,"").split("__")[0].split("_")[0].toUpperCase();
 const gSuf=sku=>{const t=sku.slice(-2),a={...SFX,...cS};return a[t]?{s:t,tipo:a[t]}:{s:null,tipo:null,u:t};};
@@ -175,13 +178,22 @@ function addTmpFace(){const i=document.createElement("input");i.type="file";i.ac
 
 function removeTmpFace(idx){saveTmpForm();tmpFaces.splice(idx,1);render();}
 
-function mPr(br,tipo,n,modelNames){
+function mPr(br,tipo,n,modelNames,exInfo){
 const m=n>1?`Ti vengono fornite ${n} foto dello STESSO articolo da angolazioni diverse. Usale TUTTE per descrivere meglio. Se una foto ha colore diverso ignorala.`:"Singola foto.";
 const knownLic=Object.keys(licMem).length?`\nLICENZE GIÀ NOTE (usa queste se riconosci elementi simili): ${Object.entries(licMem).map(([k,v])=>`"${k}" = ${v}`).join(", ")}`:"";
 const modelInfo=modelNames&&modelNames.length?`\nRICONOSCIMENTO MODELLA: Ti sono state fornite foto di riferimento del volto delle modelle PRIMA delle foto del prodotto. Le modelle sono: ${modelNames.join(", ")}. Identifica quale modella indossa il capo confrontando i volti. Inserisci il nome nel campo "modella_riconosciuta". Se non riesci a identificarla, usa null.`:"";
+const excelInfo=exInfo?`\nDATI TECNICI DAL FILE EXCEL (usa queste informazioni per arricchire la descrizione):
+- Colori disponibili: ${exInfo.colori||"N/D"}
+- Anno: ${exInfo.anno||"N/D"}
+- Stagione: ${exInfo.stagione||"N/D"}
+- Tipo articolo: ${exInfo.tipoArticolo||"N/D"}
+- Brand: ${exInfo.brand||"N/D"}
+- Caratteristica modello: ${exInfo.caratteristica||"N/D"}
+- Composizione: ${exInfo.composizione||"N/D"}
+Integra queste informazioni nella descrizione dove opportuno (es: composizione, vestibilità, caratteristiche).`:"";
 return`Sei un catalogatore moda per ${br==="zuiki"?"Zuiki":"Loveskin"}.
 IMPORTANTE: Questo articolo è "${tipo}". NON cambiare il tipo.
-${m}${knownLic}${modelInfo}
+${m}${knownLic}${modelInfo}${excelInfo}
 
 ATTENZIONE STAMPE/LOGHI/PERSONAGGI: Se vedi QUALSIASI stampa, logo, immagine, disegno, scritta, personaggio, simbolo o decorazione grafica sul capo e NON sei SICURO AL 100% di cosa sia (es: potrebbe essere un personaggio di un cartone, un logo di un brand, un animale di una licenza, una scritta di un marchio), imposta "dubbio_licenza" su true e descrivi in "dubbio_descrizione" ESATTAMENTE cosa vedi nell'immagine (forma, colore, posizione, testo se presente). Non tirare a indovinare: se hai anche il minimo dubbio, segnalalo.
 
@@ -200,14 +212,15 @@ FOTO STILL LIFE: Se ci sono più foto, indica gli indici (0-based) delle foto sc
 Rispondi SOLO JSON valido (no markdown, no backtick, no testo extra):
 {"modello_dettaglio":"2-3 parole MODELLO/VESTIBILITÀ senza tipo articolo e senza colore","dettagli_descrizione":"INIZIA con il tipo articolo, poi descrivi dettagli visibili: cuciture, tasche, chiusure, stampe, scollo, maniche, vestibilità. Italiano corretto con punteggiatura. Max 3 frasi. NON menzionare il colore.","licenza":"Personaggio/brand SICURO AL 100% (Disney, Mickey Mouse, Snoopy, Hello Kitty, Marvel ecc.) oppure null se non sei sicuro","dubbio_licenza":true/false,"dubbio_descrizione":"Descrizione dettagliata di cosa vedi: forma, colore, posizione, testo. Solo se dubbio_licenza=true, altrimenti null","colore_madre":"SOLO colore base tra: ${COL.join(", ")}","categoria_seo":"macro minuscolo attaccato","sottocategoria_seo":"sotto minuscolo attaccato","foto_frontale_idx":0,"foto_still_life_indices":[]${modelNames&&modelNames.length?',"modella_riconosciuta":"nome modella o null"':""}${cfg.br==="loveskin"?',"vestibilita":"per reggiseni: pushup/bralette/balconcino/triangolo o null. Per slip: brasiliana/perizoma/vitaalta/classico o null. Altrimenti null","is_sporty":"true se capo sportivo/athleisure, false altrimenti"':""}}`;}
 
-function mPrLong(br,tipo,nome,descBreve,colore,licenza,comp){
+function mPrLong(br,tipo,nome,descBreve,colore,licenza,comp,exInfo){
+const exTxt=exInfo?`\n- Colori disponibili: ${exInfo.colori||"N/D"}\n- Anno: ${exInfo.anno||"N/D"}\n- Stagione: ${exInfo.stagione||"N/D"}\n- Caratteristica modello: ${exInfo.caratteristica||"N/D"}`:"";
 return`Sei un copywriter SEO esperto di moda per ${br==="zuiki"?"Zuiki":"Loveskin"}.
 Scrivi una DESCRIZIONE LUNGA ottimizzata SEO per questo prodotto:
 - Tipo: ${tipo}
 - Nome: ${nome}
 - Licenza/Personaggio: ${licenza||"Nessuna"}
 - Composizione: ${comp||"Non specificata"}
-- Descrizione breve: ${descBreve}
+- Descrizione breve: ${descBreve}${exTxt}
 
 REGOLE:
 - Testo di 150-250 parole, fluido e naturale, NON a elenco puntato
@@ -229,7 +242,7 @@ if((r.status===429||r.status===529||r.status>=500)&&retries<6){const delay=Math.
 if(!r.ok){const t=await r.text();throw new Error(`HTTP ${r.status}: ${t.slice(0,200)}`);}
 const d=await r.json();if(d.error)throw new Error(d.error.message);return d.content?.map(x=>x.text||"").join("")||"";}
 
-async function aImgs(files,tipo){
+async function aImgs(files,tipo,exInfo){
 const c=[];
 // Add face reference photos for model recognition
 const modelNames=[];
@@ -240,12 +253,13 @@ c.push({type:"text",text:`[FOTO RIFERIMENTO VOLTO: ${ml.nome}]`});
 for(const fd of fp){const b64=fd.split(",")[1]||fd;c.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}});}}}
 if(modelNames.length)c.push({type:"text",text:"--- FINE FOTO RIFERIMENTO VOLTI. Le foto seguenti sono del PRODOTTO da catalogare ---"});
 for(const f of files)c.push({type:"image",source:{type:"base64",media_type:mT(f),data:await toB(f)}});
-c.push({type:"text",text:mPr(cfg.br,tipo,files.length,modelNames)});
+c.push({type:"text",text:mPr(cfg.br,tipo,files.length,modelNames,exInfo)});
 const raw=await cAI(c);
 try{return JSON.parse(raw.replace(/```json|```/g,"").trim());}catch(e){throw new Error(`Risposta AI non valida (JSON parse): ${raw.slice(0,150)}...`);}}
 
 async function genLong(it){
-const prompt=mPrLong(cfg.br,it.tp,it.nm,it.ds,it.cl,it.ai?.licenza,it.cp);
+const exInfo=it.excelInfo||getExcelInfo(it.sku);
+const prompt=mPrLong(cfg.br,it.tp,it.nm,it.ds,it.cl,it.ai?.licenza,it.cp,exInfo);
 return await cAI([{type:"text",text:prompt}]);}
 
 const MACRO_MAP={"t-shirt":"maglietteet-shirt","top":"topecanotte","canotta":"topecanotte","maglia":"maglie","felpa":"felpe","camicia":"camicie","camicia di jeans":"camicie","giacca":"giacche","giubbino":"giubbini","giubbino di pelle":"giubbini","cardigan":"cardigan","coprispalle":"coprispalle","casacca":"casacche","piumino":"piumini","spolverino":"spolverini","pelliccia":"pellicce","body":"body","pantaloni":"pantaloni","jeans":"jeans","gonna":"gonne","shorts":"shorts","shorts di jeans":"shorts","abito":"abiti","leggings":"leggings","pigiama":"pigiami","reggiseno":"reggiseni","slip":"slip","scarpe":"scarpe","calzini":"calzini","sciarpa":"sciarpe","borsa":"borse"};
@@ -301,10 +315,13 @@ const gr={};for(const f of imgs){const s=pSKU(f.name);(gr[s]=gr[s]||[]).push(f);
 const ex=new Set(items.map(i=>i.sku));
 for(const[sku,sf]of Object.entries(gr)){
 if(ex.has(sku)){const it=items.find(i=>i.sku===sku);if(it){it.af.push(...sf);it.ap.push(...sf.map(f=>URL.createObjectURL(f)));}continue;}
-const{s,tipo,u}=gSuf(sku);
-if(!s&&u&&!unk.find(x=>x.sf===u))unk.push({sf:u,sku,dn:false,vl:""});
+let{s,tipo,u}=gSuf(sku);
+// Auto-resolve unknown suffix from Excel column T
+if(!s&&u){const ex=getExcelInfo(sku);if(ex&&ex.tipoArticolo){cS[u]=ex.tipoArticolo;localStorage.setItem("zs",JSON.stringify(cS));s=u;tipo=ex.tipoArticolo;}else if(!unk.find(x=>x.sf===u))unk.push({sf:u,sku,dn:false,vl:""});}
+const ex=getExcelInfo(sku);
 items.push({id:Math.random(),sku,fl:sf[0],af:sf,pv:URL.createObjectURL(sf[0]),ap:sf.map(f=>URL.createObjectURL(f)),
-st:s?"pend":"wait",ai:null,cp:"",tg:"",nm:"",ds:"",dl:"",cl:"",tp:tipo||"",sf:s||u||"",er:null,doubt:false,doubtDesc:"",doubtInput:"",doubtResolved:false});}
+st:s?"pend":"wait",ai:null,cp:ex?.composizione||"",tg:"",nm:"",ds:"",dl:"",cl:"",tp:tipo||"",sf:s||u||"",er:null,doubt:false,doubtDesc:"",doubtInput:"",doubtResolved:false,
+metaTitle:"",metaDesc:"",metaKeys:"",altImg:"",excelInfo:ex||null});}
 procPhase="analyzing";render();await runP();}
 
 async function runPool(tasks,conc,fn){let i=0;async function worker(){while(i<tasks.length){const t=tasks[i++];await fn(t);}}await Promise.all(Array.from({length:Math.min(conc,tasks.length)},()=>worker()));}
@@ -314,7 +331,9 @@ if(pending.length){procPhase="analyzing";procStart=Date.now();procTimes=[];}
 async function procOne(it,attempt=0){it.st="load";it.er=null;render();
 const t0=Date.now();
 try{
-const ai=await aImgs(it.af,it.tp);it.ai=ai;it.nm=mNm(it.tp,ai);it.cl=ai.colore_madre||"";
+const exInfo=it.excelInfo||getExcelInfo(it.sku);
+const ai=await aImgs(it.af,it.tp,exInfo);it.ai=ai;it.nm=mNm(it.tp,ai);it.cl=ai.colore_madre||"";
+if(exInfo?.composizione&&!it.cp)it.cp=exInfo.composizione;
 const fIdx=parseInt(ai.foto_frontale_idx)||0;
 if(fIdx>0&&fIdx<it.af.length){const ff=it.af.splice(fIdx,1)[0];it.af.unshift(ff);const fp=it.ap.splice(fIdx,1)[0];it.ap.unshift(fp);it.fl=it.af[0];it.pv=it.ap[0];}
 // Move still life photos to the end (keep front photo first)
@@ -325,7 +344,7 @@ it.af=[...modelPh,...stillPh];it.ap=[...modelPp,...stillPp];it.fl=it.af[0];it.pv
 if(ai.modella_riconosciuta){const recMod=mod.find(ml=>ml.nome.toLowerCase()===ai.modella_riconosciuta.toLowerCase());if(recMod){it.recMod=recMod.nome;it.modelUnknown=false;}else{it.modelUnknown=true;it.recMod=null;}}
 else if(cfg.shootType==="model"||cfg.shootType==="mixed"){it.modelUnknown=true;it.recMod=null;}
 it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,tipo:it.tp}):mTagsLoveskin({tipo:it.tp,sfx:it.sf,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,vestibilita:ai.vestibilita||null,sporty:!!ai.is_sporty});
-it.ds=mDs(ai,"",it.tp,it.recMod);
+it.ds=mDs(ai,it.cp,it.tp,it.recMod);
 if(ai.dubbio_licenza){
 const dDesc=(ai.dubbio_descrizione||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim().slice(0,60);
 let memMatch=null;
@@ -335,6 +354,10 @@ if(it.tg){const licTag=memMatch.toLowerCase().replace(/[^a-z0-9]/g,"");if(!it.tg
 else{it.doubt=true;it.doubtDesc=ai.dubbio_descrizione||"Stampa/logo non identificato";it.doubtResolved=false;}}
 else{it.doubt=false;it.doubtResolved=false;}
 try{it.dl=await genLong(it);}catch(e){it.dl="[Errore generazione descrizione lunga: "+e.message+"]";}
+// Generate meta fields
+it.metaTitle=genMetaTitle(it);it.metaDesc=genMetaDesc(it);it.metaKeys=genMetaKeys(it);
+// Generate alt image description
+try{it.altImg=await genAltImg(it);}catch(e){it.altImg=it.nm+" - "+it.cl;}
 it.st="done";procTimes.push(Date.now()-t0);
 }catch(e){if(attempt<2){console.log(`Auto-retry ${it.sku} (attempt ${attempt+1}):`,e.message);await new Promise(r=>setTimeout(r,3000*(attempt+1)));return procOne(it,attempt+1);}
 it.st="err";it.er=e.message;procTimes.push(Date.now()-t0);}render();}
@@ -382,7 +405,8 @@ if(rw.descrizione_breve)it.ds=rw.descrizione_breve;
 // Update tags with license
 if(it.ai.licenza){const licTag=it.ai.licenza.toLowerCase().replace(/[^a-z0-9]/g,"");if(it.tg&&!it.tg.includes(licTag)){let base=it.tg.replace(/;?\s*$/,"");it.tg=base+"; "+licTag+"; licenza; licenza"+(cfg.an||"26")+";";}}
 // Rework long desc
-it.dl=await cAI([{type:"text",text:mPrLong(cfg.br,it.tp,it.nm,it.ds,it.cl,it.ai?.licenza,it.cp)}]);
+const exInfoRw=it.excelInfo||getExcelInfo(it.sku);
+it.dl=await cAI([{type:"text",text:mPrLong(cfg.br,it.tp,it.nm,it.ds,it.cl,it.ai?.licenza,it.cp,exInfoRw)}]);
 }catch(e){console.error("Rework error:",e);}
 it.reworking=false;render();
 }
@@ -411,7 +435,7 @@ const raw=await cAI(c);const ai=JSON.parse(raw.replace(/```json|```/g,"").trim()
 it.ai=Object.assign(it.ai||{},ai);
 it.nm=mNm(it.tp,it.ai);it.cl=ai.colore_madre||it.cl;
 it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,tipo:it.tp}):mTagsLoveskin({tipo:it.tp,sfx:it.sf,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,vestibilita:ai.vestibilita||null,sporty:!!ai.is_sporty});
-it.ds=mDs(it.ai,"",it.tp,it.recMod);
+it.ds=mDs(it.ai,it.cp,it.tp,it.recMod);
 try{it.dl=await genLong(it);}catch(e){it.dl="[Errore: "+e.message+"]";}
 it.corrHint="";
 }catch(e){console.error("Correction error:",e);}
@@ -445,7 +469,7 @@ corr=allCorr;
 cL=false;cD=true;render();}
 
 function expCSV(){const done=items.filter(i=>i.st==="done");if(!done.length)return;
-const cm={};corr.forEach(cr=>cr.skus.forEach(s=>{const o=cr.skus.filter(x=>x!==s).join(", ");cm[s]=cm[s]?cm[s]+"; "+o:o;}));
+const cm={};corr.forEach(cr=>cr.skus.forEach(s=>{const o=cr.skus.filter(x=>x!==s).join("; ");cm[s]=cm[s]?cm[s]+"; "+o:o;}));
 let csv="\uFEFF"+"SKU;Nome Prodotto;Tipo Articolo;Colore;Composizione;Descrizione Breve;Descrizione Lunga;Tag SEO;Prodotti Correlati\n";
 done.forEach(i=>{csv+=[esc(i.sku),esc(i.nm),esc(i.tp),esc(i.cl),esc(i.cp),esc(i.ds),esc(i.dl),esc(i.tg),esc(cm[i.sku]||"")].join(";")+"\n";});
 const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));
@@ -527,9 +551,23 @@ m.innerHTML=`<div style="${anim?"animation:fadeUp .5s ease forwards":""}">
 <button class="brand-btn ${cfg.shootType==="mixed"?"active":""}" onclick="cfg.shootType='mixed';cfg.noModel=true;if(!mod.length)nM=true;render()">Misto</button>
 </div></div></div>
 ${modSection}
+<div style="margin-top:20px;padding:20px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+<div><h3 style="font-size:13px;font-weight:600">File Excel Dati Tecnici</h3>
+<p style="font-size:11px;color:var(--muted);margin-top:2px">Carica il file Excel con i dati tecnici degli articoli (colonne A, C, Q, R, T, U, V, AB)</p></div></div>
+${excelWb?`<div style="padding:12px 16px;background:var(--card);border-radius:8px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+<div style="display:flex;align-items:center;gap:10px"><span style="font-size:20px">📊</span><div><p style="font-size:13px;font-weight:600">${excelFileName}</p>
+<p style="font-size:11px;color:var(--muted)">${excelRows.length-1} articoli trovati · ${Object.keys(excelMap).length} codici mappati</p></div></div>
+<button class="btn btn-d" style="padding:5px 12px;font-size:11px" onclick="excelWb=null;excelRows=[];excelMap={};excelFileName='';render()">✕ Rimuovi</button></div>`
+:`<div class="drop" style="padding:24px;margin:0;cursor:pointer" id="excelDz" onclick="const i=document.createElement('input');i.type='file';i.accept='.xlsx,.xls';i.onchange=async()=>{try{const r=await parseExcel(i.files[0]);render();}catch(e){alert('Errore lettura Excel: '+e.message);}};i.click()">
+<p style="font-size:14px;font-weight:500">📊 Trascina o clicca per caricare il file Excel</p>
+<p style="font-size:11px;color:var(--muted);margin-top:4px">Formati accettati: .xlsx, .xls</p></div>`}
+</div>
 <div style="display:flex;justify-content:flex-end;margin-top:28px;gap:10px">
 <button class="btn btn-s" onclick="step=-1;render()">⚙ API Key</button>
-<button class="btn btn-p" ${rdy?"":"disabled"} onclick="cfg.noModel=cfg.shootType==='still'||cfg.shootType==='mixed';step=1;render()">Inizia Catalogazione →</button></div></div>`;}
+<button class="btn btn-p" ${rdy?"":"disabled"} onclick="cfg.noModel=cfg.shootType==='still'||cfg.shootType==='mixed';step=1;render()">Inizia Catalogazione →</button></div></div>`;
+const exDz=document.getElementById("excelDz");if(exDz){exDz.ondragover=e=>{e.preventDefault();exDz.classList.add("ov");};exDz.ondragleave=()=>exDz.classList.remove("ov");exDz.ondrop=async e=>{e.preventDefault();exDz.classList.remove("ov");const f=e.dataTransfer.files[0];if(f)try{await parseExcel(f);render();}catch(err){alert("Errore lettura Excel: "+err.message);}};}}
+
 
 function saveNewModella(){
 const nm=document.getElementById("fNome")?.value?.trim();
@@ -543,6 +581,96 @@ localStorage.setItem("zm",JSON.stringify(mod));
 if(tmpFaces.length){facePh[nm]=tmpFaces.slice();localStorage.setItem("zfp",JSON.stringify(facePh));}
 if(!cfg.selMods.includes(nm))cfg.selMods.push(nm);
 tmpFaces=[];tmpNm="";tmpAl="";tmpTs="";tmpTi="";nM=false;render();}
+
+function parseExcel(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});excelWb=wb;excelRows=json;excelMap={};excelFileName=file.name;
+// Map SKU (col A=0) to row data, starting from row 2 (index 1)
+for(let i=1;i<json.length;i++){const row=json[i];const sku=(row[0]||"").toString().trim().toUpperCase();if(sku)excelMap[sku]={row:i,codice:sku,colori:(row[2]||"").toString(),anno:(row[16]||"").toString(),stagione:(row[17]||"").toString(),tipoArticolo:(row[19]||"").toString(),brand:(row[20]||"").toString(),caratteristica:(row[21]||"").toString(),composizione:(row[27]||"").toString()};}
+res({rows:json.length-1,matched:Object.keys(excelMap).length});}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(file);});}
+
+function getExcelInfo(sku){return excelMap[sku.toUpperCase()]||null;}
+
+function wrapHtml(text){if(!text)return"";return text.split("\n").filter(l=>l.trim()).map(l=>`<p class="p1" style="margin: 0px">${l.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</p>`).join("\n");}
+
+function genMetaTitle(it){const br=cfg.br==="zuiki"?"Zuiki":"Loveskin";const ex=getExcelInfo(it.sku);const tipo=it.tp||"";const nm=it.nm||tipo;return`${nm} | ${br}`;}
+
+function genMetaDesc(it){const br=cfg.br==="zuiki"?"Zuiki":"Loveskin";const nm=it.nm||it.tp;const tipo=it.tp||"";const desc=it.ai?.dettagli_descrizione||"";const shortDesc=desc.length>120?desc.slice(0,117)+"...":desc;return`Acquista ${nm} ${br}. ${shortDesc}`.slice(0,160);}
+
+function genMetaKeys(it){const br=cfg.br==="zuiki"?"zuiki":"loveskin";const tipo=(it.tp||"").toLowerCase();const nm=(it.nm||"").toLowerCase();const ex=getExcelInfo(it.sku);const keys=[br,tipo,nm,cfg.st?.toLowerCase()||"","donna","moda"];if(it.ai?.licenza&&it.ai.licenza!=="null")keys.push(it.ai.licenza.toLowerCase());if(ex?.caratteristica)keys.push(ex.caratteristica.toLowerCase());return[...new Set(keys.filter(k=>k&&k.length>1))].join(", ");}
+
+async function genAltImg(it){
+const c=[];
+c.push({type:"image",source:{type:"base64",media_type:mT(it.fl),data:await toB(it.fl)}});
+c.push({type:"text",text:`Sei un esperto di accessibilità web. Descrivi questa immagine di moda in modo che una persona non vedente possa visualizzarla mentalmente.
+Prodotto: ${it.nm||it.tp} (${it.sku})
+Colore: ${it.cl||"non specificato"}
+
+DESCRIVI in italiano in una singola frase (max 200 caratteri):
+- L'ambientazione/set della foto
+- La modella (se presente): posa, caratteristiche
+- Il capo principale in dettaglio
+- Gli eventuali capi abbinati visibili
+NON usare virgolette. Rispondi SOLO con la frase descrittiva, nient'altro.`});
+return await cAI(c);}
+
+async function downloadPhotos(){
+const done=items.filter(i=>i.st==="done");if(!done.length)return;
+const zip=new JSZip();
+const canvas=document.createElement("canvas");const ctx=canvas.getContext("2d");
+
+for(const it of done){
+const ex=getExcelInfo(it.sku);
+const colori=(ex?.colori||it.cl||"").split(";").map(c=>c.trim()).filter(Boolean);
+const firstColor=colori[0]||it.cl||"Colore";
+
+// Main product image (3/4 front of first color) → CODICEARTICOLO_1
+if(it.af.length>0){
+try{const blob=await convertToPng(it.af[0]);zip.file(`${it.sku}_1.png`,blob);}catch(e){console.error("PNG convert error:",e);}}
+
+// Per-color images
+// For now we treat all photos as belonging to the detected color
+// Order: 3/4 front (idx 0), scontornata/back (if available), detail/closeup, full model, rest
+const photos=it.af;
+for(let pi=0;pi<photos.length;pi++){
+try{const blob=await convertToPng(photos[pi]);
+const colorName=firstColor.replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ]/g,"");
+zip.file(`${it.sku}_${colorName}_${pi+1}.png`,blob);}catch(e){console.error("PNG convert error:",e);}}}
+
+const content=await zip.generateAsync({type:"blob"});
+const a=document.createElement("a");a.href=URL.createObjectURL(content);
+a.download=`foto_${cfg.br}_${SCMAP[cfg.st]||""}${cfg.an}_${new Date().toISOString().slice(0,10)}.zip`;a.click();}
+
+function convertToPng(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas");c.width=img.width;c.height=img.height;c.getContext("2d").drawImage(img,0,0);c.toBlob(blob=>{if(blob)res(blob);else rej(new Error("toBlob failed"));},"image/png");};img.onerror=rej;img.src=r.result;};r.onerror=rej;r.readAsDataURL(file);});}
+
+function exportExcel(){
+const done=items.filter(i=>i.st==="done");if(!done.length||!excelWb)return;
+const wb=XLSX.utils.book_new();
+const ws=excelWb.Sheets[excelWb.SheetNames[0]];
+const origData=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+
+// Build correlation map
+const cm={};corr.forEach(cr=>cr.skus.forEach(s=>{const o=cr.skus.filter(x=>x!==s).join("; ");cm[s]=cm[s]?cm[s]+"; "+o:o;}));
+
+// For each analyzed item, find its row in Excel and write columns D,E,F,I,J,K,M,N,O
+for(const it of done){
+const ex=getExcelInfo(it.sku);if(!ex)continue;
+const ri=ex.row;
+origData[ri][3]=it.nm||""; // D: Titolo Prodotto
+origData[ri][4]=wrapHtml(it.ds); // E: Descrizione Breve HTML
+origData[ri][5]=wrapHtml(it.dl); // F: Descrizione Estesa HTML
+origData[ri][8]=it.metaTitle||genMetaTitle(it); // I: meta_titolo
+origData[ri][9]=it.metaDesc||genMetaDesc(it); // J: meta_descrizione
+origData[ri][10]=it.metaKeys||genMetaKeys(it); // K: meta_keys
+origData[ri][12]=it.tg||""; // M: tags
+origData[ri][13]=it.altImg||""; // N: Default Alt Image
+origData[ri][14]=cm[it.sku]||""; // O: Correlati
+}
+
+const newWs=XLSX.utils.aoa_to_sheet(origData);
+XLSX.utils.book_append_sheet(wb,newWs,excelWb.SheetNames[0]);
+// Copy other sheets if any
+for(let i=1;i<excelWb.SheetNames.length;i++){const sn=excelWb.SheetNames[i];XLSX.utils.book_append_sheet(wb,excelWb.Sheets[sn],sn);}
+const fname=excelFileName.replace(/\.[^.]+$/,"")+"_compilato.xlsx";
+XLSX.writeFile(wb,fname);}
 
 function fmtTime(ms){const s=Math.ceil(ms/1000);if(s<60)return s+"s";const m=Math.floor(s/60),rs=s%60;return m+"m "+rs+"s";}
 function rCat(m,anim){
@@ -607,7 +735,8 @@ else if(it.st==="done"&&it.doubt&&!it.doubtResolved)sH='<span class="doubt-badge
 else if(it.st==="done")sH='<span style="font-size:11px;color:var(--ok);font-weight:600">✓</span>';
 
 let mH="";
-if(it.st==="done"){const showModCol=it.recMod||it.modelUnknown;mH=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr${showModCol?" 1fr":""};gap:8px;font-size:12px"><div><span style="color:var(--muted)">Nome: </span><strong>${it.nm}</strong></div><div><span style="color:var(--muted)">Colore: </span>${it.cl}</div><div><span style="color:var(--muted)">Comp: </span>${it.cp||"—"}</div>${it.recMod?`<div><span style="color:var(--muted)">Modella: </span><strong>${it.recMod}</strong></div>`:it.modelUnknown?`<div><span style="color:var(--muted)">Modella: </span><strong style="color:var(--err)">Non riconosciuta</strong> <select class="inp" style="display:inline;width:auto;padding:2px 6px;font-size:11px;margin-left:4px;border-color:var(--err)" onchange="if(this.value){items[${idx}].recMod=this.value;items[${idx}].modelUnknown=false;items[${idx}].ds=mDs(items[${idx}].ai,'',items[${idx}].tp,this.value);render();}"><option value="">Seleziona...</option>${mod.map(ml=>`<option value="${ml.nome}">${ml.nome}</option>`).join("")}</select></div>`:""}</div>`;}
+const exD=it.excelInfo||getExcelInfo(it.sku);
+if(it.st==="done"){const showModCol=it.recMod||it.modelUnknown;mH=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr${showModCol?" 1fr":""};gap:8px;font-size:12px"><div><span style="color:var(--muted)">Nome: </span><strong>${it.nm}</strong></div><div><span style="color:var(--muted)">Colore: </span>${it.cl}</div><div><span style="color:var(--muted)">Comp: </span>${it.cp||"—"}</div>${it.recMod?`<div><span style="color:var(--muted)">Modella: </span><strong>${it.recMod}</strong></div>`:it.modelUnknown?`<div><span style="color:var(--muted)">Modella: </span><strong style="color:var(--err)">Non riconosciuta</strong> <select class="inp" style="display:inline;width:auto;padding:2px 6px;font-size:11px;margin-left:4px;border-color:var(--err)" onchange="if(this.value){items[${idx}].recMod=this.value;items[${idx}].modelUnknown=false;items[${idx}].ds=mDs(items[${idx}].ai,'',items[${idx}].tp,this.value);render();}"><option value="">Seleziona...</option>${mod.map(ml=>`<option value="${ml.nome}">${ml.nome}</option>`).join("")}</select></div>`:""}</div>${exD?`<div style="margin-top:6px;padding:8px 12px;background:#f8f6f0;border:1px solid var(--border);border-radius:8px;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11px"><span style="color:var(--muted)">📊 Excel:</span>${exD.anno?`<span><b>Anno:</b> ${exD.anno}</span>`:""} ${exD.stagione?`<span><b>Stag:</b> ${exD.stagione}</span>`:""} ${exD.tipoArticolo?`<span><b>Tipo:</b> ${exD.tipoArticolo}</span>`:""} ${exD.brand?`<span><b>Brand:</b> ${exD.brand}</span>`:""} ${exD.caratteristica?`<span><b>Caratt:</b> ${exD.caratteristica}</span>`:""} ${exD.colori?`<span><b>Colori:</b> ${exD.colori}</span>`:""} ${exD.composizione?`<span><b>Comp:</b> ${exD.composizione}</span>`:""}</div>`:""}`;}
 if(it.st==="load")mH='<div style="display:flex;gap:10px"><div class="shim" style="width:80px"></div><div class="shim" style="width:100px"></div><div class="shim" style="width:70px"></div></div>';
 
 // Error detail
@@ -628,6 +757,10 @@ eH=`<div style="padding:0 16px 16px;border-top:1px solid var(--border);padding-t
 <div class="field"><label>Descrizione Breve</label><textarea class="inp" rows="5" style="font-size:13px" onblur="items[${idx}].ds=this.value">${it.ds}</textarea></div>
 <div class="field"><label>Descrizione Lunga (SEO)</label><textarea class="inp" rows="8" style="font-size:13px" onblur="items[${idx}].dl=this.value">${it.dl}</textarea><button class="btn btn-s" style="padding:5px 14px;font-size:11px;margin-top:6px" onclick="(async()=>{items[${idx}].dl='Generazione in corso...';render();try{items[${idx}].dl=await genLong(items[${idx}]);}catch(e){items[${idx}].dl='Errore: '+e.message;}render();})()">🔄 Rigenera desc. lunga</button></div>
 <div class="field"><label>Tag SEO</label><textarea class="inp" rows="2" style="font-size:12px;font-family:'JetBrains Mono',monospace" onblur="items[${idx}].tg=this.value">${it.tg}</textarea></div>
+<div class="grid3"><div class="field"><label>Meta Titolo</label><input class="inp" value="${it.metaTitle||""}" onblur="items[${idx}].metaTitle=this.value" style="font-size:12px"></div>
+<div class="field"><label>Meta Descrizione</label><input class="inp" value="${it.metaDesc||""}" onblur="items[${idx}].metaDesc=this.value" style="font-size:12px"></div>
+<div class="field"><label>Meta Keywords</label><input class="inp" value="${it.metaKeys||""}" onblur="items[${idx}].metaKeys=this.value" style="font-size:12px"></div></div>
+<div class="field"><label>Default Alt Image</label><textarea class="inp" rows="2" style="font-size:12px" onblur="items[${idx}].altImg=this.value" placeholder="Descrizione accessibile dell'immagine principale">${it.altImg||""}</textarea></div>
 ${cfg.br==="loveskin"?`<div class="field"><label>Categoria Loveskin</label><select class="inp" onchange="items[${idx}].tg=(LSC[this.value]||[]).join('; ');render()"><option>Seleziona...</option>${Object.keys(LSC).map(k=>`<option>${k}</option>`).join("")}</select></div>`:""}</div>`;}
 
 const cardClass=it.st==="wait"?"card-w":it.st==="err"?"card-e":"";
@@ -660,7 +793,7 @@ let cH="";
 if(cL)cH=`<div style="text-align:center;padding:30px"><div class="spin"></div><p style="font-size:13px;color:var(--muted);animation:pulse 1s infinite">Analisi correlazioni in corso...</p></div>`;
 else if(corr.length)cH=corr.map(cr=>`<div class="cc"><div style="font-size:14px;font-weight:600;margin-bottom:6px">${cr.outfit_name||"Outfit"}</div><div style="margin-bottom:6px">${(cr.skus||[]).map(s=>`<span class="cs">${s}</span>`).join("")}</div><p style="font-size:12px;color:var(--muted)">${cr.motivo||""}</p></div>`).join("");
 else if(cD&&!corr.length)cH='<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Nessun match visivo trovato.</p>';
-const tR=done.map(i=>{const cr=corr.filter(c=>(c.skus||[]).includes(i.sku)).flatMap(c=>(c.skus||[]).filter(s=>s!==i.sku));return`<tr><td class="sku">${i.sku}</td><td>${i.nm}</td><td>${i.tp}</td><td>${i.cl}</td><td>${i.cp||"—"}</td><td>${i.ap?.length||1}</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">${cr.join(", ")||"—"}</td></tr>`;}).join("");
+const tR=done.map(i=>{const cr=corr.filter(c=>(c.skus||[]).includes(i.sku)).flatMap(c=>(c.skus||[]).filter(s=>s!==i.sku));return`<tr><td class="sku">${i.sku}</td><td>${i.nm}</td><td>${i.tp}</td><td>${i.cl}</td><td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(i.metaTitle||"").replace(/"/g,"&quot;")}">${i.metaTitle||"—"}</td><td>${i.ap?.length||1}</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">${cr.join("; ")||"—"}</td></tr>`;}).join("");
 m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px">
 <div><h2 style="font-size:24px;font-weight:700">Correlazioni & Export</h2><p style="color:var(--muted);font-size:13px">${done.length} prodotti pronti</p></div>
@@ -671,8 +804,12 @@ m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <button class="btn btn-p" ${done.length<2||cL?"disabled":""} onclick="fCorr()">${cL?"Analisi...":cD?"Ricalcola":"Trova Correlazioni"}</button></div>${cH}</div>
 <div style="background:var(--card);border-radius:14px;border:1px solid var(--border);overflow:hidden;margin-bottom:20px">
 <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-size:14px;font-weight:600">Anteprima</div>
-<div style="overflow-x:auto"><table class="tbl"><thead><tr>${["SKU","Nome","Tipo","Colore","Comp.","Foto","Correlati"].map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${tR}</tbody></table></div></div>
-<div style="display:flex;justify-content:center"><button class="btn btn-g" ${done.length?"":"disabled"} style="padding:14px 40px;font-size:15px;border-radius:12px" onclick="expCSV()">⬇ Scarica CSV (${done.length} prodotti)</button></div></div>`;}
+<div style="overflow-x:auto"><table class="tbl"><thead><tr>${["SKU","Nome","Tipo","Colore","Meta Titolo","Foto","Correlati"].map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${tR}</tbody></table></div></div>
+<div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap">
+${excelWb?`<button class="btn btn-g" ${done.length?"":"disabled"} style="padding:14px 40px;font-size:15px;border-radius:12px" onclick="exportExcel()">📊 Scarica Excel (${done.length} prodotti)</button>`
+:`<button class="btn btn-g" ${done.length?"":"disabled"} style="padding:14px 40px;font-size:15px;border-radius:12px" onclick="expCSV()">⬇ Scarica CSV (${done.length} prodotti)</button>`}
+<button class="btn btn-p" ${done.length?"":"disabled"} style="padding:14px 40px;font-size:15px;border-radius:12px" id="dlPhotosBtn" onclick="this.disabled=true;this.textContent='Preparazione ZIP...';downloadPhotos().then(()=>{this.disabled=false;this.textContent='📸 Scarica Foto Rinominate';}).catch(e=>{this.disabled=false;this.textContent='📸 Scarica Foto Rinominate';alert('Errore: '+e.message);})">📸 Scarica Foto Rinominate</button>
+</div></div>`;}
 
 render();
 </script>

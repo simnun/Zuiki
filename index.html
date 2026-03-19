@@ -312,16 +312,16 @@ async function procF(files){
 const imgExts=new Set(["jpg","jpeg","png","webp","gif","bmp","tiff","tif","heic","heif","avif","svg"]);
 const imgs=Array.from(files).filter(f=>f.type.startsWith("image/")||imgExts.has(f.name.toLowerCase().split(".").pop()));if(!imgs.length)return;
 const gr={};for(const f of imgs){const s=pSKU(f.name);(gr[s]=gr[s]||[]).push(f);}
-const ex=new Set(items.map(i=>i.sku));
+const exSet=new Set(items.map(i=>i.sku));
 for(const[sku,sf]of Object.entries(gr)){
-if(ex.has(sku)){const it=items.find(i=>i.sku===sku);if(it){it.af.push(...sf);it.ap.push(...sf.map(f=>URL.createObjectURL(f)));}continue;}
+if(exSet.has(sku)){const it=items.find(i=>i.sku===sku);if(it){it.af.push(...sf);it.ap.push(...sf.map(f=>URL.createObjectURL(f)));}continue;}
 let{s,tipo,u}=gSuf(sku);
 // Auto-resolve unknown suffix from Excel column T
-if(!s&&u){const ex=getExcelInfo(sku);if(ex&&ex.tipoArticolo){cS[u]=ex.tipoArticolo;localStorage.setItem("zs",JSON.stringify(cS));s=u;tipo=ex.tipoArticolo;}else if(!unk.find(x=>x.sf===u))unk.push({sf:u,sku,dn:false,vl:""});}
-const ex=getExcelInfo(sku);
+if(!s&&u){const exi=getExcelInfo(sku);if(exi&&exi.tipoArticolo){cS[u]=exi.tipoArticolo;localStorage.setItem("zs",JSON.stringify(cS));s=u;tipo=exi.tipoArticolo;}else if(!unk.find(x=>x.sf===u))unk.push({sf:u,sku,dn:false,vl:""});}
+const exInf=getExcelInfo(sku);
 items.push({id:Math.random(),sku,fl:sf[0],af:sf,pv:URL.createObjectURL(sf[0]),ap:sf.map(f=>URL.createObjectURL(f)),
-st:s?"pend":"wait",ai:null,cp:ex?.composizione||"",tg:"",nm:"",ds:"",dl:"",cl:"",tp:tipo||"",sf:s||u||"",er:null,doubt:false,doubtDesc:"",doubtInput:"",doubtResolved:false,
-metaTitle:"",metaDesc:"",metaKeys:"",altImg:"",excelInfo:ex||null});}
+st:s?"pend":"wait",ai:null,cp:exInf?.composizione||"",tg:"",nm:"",ds:"",dl:"",cl:"",tp:tipo||"",sf:s||u||"",er:null,doubt:false,doubtDesc:"",doubtInput:"",doubtResolved:false,
+metaTitle:"",metaDesc:"",metaKeys:"",altImg:"",excelInfo:exInf||null});}
 procPhase="analyzing";render();await runP();}
 
 async function runPool(tasks,conc,fn){let i=0;async function worker(){while(i<tasks.length){const t=tasks[i++];await fn(t);}}await Promise.all(Array.from({length:Math.min(conc,tasks.length)},()=>worker()));}
@@ -574,7 +574,7 @@ const nm=document.getElementById("fNome")?.value?.trim();
 const al=document.getElementById("fAlt")?.value?.trim();
 const ts=document.getElementById("fTS")?.value||"";
 const ti=document.getElementById("fTI")?.value||"";
-if(!nm||!al){alert("Inserisci nome e altezza della modella");return;}
+if(!nm||!al||!ts||!ti){alert("Compila tutti i campi: nome, altezza, taglia sopra e taglia sotto");return;}
 mod=mod.filter(x=>x.nome!==nm);
 mod.push({nome:nm,altezza:al,tagliaSopra:ts,tagliaSotto:ti});
 localStorage.setItem("zm",JSON.stringify(mod));

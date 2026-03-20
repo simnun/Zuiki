@@ -577,7 +577,7 @@ ${cfg.shootType==="mannequin"?`<div style="margin-top:16px;padding:20px;backgrou
 <p style="font-size:11px;color:var(--muted);margin-top:2px">Carica il file Excel con i dati tecnici degli articoli (colonne A, C, Q, R, T, U, V, AB)</p></div></div>
 ${excelWb?`<div style="padding:12px 16px;background:var(--card);border-radius:8px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
 <div style="display:flex;align-items:center;gap:10px"><span style="font-size:20px">📊</span><div><p style="font-size:13px;font-weight:600">${excelFileName}</p>
-<p style="font-size:11px;color:var(--muted)">${excelRows.length-1} articoli trovati · ${Object.keys(excelMap).length} codici mappati</p></div></div>
+<p style="font-size:11px;color:var(--muted)">${excelRows.length-2} articoli trovati · ${Object.keys(excelMap).length} codici mappati</p></div></div>
 <button class="btn btn-d" style="padding:5px 12px;font-size:11px" onclick="excelWb=null;excelRows=[];excelMap={};excelFileName='';render()">✕ Rimuovi</button></div>`
 :`<div class="drop" style="padding:24px;margin:0;cursor:pointer" id="excelDz" onclick="const i=document.createElement('input');i.type='file';i.accept='.xlsx,.xls';i.onchange=async()=>{try{const r=await parseExcel(i.files[0]);render();}catch(e){alert('Errore lettura Excel: '+e.message);}};i.click()">
 <p style="font-size:14px;font-weight:500">📊 Trascina o clicca per caricare il file Excel</p>
@@ -603,9 +603,9 @@ if(!cfg.selMods.includes(nm))cfg.selMods.push(nm);
 tmpFaces=[];tmpNm="";tmpAl="";tmpTs="";tmpTi="";nM=false;render();}
 
 function parseExcel(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:"array",cellStyles:true});const ws=wb.Sheets[wb.SheetNames[0]];const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});excelWb=wb;excelRows=json;excelMap={};excelFileName=file.name;
-// Map SKU (col A=0) to row data, starting from row 2 (index 1)
-for(let i=1;i<json.length;i++){const row=json[i];const sku=(row[0]||"").toString().trim().toUpperCase();if(sku)excelMap[sku]={row:i,codice:sku,colori:(row[2]||"").toString(),anno:(row[16]||"").toString(),stagione:(row[17]||"").toString(),tipoArticolo:(row[19]||"").toString(),brand:(row[20]||"").toString(),caratteristica:(row[21]||"").toString(),composizione:(row[27]||"").toString()};}
-res({rows:json.length-1,matched:Object.keys(excelMap).length});}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(file);});}
+// Map SKU (col A=0) to row data, starting from row 3 (index 2) — rows 0,1 are headers
+for(let i=2;i<json.length;i++){const row=json[i];const sku=(row[0]||"").toString().trim().toUpperCase();if(sku)excelMap[sku]={row:i,codice:sku,colori:(row[2]||"").toString(),anno:(row[16]||"").toString(),stagione:(row[17]||"").toString(),tipoArticolo:(row[19]||"").toString(),brand:(row[20]||"").toString(),caratteristica:(row[21]||"").toString(),composizione:(row[27]||"").toString()};}
+res({rows:json.length-2,matched:Object.keys(excelMap).length});}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(file);});}
 
 function getExcelInfo(sku){return excelMap[sku.toUpperCase()]||null;}
 
@@ -737,8 +737,8 @@ if(!srcWs[gAddr]||srcWs[gAddr].v===""||srcWs[gAddr].v==null){const orig=srcWs[gA
 if(!srcWs[hAddr]||srcWs[hAddr].v===""||srcWs[hAddr].v==null){const orig=srcWs[hAddr];if(orig){orig.v=0;orig.t="n";delete orig.w;}else srcWs[hAddr]={v:0,t:"n"};}
 }
 
-// Build new worksheet with only header (row 0) + processed rows, preserving cell objects & styles
-const keepRows=[0,...[...processedRows].sort((a,b)=>a-b)];
+// Build new worksheet with header rows (0,1) + processed rows, preserving cell objects & styles
+const keepRows=[0,1,...[...processedRows].sort((a,b)=>a-b)];
 const newWs={};
 // Map old rows to new rows
 for(let ni=0;ni<keepRows.length;ni++){

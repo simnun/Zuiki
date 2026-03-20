@@ -1,10 +1,12 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { getSignedUrl } from '@/lib/storage'
 
+type FacePhoto = { id: string; photoUrl: string }
 type Model = {
   id: string; name: string; heightCm: number | null
   sizeTop: string | null; sizeBottom: string | null
-  facePhotos: { id: string; photoUrl: string }[]
+  facePhotos: FacePhoto[]
 }
 
 export default function ModelsPage() {
@@ -16,9 +18,29 @@ export default function ModelsPage() {
   const [sizeTop, setSizeTop] = useState('')
   const [sizeBottom, setSizeBottom] = useState('')
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState<string | null>(null)
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const loadModels = () => {
-    fetch('/api/models').then(r => r.json()).then(d => { setModels(Array.isArray(d) ? d : []); setLoading(false) })
+    fetch('/api/models').then(r => r.json()).then(async (d) => {
+      const models = Array.isArray(d) ? d : []
+      setModels(models)
+      setLoading(false)
+
+      // Get signed URLs for face photos
+      const urls: Record<string, string> = {}
+      for (const model of models) {
+        for (const photo of model.facePhotos) {
+          try {
+            const res = await fetch(`/api/files?path=${encodeURIComponent(photo.photoUrl)}`)
+            const data = await res.json()
+            if (data.url) urls[photo.id] = data.url
+          } catch { /* ignore */ }
+        }
+      }
+      setSignedUrls(urls)
+    })
   }
 
   useEffect(() => { loadModels() }, [])
@@ -29,7 +51,12 @@ export default function ModelsPage() {
     const res = await fetch('/api/models', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, heightCm: height ? parseInt(height) : null, sizeTop: sizeTop || null, sizeBottom: sizeBottom || null }),
+      body: JSON.stringify({
+        name,
+        heightCm: height ? parseInt(height) : null,
+        sizeTop: sizeTop || null,
+        sizeBottom: sizeBottom || null,
+      }),
     })
     if (res.ok) {
       setName(''); setHeight(''); setSizeTop(''); setSizeBottom('')
@@ -45,15 +72,38 @@ export default function ModelsPage() {
     loadModels()
   }
 
+  const handlePhotoUpload = async (modelId: string, files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setUploading(modelId)
+
+    const formData = new FormData()
+    for (let i = 0; i < files.length; i++) {
+      formData.append('photos', files[i])
+    }
+
+    await fetch(`/api/models/${modelId}/photos`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    setUploading(null)
+    loadModels()
+  }
+
+  const handlePhotoDelete = async (modelId: string, photoId: string) => {
+    await fetch(`/api/models/${modelId}/photos?photoId=${photoId}`, { method: 'DELETE' })
+    loadModels()
+  }
+
   return (
     <div className="animate-fadeUp">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700 }}>Modelle</h1>
-          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Gestisci le modelle per il riconoscimento AI</p>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Gestisci le modelle e le foto del viso per il riconoscimento AI</p>
         </div>
         <button className="btn btn-p" onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Chiudi' : '+ Aggiungi'}
+          {showForm ? 'Chiudi' : '+ Aggiungi Modella'}
         </button>
       </div>
 
@@ -95,29 +145,93 @@ export default function ModelsPage() {
           <p style={{ color: 'var(--muted)', fontSize: 14 }}>Nessuna modella registrata</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {models.map(m => (
-            <div key={m.id} className="card" style={{ padding: '20px 24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div key={m.id} className="card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 700 }}>{m.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{m.name}</div>
+                  <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
                     {m.heightCm ? `${m.heightCm} cm` : ''}
-                    {m.sizeTop ? ` • Top: ${m.sizeTop}` : ''}
-                    {m.sizeBottom ? ` • Bottom: ${m.sizeBottom}` : ''}
+                    {m.sizeTop ? ` \u2022 Top: ${m.sizeTop}` : ''}
+                    {m.sizeBottom ? ` \u2022 Bottom: ${m.sizeBottom}` : ''}
+                    {!m.heightCm && !m.sizeTop && !m.sizeBottom ? 'Nessun dettaglio' : ''}
                   </div>
                 </div>
-                <button onClick={() => handleDelete(m.id)} style={{
-                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--err)',
-                }}>✕</button>
+                <button onClick={() => handleDelete(m.id)} className="btn btn-d" style={{ padding: '6px 14px', fontSize: 12 }}>
+                  Elimina
+                </button>
               </div>
-              {m.facePhotos.length > 0 && (
-                <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                  {m.facePhotos.map(p => (
-                    <img key={p.id} src={p.photoUrl} className="face-thumb" alt="" />
-                  ))}
+
+              {/* Face photos section */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1.2, color: 'var(--muted)', marginBottom: 10 }}>
+                  Foto del viso ({m.facePhotos.length})
                 </div>
-              )}
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                  {m.facePhotos.map(p => (
+                    <div key={p.id} style={{ position: 'relative' }}>
+                      {signedUrls[p.id] ? (
+                        <img
+                          src={signedUrls[p.id]}
+                          alt="Foto viso"
+                          className="face-thumb"
+                          style={{ width: 64, height: 64 }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: 64, height: 64, borderRadius: '50%', background: 'var(--subtle)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          border: '2px solid var(--border)', fontSize: 10, color: 'var(--muted)',
+                        }}>
+                          Foto
+                        </div>
+                      )}
+                      <button
+                        onClick={() => handlePhotoDelete(m.id, p.id)}
+                        style={{
+                          position: 'absolute', top: -4, right: -4,
+                          width: 20, height: 20, borderRadius: '50%',
+                          background: 'var(--err)', color: '#fff', border: 'none',
+                          fontSize: 11, cursor: 'pointer', display: 'flex',
+                          alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        \u2715
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add photo button */}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: 'none' }}
+                    ref={el => { fileInputRefs.current[m.id] = el }}
+                    onChange={e => handlePhotoUpload(m.id, e.target.files)}
+                  />
+                  <button
+                    className="face-add"
+                    style={{ width: 64, height: 64 }}
+                    onClick={() => fileInputRefs.current[m.id]?.click()}
+                    disabled={uploading === m.id}
+                  >
+                    {uploading === m.id ? (
+                      <div className="animate-spin-custom" style={{ width: 18, height: 18 }} />
+                    ) : (
+                      '+'
+                    )}
+                  </button>
+                </div>
+
+                {m.facePhotos.length === 0 && (
+                  <p style={{ fontSize: 12, color: 'var(--warn)', marginTop: 8 }}>
+                    Aggiungi almeno una foto del viso per il riconoscimento AI nelle sessioni
+                  </p>
+                )}
+              </div>
             </div>
           ))}
         </div>

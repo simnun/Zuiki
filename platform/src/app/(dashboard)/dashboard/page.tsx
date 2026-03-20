@@ -119,10 +119,18 @@ export default function DashboardPage() {
                   <td style={{ fontSize: 12, color: 'var(--muted)' }}>
                     {new Date(s.createdAt).toLocaleDateString('it-IT')}
                   </td>
-                  <td>
+                  <td style={{ display: 'flex', gap: 6 }}>
                     <Link href={`/sessions/${s.id}`} className="btn btn-s" style={{ textDecoration: 'none', padding: '6px 14px', fontSize: 12 }}>
                       Apri
                     </Link>
+                    <button className="btn btn-d" style={{ padding: '6px 10px', fontSize: 12 }}
+                      onClick={async () => {
+                        if (!confirm('Eliminare questa sessione?')) return
+                        await fetch(`/api/sessions/${s.id}`, { method: 'DELETE' })
+                        setSessions(sessions.filter(x => x.id !== s.id))
+                      }}>
+                      Elimina
+                    </button>
                   </td>
                 </tr>
               ))}

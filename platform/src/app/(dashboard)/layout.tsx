@@ -78,13 +78,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {user.firstName} {user.lastName}
             </div>
           )}
-          <Link href="/" style={{
-            display: 'block', padding: '10px 12px', borderRadius: 8,
-            background: 'var(--subtle)', textDecoration: 'none',
-            fontSize: 12, fontWeight: 600, color: 'var(--accent2)', textAlign: 'center',
+          <button onClick={() => {
+            fetch('/api/auth/signout', { method: 'POST' }).then(() => window.location.href = '/login')
+          }} style={{
+            display: 'block', width: '100%', padding: '10px 12px', borderRadius: 8,
+            background: 'var(--subtle)', border: '1px solid var(--border)',
+            fontSize: 12, fontWeight: 600, color: 'var(--muted)', textAlign: 'center',
+            cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
           }}>
-            {sideOpen ? 'Catalogo AI' : '⚡'}
-          </Link>
+            {sideOpen ? 'Esci' : '\u2190'}
+          </button>
         </div>
       </aside>
 

@@ -148,7 +148,7 @@ let cS=JSON.parse(localStorage.getItem("zs")||"{}"),mod=JSON.parse(localStorage.
 const PWD="S99";
 function isAuth(){const d=localStorage.getItem("zauth");if(!d)return false;try{const o=JSON.parse(d);return Date.now()-o.ts<2*24*60*60*1000;}catch{return false;}}
 function doAuth(){localStorage.setItem("zauth",JSON.stringify({ts:Date.now()}));}
-let step=isAuth()?(ak?0:-1):-2,prevStep=-99,cfg={br:"",st:"",an:"",ds:"",selMods:[],noModel:false,shootType:""},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false,tmpFaces=[],pwErr=false,tmpNm="",tmpAl="",tmpTs="",tmpTi="",procStart=0,procTimes=[],procPhase="",rwTotal=0,rwDone=0;
+let step=isAuth()?(ak?0:-1):-2,prevStep=-99,cfg={br:"",st:"",an:"",ds:"",selMods:[],noModel:false,shootType:"",mannequin:{taglia:"",petto:"",vita:"",fianchi:""}},items=[],unk=[],eI=null,corr=[],cD=false,cL=false,nM=false,nMann=false,tmpFaces=[],pwErr=false,tmpNm="",tmpAl="",tmpTs="",tmpTi="",procStart=0,procTimes=[],procPhase="",rwTotal=0,rwDone=0;
 let excelWb=null,excelRows=[],excelMap={},excelFileName="";
 
 const pSKU=fn=>fn.replace(/\.[^.]+$/,"").split("__")[0].split("_")[0].toUpperCase();
@@ -181,7 +181,7 @@ function removeTmpFace(idx){saveTmpForm();tmpFaces.splice(idx,1);render();}
 function mPr(br,tipo,n,modelNames,exInfo){
 const m=n>1?`Ti vengono fornite ${n} foto dello STESSO articolo da angolazioni diverse. Usale TUTTE per descrivere meglio. Se una foto ha colore diverso ignorala.`:"Singola foto.";
 const knownLic=Object.keys(licMem).length?`\nLICENZE GIÀ NOTE (usa queste se riconosci elementi simili): ${Object.entries(licMem).map(([k,v])=>`"${k}" = ${v}`).join(", ")}`:"";
-const modelInfo=modelNames&&modelNames.length?`\nRICONOSCIMENTO MODELLA: Ti sono state fornite foto di riferimento del volto delle modelle PRIMA delle foto del prodotto. Le modelle sono: ${modelNames.join(", ")}. Identifica quale modella indossa il capo confrontando i volti. Inserisci il nome nel campo "modella_riconosciuta". Se non riesci a identificarla, usa null.`:"";
+const modelInfo=modelNames&&modelNames.length?`\nRICONOSCIMENTO MODELLA: Ti sono state fornite foto di riferimento del volto delle modelle PRIMA delle foto del prodotto. Le modelle sono: ${modelNames.join(", ")}. Identifica quale modella indossa il capo confrontando i volti. Inserisci il nome nel campo "modella_riconosciuta". Se non riesci a identificarla, usa null.`:cfg.shootType==="mannequin"?"\nQuesta foto mostra il capo indossato su un MANICHINO (non una persona). Il campo modella_riconosciuta deve essere null.":"";
 const excelInfo=exInfo?`\nDATI TECNICI DAL FILE EXCEL (usa queste informazioni per arricchire la descrizione):
 - Colori disponibili: ${exInfo.colori||"N/D"}
 - Anno: ${exInfo.anno||"N/D"}
@@ -229,8 +229,8 @@ REGOLE:
 - Includi keywords rilevanti per la ricerca (tipo articolo, stagione, brand, licenza se presente)
 - Includi consigli di stile e abbinamenti
 - Includi occasioni d'uso
-- Usa un tono coinvolgente e aspirazionale ma autentico
-- Menziona materiali e comfort se noti
+- Usa un tono coinvolgente e aspirazionale ma REALISTICO: NON usare aggettivi come "pregiato", "lussuoso", "esclusivo", "premium", "raffinato" se i materiali sono comuni (poliestere, acrilico, elastan, viscosa, nylon, poliammide). In questo caso punta su design, vestibilità, versatilità, praticità senza fare riferimenti alla composizione.
+- NON analizzare mai la composizione del tessuto nella descrizione: non citare i materiali né la percentuale. La composizione è già indicata a parte.
 - Ottimizza per Google e per AI (risposte dirette a query tipo "cosa indossare con...")
 - Scrivi in italiano corretto e scorrevole
 - NON usare markdown, elenchi puntati o formattazione speciale
@@ -301,6 +301,10 @@ function mNm(tipo,ai){const l=ai?.licenza&&ai.licenza!=="null"&&ai.licenza!=null
 function mDs(ai,comp,tipo,recModName){
 const compFmt=fmtComp(comp);
 if(cfg.shootType==="still")return`${ai?.dettagli_descrizione||""}\n\n${compFmt?`Composizione:\u00A0${compFmt}`:"Composizione:"}`;
+if(cfg.shootType==="mannequin"){
+const mn=cfg.mannequin||{};const tg=mn.taglia?"IT "+mn.taglia:"";const misure=[mn.petto?mn.petto+"cm petto":"",mn.vita?mn.vita+"cm vita":"",mn.fianchi?mn.fianchi+"cm fianchi":""].filter(Boolean).join(" \u2014 ");
+const mannInfo=(tg||misure)?`\n\nIl manichino indossa la taglia ${tg}${misure?"\nMisure manichino: "+misure:""}`:"";
+return`${ai?.dettagli_descrizione||""}${mannInfo}\n\n${compFmt?`Composizione:\u00A0${compFmt}`:"Composizione:"}`;}
 const ml=recModName?mod.find(x=>x.nome===recModName):null;
 if(!ml&&cfg.selMods.length===1){const singleMl=mod.find(x=>x.nome===cfg.selMods[0]);if(singleMl){return mDs(ai,comp,tipo,singleMl.nome);}}
 const alt=ml?ml.altezza:"";
@@ -308,7 +312,7 @@ const tgSopra=ml?ml.tagliaSopra:"";
 const tgSotto=ml?ml.tagliaSotto:"";
 const tg=SUP.some(s=>(tipo||"").toLowerCase().includes(s))?tgSopra:tgSotto;
 const modInfo=ml?`\n\nLa modella indossa la taglia IT ${tg}\nL'altezza della modella è ${alt} cm`:"";
-return`${ai?.dettagli_descrizione||""}${modInfo}\n\n${compFmt?`Composizione:\u00A0${compFmt}`:"Composizione:"}`;}
+return`${ai?.dettagli_descrizione||""}${modInfo}\n\n${compFmt?`Composizione:\u00A0${compFmt}`:"Composizione:"}`; }
 
 async function procF(files){
 const imgExts=new Set(["jpg","jpeg","png","webp","gif","bmp","tiff","tif","heic","heif","avif","svg"]);
@@ -524,7 +528,8 @@ modForm=`<div class="grid2" style="margin-top:10px">
 <button class="btn btn-p" style="padding:8px 18px;font-size:12px" onclick="saveNewModella()">💾 Salva modella</button>
 <button class="btn btn-s" style="padding:8px 18px;font-size:12px" onclick="nM=false;tmpFaces=[];tmpNm='';tmpAl='';tmpTs='';tmpTi='';render()">Annulla</button></div>`;}
 const needsModel=cfg.shootType==="model"||cfg.shootType==="mixed";
-const rdy=cfg.br&&cfg.st&&cfg.an&&cfg.ds&&cfg.shootType&&(cfg.shootType==="still"||(cfg.selMods.length>0));
+const rdyMann=cfg.shootType==="mannequin"&&cfg.mannequin?.taglia;
+const rdy=cfg.br&&cfg.st&&cfg.an&&cfg.ds&&cfg.shootType&&(cfg.shootType==="still"||rdyMann||(cfg.selMods.length>0));
 // Modelle section (only if shootType requires models)
 let modSection="";
 if(needsModel){modSection=`<div style="margin-top:16px;padding:20px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
@@ -548,11 +553,21 @@ m.innerHTML=`<div style="${anim?"animation:fadeUp .5s ease forwards":""}">
 <button class="brand-btn ${cfg.st==="Autunno/Inverno"?"active":""}" onclick="cfg.st='Autunno/Inverno';render()">Autunno/Inverno</button></div></div>
 <div class="field"><label>Anno (es: 26)</label><input class="inp" placeholder="26" maxlength="2" value="${cfg.an}" oninput="cfg.an=this.value.replace(/[^0-9]/g,'').slice(0,2)"></div></div>
 <div style="margin-top:16px"><div class="field"><label>Tipo Shooting</label><div style="display:flex;gap:10px">
-<button class="brand-btn ${cfg.shootType==="model"?"active":""}" onclick="cfg.shootType='model';if(!mod.length)nM=true;render()">Con Modella</button>
-<button class="brand-btn ${cfg.shootType==="still"?"active":""}" onclick="cfg.shootType='still';cfg.noModel=true;cfg.selMods=[];nM=false;render()">Still Life</button>
+<button class="brand-btn ${cfg.shootType==="model"?"active":""}" onclick="cfg.shootType='model';nMann=false;if(!mod.length)nM=true;render()">Con Modella</button>
+<button class="brand-btn ${cfg.shootType==="mannequin"?"active":""}" onclick="cfg.shootType='mannequin';cfg.noModel=true;cfg.selMods=[];nM=false;render()">Con Manichino</button>
+<button class="brand-btn ${cfg.shootType==="still"?"active":""}" onclick="cfg.shootType='still';cfg.noModel=true;cfg.selMods=[];nM=false;nMann=false;render()">Still Life</button>
 <button class="brand-btn ${cfg.shootType==="mixed"?"active":""}" onclick="cfg.shootType='mixed';cfg.noModel=true;if(!mod.length)nM=true;render()">Misto</button>
 </div></div></div>
 ${modSection}
+${cfg.shootType==="mannequin"?`<div style="margin-top:16px;padding:20px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
+<h3 style="font-size:13px;font-weight:600;margin-bottom:14px">Misure Manichino</h3>
+<div class="grid2" style="gap:14px">
+<div class="field" style="margin-bottom:0"><label>Taglia</label><select class="inp" onchange="cfg.mannequin.taglia=this.value" value="${cfg.mannequin?.taglia||""}"><option value="">Seleziona...</option>${TS.map(t=>`<option ${(cfg.mannequin?.taglia||"")===t?"selected":""}>${t}</option>`).join("")}${TL.map(t=>`<option ${(cfg.mannequin?.taglia||"")===t?"selected":""}>${t}</option>`).join("")}</select></div>
+<div class="field" style="margin-bottom:0"><label>Petto (cm)</label><input class="inp" type="number" placeholder="88" value="${cfg.mannequin?.petto||""}" oninput="cfg.mannequin.petto=this.value"></div>
+<div class="field" style="margin-bottom:0"><label>Vita (cm)</label><input class="inp" type="number" placeholder="68" value="${cfg.mannequin?.vita||""}" oninput="cfg.mannequin.vita=this.value"></div>
+<div class="field" style="margin-bottom:0"><label>Fianchi (cm)</label><input class="inp" type="number" placeholder="96" value="${cfg.mannequin?.fianchi||""}" oninput="cfg.mannequin.fianchi=this.value"></div>
+</div></div>`:""}
+
 <div style="margin-top:20px;padding:20px;background:var(--subtle);border-radius:12px;border:1px solid var(--border)">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
 <div><h3 style="font-size:13px;font-weight:600">File Excel Dati Tecnici</h3>
@@ -614,43 +629,53 @@ DESCRIVI in italiano in una singola frase (max 200 caratteri):
 NON usare virgolette. Rispondi SOLO con la frase descrittiva, nient'altro.`});
 return await cAI(c);}
 
-async function classifyPhotoColors(it){
+// Shot type order priority: front_34=0, scontornata=1, back=2, detail=3, full_front=4, other=5
+const SHOT_ORDER={"front_34":0,"scontornata":1,"back":2,"detail":3,"full_front":4,"other":5};
+
+async function classifyPhotos(it){
 const ex=getExcelInfo(it.sku);
 const colori=(ex?.colori||it.cl||"").split(";").map(c=>c.trim()).filter(Boolean);
-if(colori.length<=1){return it.af.map(()=>colori[0]||it.cl||"Colore");}
-// Ask AI to classify each photo into available colors
+const firstColor=colori[0]||it.cl||"Colore";
 const c=[];
 for(const f of it.af)c.push({type:"image",source:{type:"base64",media_type:mT(f),data:await toB(f)}});
 c.push({type:"text",text:`Hai ${it.af.length} foto dello stesso articolo "${it.tp}" (codice ${it.sku}).
-I colori disponibili per questo articolo sono: ${colori.join(", ")}
-Per OGNI foto (da 0 a ${it.af.length-1}), indica a quale colore appartiene il capo principale indossato/mostrato.
-Rispondi SOLO con un JSON array di stringhe, uno per foto, usando ESATTAMENTE i nomi colore dalla lista sopra.
-Esempio per 4 foto: ["Nero","Nero","Rosa","Rosa"]`});
-try{const raw=await cAI(c);return JSON.parse(raw.replace(/```json|```/g,"").trim());}
-catch(e){console.error("Color classify error:",e);return it.af.map(()=>colori[0]||it.cl||"Colore");}}
+${colori.length>1?`Colori disponibili: ${colori.join(", ")}. Identifica il colore di ogni foto.`:`Colore unico: ${firstColor}.`}
+Per OGNI foto (indice 0-based) classifica:
+- "color": ESATTAMENTE uno dei colori disponibili: ${colori.join(", ")}
+- "shot": uno tra "front_34" (3/4 frontale, mezzo busto o tre quarti), "back" (retro/posteriore), "detail" (dettaglio/closeup), "full_front" (frontale intera figura), "scontornata" (foto senza sfondo/ritagliata), "other"
+Rispondi SOLO JSON array: [{"color":"...","shot":"..."},...]
+Esempio: [{"color":"Nero","shot":"front_34"},{"color":"Nero","shot":"back"}]`});
+try{const raw=await cAI(c);const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
+return parsed.map((x,i)=>({color:(x.color||firstColor).trim(),shot:x.shot||"other",file:it.af[i],origIdx:i}));}
+catch(e){console.error("Photo classify error:",e);return it.af.map((f,i)=>({color:firstColor,shot:i===0?"front_34":"other",file:f,origIdx:i}));}}
 
 async function downloadPhotos(){
 const done=items.filter(i=>i.st==="done");if(!done.length)return;
 const zip=new JSZip();
 
 for(const it of done){
-// Classify each photo by color via AI
-const photoColors=await classifyPhotoColors(it);
+// Classify color and shot type for each photo
+const classified=await classifyPhotos(it);
 
-// Group photos by color, preserving order
+// Group by color
 const colorGroups={};
-for(let pi=0;pi<it.af.length;pi++){
-const col=(photoColors[pi]||"Colore").trim();
-if(!colorGroups[col])colorGroups[col]=[];
-colorGroups[col].push({file:it.af[pi],idx:pi});}
+for(const ph of classified){
+if(!colorGroups[ph.color])colorGroups[ph.color]=[];
+colorGroups[ph.color].push(ph);}
 
-// Main product image (3/4 front) → CODICEARTICOLO_1
-if(it.af.length>0){
-try{const blob=await convertToPng(it.af[0]);zip.file(`${it.sku}_1.png`,blob);}catch(e){console.error("PNG convert error:",e);}}
+// Sort each color group by shot type priority
+for(const col of Object.keys(colorGroups)){
+colorGroups[col].sort((a,b)=>(SHOT_ORDER[a.shot]??5)-(SHOT_ORDER[b.shot]??5));}
 
-// Per-color images with sequential numbering per color
+// Main product image → CODICEARTICOLO_1 (first photo of first color, front_34)
+const firstColorKey=Object.keys(colorGroups)[0];
+const firstPhoto=firstColorKey&&colorGroups[firstColorKey][0];
+if(firstPhoto){
+try{const blob=await convertToPng(firstPhoto.file);zip.file(`${it.sku}_1.png`,blob);}catch(e){console.error("PNG convert error:",e);}}
+
+// Per-color images with ordering applied
 for(const[color,photos]of Object.entries(colorGroups)){
-const colorName=color.replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ]/g,"").replace(/\s+/g,"_");
+const colorName=color.replace(/\s+/g,"_").replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ_]/g,"");
 for(let ci=0;ci<photos.length;ci++){
 try{const blob=await convertToPng(photos[ci].file);
 zip.file(`${it.sku}_${colorName}_${ci+1}.png`,blob);}catch(e){console.error("PNG convert error:",e);}}}}
@@ -719,7 +744,7 @@ if(procPhase==="analyzing"){
 const wc=items.filter(i=>i.st==="wait").length;
 m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-<div><h2 style="font-size:24px;font-weight:700">Catalogo Prodotti</h2><p style="color:var(--muted);font-size:13px">${cfg.br==="zuiki"?"Zuiki":"Loveskin"} — ${cfg.st} ${cfg.an} — Donna — ${[...cfg.selMods,cfg.noModel?"Still life":""].filter(Boolean).join(", ")||"—"} — ${fD(cfg.ds)}</p></div>
+<div><h2 style="font-size:24px;font-weight:700">Catalogo Prodotti</h2><p style="color:var(--muted);font-size:13px">${cfg.br==="zuiki"?"Zuiki":"Loveskin"} — ${cfg.st} ${cfg.an} — Donna — ${cfg.shootType==="mannequin"?"Manichino "+(cfg.mannequin?.taglia||""):[...cfg.selMods,cfg.noModel?"Still life":""].filter(Boolean).join(", ")||"—"} — ${fD(cfg.ds)}</p></div>
 <button class="btn btn-s" onclick="step=0;render()">← Setup</button></div>
 ${uH}
 <div style="max-width:500px;margin:60px auto;text-align:center">
@@ -791,7 +816,7 @@ return`<div class="card ${cardClass}" style="animation-delay:${idx*.03}s">
 
 m.innerHTML=`<div style="${anim?"animation:fadeUp .4s ease forwards":""}">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-<div><h2 style="font-size:24px;font-weight:700">Catalogo Prodotti</h2><p style="color:var(--muted);font-size:13px">${cfg.br==="zuiki"?"Zuiki":"Loveskin"} — ${cfg.st} ${cfg.an} — Donna — ${[...cfg.selMods,cfg.noModel?"Still life":""].filter(Boolean).join(", ")||"—"} — ${fD(cfg.ds)}</p></div>
+<div><h2 style="font-size:24px;font-weight:700">Catalogo Prodotti</h2><p style="color:var(--muted);font-size:13px">${cfg.br==="zuiki"?"Zuiki":"Loveskin"} — ${cfg.st} ${cfg.an} — Donna — ${cfg.shootType==="mannequin"?"Manichino "+(cfg.mannequin?.taglia||""):[...cfg.selMods,cfg.noModel?"Still life":""].filter(Boolean).join(", ")||"—"} — ${fD(cfg.ds)}</p></div>
 <div style="display:flex;gap:10px"><button class="btn btn-s" onclick="step=0;render()">← Setup</button>
 <button class="btn btn-g" ${dc?"":"disabled"} onclick="step=2;render()">Correlazioni & Export →</button></div></div>
 ${errBanner}${doubtBanner}${uH}

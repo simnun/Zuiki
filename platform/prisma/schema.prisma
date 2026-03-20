@@ -1,0 +1,485 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── ENUMS ───────────────────────────────────────────────
+
+enum UserRole {
+  super_admin
+  owner
+  user
+  admin
+}
+
+enum SessionStatus {
+  draft
+  processing
+  completed
+  failed
+}
+
+enum ItemStatus {
+  pending
+  processing
+  done
+  error
+}
+
+enum PaymentStatus {
+  unpaid
+  paid
+  overdue
+}
+
+enum TicketStatus {
+  open
+  in_progress
+  resolved
+  closed
+}
+
+enum ExportType {
+  csv
+  excel
+  photos_zip
+}
+
+enum CampaignType {
+  payment_reminder
+  newsletter
+  announcement
+}
+
+enum ShootType {
+  model
+  mannequin
+  still
+  mixed
+}
+
+// ─── MULTI-TENANCY & AUTH ────────────────────────────────
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users            User[]
+  shootingSessions ShootingSession[]
+  models           Model[]
+  suffixMappings   SuffixMapping[]
+  licenseMemory    LicenseMemory[]
+  monthlyBilling   MonthlyBilling[]
+  usageAlerts      UsageAlert[]
+  supportTickets   SupportTicket[]
+  usageRecords     UsageRecord[]
+
+  @@map("companies")
+}
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  phone          String?
+  whatsappNumber String?
+  profilePhoto   String?
+  role           UserRole
+  companyId      String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company               Company?                @relation(fields: [companyId], references: [id])
+  notificationPrefs     NotificationPreference?
+  createdSessions       ShootingSession[]
+  supportTickets        SupportTicket[]         @relation("TicketCreator")
+  ticketMessages        TicketMessage[]
+  usageAlerts           UsageAlert[]
+  usageRecords          UsageRecord[]
+  campaigns             Campaign[]
+
+  @@index([companyId])
+  @@map("users")
+}
+
+model NotificationPreference {
+  id     String @id @default(uuid())
+  userId String @unique
+
+  emailEnabled    Boolean @default(true)
+  whatsappEnabled Boolean @default(false)
+
+  // Owner-specific
+  notifyUserActivity   Boolean @default(true)
+  notifyMonthlyReports Boolean @default(true)
+  notifyMarketing      Boolean @default(false)
+
+  // Admin-specific
+  notifyNewInvoice      Boolean @default(true)
+  notifyPaymentReminder Boolean @default(true)
+  notifyLimitExceeded   Boolean @default(true)
+
+  // User-specific
+  notifyProcessingComplete Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+// ─── SHOOTING SESSIONS ───────────────────────────────────
+
+model ShootingSession {
+  id             String        @id @default(uuid())
+  companyId      String
+  createdById    String
+  brand          String
+  season         String
+  year           String
+  shootingDate   DateTime      @db.Date
+  shootType      ShootType
+  status         SessionStatus @default(draft)
+  totalItems     Int           @default(0)
+  processedItems Int           @default(0)
+  failedItems    Int           @default(0)
+  createdAt      DateTime      @default(now())
+  completedAt    DateTime?
+
+  company        Company          @relation(fields: [companyId], references: [id])
+  createdBy      User             @relation(fields: [createdById], references: [id])
+  sessionModels  SessionModel[]
+  mannequinConfig MannequinConfig?
+  catalogItems   CatalogItem[]
+  correlations   Correlation[]
+  excelFiles     SessionExcelFile[]
+  exports        SessionExport[]
+  usageRecords   UsageRecord[]
+
+  @@index([companyId, createdAt])
+  @@map("shooting_sessions")
+}
+
+model SessionModel {
+  id        String @id @default(uuid())
+  sessionId String
+  modelId   String
+
+  session ShootingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  model   Model           @relation(fields: [modelId], references: [id])
+
+  @@map("session_models")
+}
+
+model Model {
+  id         String @id @default(uuid())
+  companyId  String
+  name       String
+  heightCm   Int?
+  sizeTop    String?
+  sizeBottom String?
+  createdAt  DateTime @default(now())
+
+  company    Company          @relation(fields: [companyId], references: [id])
+  facePhotos ModelFacePhoto[]
+  sessions   SessionModel[]
+
+  @@map("models")
+}
+
+model ModelFacePhoto {
+  id       String @id @default(uuid())
+  modelId  String
+  photoUrl String
+
+  model Model @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@map("model_face_photos")
+}
+
+model MannequinConfig {
+  id        String @id @default(uuid())
+  sessionId String @unique
+  size      String?
+  bustCm    Int?
+  waistCm   Int?
+  hipsCm    Int?
+
+  session ShootingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("mannequin_configs")
+}
+
+// ─── CATALOG ITEMS ───────────────────────────────────────
+
+model CatalogItem {
+  id               String     @id @default(uuid())
+  sessionId        String
+  sku              String
+  productName      String?
+  productType      String?
+  suffix           String?
+  color            String?
+  composition      String?
+  shortDesc        String?    @db.Text
+  longDesc         String?    @db.Text
+  seoTags          String?    @db.Text
+  metaTitle        String?
+  metaDesc         String?    @db.Text
+  metaKeywords     String?    @db.Text
+  altImage         String?    @db.Text
+  aiResponse       Json?
+  license          String?
+  recognizedModel  String?
+  status           ItemStatus @default(pending)
+  errorMessage     String?
+  processingTimeMs Int?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  session          ShootingSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  photos           ItemPhoto[]
+  correlationItems CorrelationItem[]
+
+  @@index([sessionId, sku])
+  @@map("catalog_items")
+}
+
+model ItemPhoto {
+  id           String @id @default(uuid())
+  itemId       String
+  storageKey   String
+  originalName String?
+  sortOrder    Int     @default(0)
+  colorGroup   String?
+  shotType     String?
+  mimeType     String?
+  sizeBytes    BigInt?
+
+  item CatalogItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("item_photos")
+}
+
+model Correlation {
+  id         String @id @default(uuid())
+  sessionId  String
+  outfitName String?
+  reason     String?
+
+  session ShootingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  items   CorrelationItem[]
+
+  @@map("correlations")
+}
+
+model CorrelationItem {
+  id            String @id @default(uuid())
+  correlationId String
+  itemId        String
+
+  correlation Correlation @relation(fields: [correlationId], references: [id], onDelete: Cascade)
+  item        CatalogItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("correlation_items")
+}
+
+// ─── EXCEL DATA ──────────────────────────────────────────
+
+model SessionExcelFile {
+  id           String @id @default(uuid())
+  sessionId    String
+  storageKey   String
+  originalName String
+  rowCount     Int?
+  mappedCount  Int?
+
+  session  ShootingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  skuData  ExcelSkuData[]
+
+  @@map("session_excel_files")
+}
+
+model ExcelSkuData {
+  id             String @id @default(uuid())
+  excelFileId    String
+  sku            String
+  rowIndex       Int
+  colors         String?
+  year           String?
+  season         String?
+  articleType    String?
+  brand          String?
+  characteristic String?
+  composition    String?
+
+  excelFile SessionExcelFile @relation(fields: [excelFileId], references: [id], onDelete: Cascade)
+
+  @@map("excel_sku_data")
+}
+
+// ─── COMPANY LEARNED DATA ────────────────────────────────
+
+model SuffixMapping {
+  id          String @id @default(uuid())
+  companyId   String
+  suffixCode  String
+  articleType String
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, suffixCode])
+  @@map("suffix_mappings")
+}
+
+model LicenseMemory {
+  id             String @id @default(uuid())
+  companyId      String
+  descriptionKey String
+  licenseValue   String
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@map("license_memory")
+}
+
+// ─── BILLING & USAGE ─────────────────────────────────────
+
+model UsageRecord {
+  id               String   @id @default(uuid())
+  companyId        String
+  sessionId        String
+  userId           String
+  imagesProcessed  Int      @default(0)
+  aiCallsMade      Int      @default(0)
+  processingTimeMs BigInt   @default(0)
+  estimatedCost    Decimal  @default(0) @db.Decimal(10, 4)
+  recordedAt       DateTime @default(now())
+
+  company Company         @relation(fields: [companyId], references: [id])
+  session ShootingSession @relation(fields: [sessionId], references: [id])
+  user    User            @relation(fields: [userId], references: [id])
+
+  @@map("usage_records")
+}
+
+model MonthlyBilling {
+  id              String        @id @default(uuid())
+  companyId       String
+  month           DateTime      @db.Date
+  totalImages     Int           @default(0)
+  totalAiCalls    Int           @default(0)
+  totalCost       Decimal       @default(0) @db.Decimal(10, 2)
+  invoiceKey      String?
+  invoiceName     String?
+  paymentStatus   PaymentStatus @default(unpaid)
+  paidAt          DateTime?
+  notes           String?
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, month])
+  @@map("monthly_billing")
+}
+
+model UsageAlert {
+  id             String  @id @default(uuid())
+  companyId      String
+  setById        String
+  thresholdEuros Decimal @db.Decimal(10, 2)
+  isActive       Boolean @default(true)
+
+  company Company @relation(fields: [companyId], references: [id])
+  setBy   User    @relation(fields: [setById], references: [id])
+
+  @@map("usage_alerts")
+}
+
+// ─── SUPPORT TICKETS ─────────────────────────────────────
+
+model SupportTicket {
+  id          String       @id @default(uuid())
+  companyId   String
+  createdById String
+  subject     String
+  description String       @db.Text
+  status      TicketStatus @default(open)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company     Company           @relation(fields: [companyId], references: [id])
+  createdBy   User              @relation("TicketCreator", fields: [createdById], references: [id])
+  messages    TicketMessage[]
+  attachments TicketAttachment[]
+
+  @@index([companyId, status])
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id        String   @id @default(uuid())
+  ticketId  String
+  senderId  String
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender User          @relation(fields: [senderId], references: [id])
+
+  @@map("ticket_messages")
+}
+
+model TicketAttachment {
+  id        String  @id @default(uuid())
+  ticketId  String
+  storageKey String?
+  fileName   String?
+  linkUrl    String?
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_attachments")
+}
+
+// ─── SESSION EXPORTS ─────────────────────────────────────
+
+model SessionExport {
+  id         String     @id @default(uuid())
+  sessionId  String
+  exportType ExportType
+  storageKey String
+  fileName   String
+  createdAt  DateTime   @default(now())
+  expiresAt  DateTime?
+
+  session ShootingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("session_exports")
+}
+
+// ─── NEWSLETTER / CAMPAIGNS ──────────────────────────────
+
+model Campaign {
+  id           String       @id @default(uuid())
+  createdById  String
+  subject      String
+  bodyHtml     String       @db.Text
+  campaignType CampaignType
+  sentAt       DateTime?
+  targetFilter Json?
+
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@map("campaigns")
+}

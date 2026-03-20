@@ -659,11 +659,19 @@ c.push({type:"text",text:`Hai ${it.af.length} foto dello stesso articolo "${it.t
 ${colori.length>1?`Colori disponibili: ${colori.join(", ")}. Identifica il colore di ogni foto.`:`Colore unico: ${firstColor}.`}
 Per OGNI foto (indice 0-based) classifica:
 - "color": ESATTAMENTE uno dei colori disponibili: ${colori.join(", ")}
-- "shot": uno tra "front_34" (3/4 frontale, mezzo busto o tre quarti), "back" (retro/posteriore), "detail" (dettaglio/closeup), "full_front" (frontale intera figura), "scontornata" (foto senza sfondo/ritagliata), "other"
+- "shot": uno tra "front_34" (3/4 frontale, mezzo busto angolato, posa tre quarti con il corpo leggermente ruotato), "back" (retro/posteriore, si vede la schiena), "detail" (dettaglio/closeup di una parte del capo), "full_front" (frontale a figura intera, si vedono piedi e scarpe), "scontornata" (foto senza sfondo/ritagliata, sfondo bianco puro o trasparente), "other" (qualsiasi altra posa)
+
+REGOLA FONDAMENTALE: Per ogni colore, ogni tipo di shot (front_34, back, detail, full_front, scontornata) può essere assegnato a MASSIMO UNA foto. Se ci sono più foto simili dello stesso colore (es. due pose frontali diverse), assegna il tipo specifico SOLO alla foto più rappresentativa e classifica le altre come "other".
+Esempio: se hai 2 foto frontali dello stesso colore, la migliore 3/4 è "front_34" e l'altra è "other".
+
 Rispondi SOLO JSON array: [{"color":"...","shot":"..."},...]
-Esempio: [{"color":"Nero","shot":"front_34"},{"color":"Nero","shot":"back"}]`});
+Esempio per 4 foto stesso colore: [{"color":"Nero","shot":"front_34"},{"color":"Nero","shot":"other"},{"color":"Nero","shot":"back"},{"color":"Nero","shot":"full_front"}]`});
 try{const raw=await cAI(c);const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
-return parsed.map((x,i)=>({color:(x.color||firstColor).trim(),shot:x.shot||"other",file:it.af[i],origIdx:i}));}
+const result=parsed.map((x,i)=>({color:(x.color||firstColor).trim(),shot:x.shot||"other",file:it.af[i],origIdx:i}));
+// Enforce max one shot type per color (except "other") — duplicates become "other"
+const usedPerColor={};
+for(const ph of result){if(ph.shot==="other")continue;const key=ph.color+"||"+ph.shot;if(usedPerColor[key]){ph.shot="other";}else{usedPerColor[key]=true;}}
+return result;}
 catch(e){console.error("Photo classify error:",e);return it.af.map((f,i)=>({color:firstColor,shot:i===0?"front_34":"other",file:f,origIdx:i}));}}
 
 async function downloadPhotos(){

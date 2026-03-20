@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth'
-import type { UserRole } from '@/generated/prisma'
+import type { UserRole } from '@/generated/prisma/client'
 import type { SessionUser } from '@/types'
 
 export async function getCurrentUser(): Promise<SessionUser | null> {

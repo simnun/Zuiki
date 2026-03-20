@@ -2,7 +2,7 @@ import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
-import type { UserRole } from '@/generated/prisma'
+import type { UserRole } from '@/generated/prisma/client'
 
 declare module 'next-auth' {
   interface Session {
@@ -24,15 +24,7 @@ declare module 'next-auth' {
   }
 }
 
-declare module 'next-auth/jwt' {
-  interface JWT {
-    userId: string
-    role: UserRole
-    companyId: string | null
-    firstName: string
-    lastName: string
-  }
-}
+// JWT extended fields are accessed via type assertions in callbacks below
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
@@ -84,20 +76,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.userId = user.id as string
-        token.role = user.role
-        token.companyId = user.companyId
-        token.firstName = user.firstName
-        token.lastName = user.lastName
+        (token as any).userId = user.id as string;
+        (token as any).role = user.role;
+        (token as any).companyId = user.companyId;
+        (token as any).firstName = user.firstName;
+        (token as any).lastName = user.lastName;
       }
       return token
     },
     async session({ session, token }) {
-      session.user.id = token.userId
-      session.user.role = token.role
-      session.user.companyId = token.companyId
-      session.user.firstName = token.firstName
-      session.user.lastName = token.lastName
+      session.user.id = (token as any).userId;
+      session.user.role = (token as any).role;
+      session.user.companyId = (token as any).companyId;
+      session.user.firstName = (token as any).firstName;
+      session.user.lastName = (token as any).lastName;
       return session
     },
   },

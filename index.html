@@ -340,13 +340,16 @@ try{
 const exInfo=it.excelInfo||getExcelInfo(it.sku);
 const ai=await aImgs(it.af,it.tp,exInfo);it.ai=ai;it.nm=mNm(it.tp,ai);it.cl=ai.colore_madre||"";
 if(exInfo?.composizione&&!it.cp)it.cp=exInfo.composizione;
+// Reorder photos per color: classify color+shot, sort each color group, reassemble
+try{const origAp=it.ap.slice();const classified=await classifyPhotos(it);
+const colorGroups={};for(const ph of classified){if(!colorGroups[ph.color])colorGroups[ph.color]=[];colorGroups[ph.color].push(ph);}
+for(const col of Object.keys(colorGroups)){colorGroups[col].sort((a,b)=>(SHOT_ORDER[a.shot]??5)-(SHOT_ORDER[b.shot]??5));}
+const sorted=Object.values(colorGroups).flat();
+it.af=sorted.map(p=>p.file);it.ap=sorted.map(p=>origAp[p.origIdx]);it.fl=it.af[0];it.pv=it.ap[0];
+}catch(e){console.error("Photo reorder error:",e);
+// Fallback: just move front photo first
 const fIdx=parseInt(ai.foto_frontale_idx)||0;
-if(fIdx>0&&fIdx<it.af.length){const ff=it.af.splice(fIdx,1)[0];it.af.unshift(ff);const fp=it.ap.splice(fIdx,1)[0];it.ap.unshift(fp);it.fl=it.af[0];it.pv=it.ap[0];}
-// Move still life photos to the end (keep front photo first)
-const slIdx=Array.isArray(ai.foto_still_life_indices)?ai.foto_still_life_indices:[];
-if(slIdx.length>0&&it.af.length>1){const slSet=new Set(slIdx);const modelPh=[],stillPh=[],modelPp=[],stillPp=[];
-for(let pi=0;pi<it.af.length;pi++){if(pi>0&&slSet.has(pi)){stillPh.push(it.af[pi]);stillPp.push(it.ap[pi]);}else{modelPh.push(it.af[pi]);modelPp.push(it.ap[pi]);}}
-it.af=[...modelPh,...stillPh];it.ap=[...modelPp,...stillPp];it.fl=it.af[0];it.pv=it.ap[0];}
+if(fIdx>0&&fIdx<it.af.length){const ff=it.af.splice(fIdx,1)[0];it.af.unshift(ff);const fp=it.ap.splice(fIdx,1)[0];it.ap.unshift(fp);it.fl=it.af[0];it.pv=it.ap[0];}}
 if(ai.modella_riconosciuta){const recMod=mod.find(ml=>ml.nome.toLowerCase()===ai.modella_riconosciuta.toLowerCase());if(recMod){it.recMod=recMod.nome;it.modelUnknown=false;}else{it.modelUnknown=true;it.recMod=null;}}
 else if(cfg.shootType==="model"||cfg.shootType==="mixed"){it.modelUnknown=true;it.recMod=null;}
 it.tg=cfg.br==="zuiki"?mTags({ds:cfg.ds,cat:ai.categoria_seo||"",sub:ai.sottocategoria_seo||"",nm:it.nm,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,tipo:it.tp}):mTagsLoveskin({tipo:it.tp,sfx:it.sf,lic:ai.licenza&&ai.licenza!=="null"?ai.licenza:null,vestibilita:ai.vestibilita||null,sporty:!!ai.is_sporty});

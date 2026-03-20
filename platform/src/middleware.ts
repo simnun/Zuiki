@@ -6,7 +6,7 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // Public routes that don't need auth
-  const publicPaths = ['/login', '/api/auth']
+  const publicPaths = ['/login', '/api/auth', '/api/health']
   const isPublic = publicPaths.some(p => pathname.startsWith(p))
 
   const token = await getToken({ req, secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET })

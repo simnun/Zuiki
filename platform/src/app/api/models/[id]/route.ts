@@ -1,0 +1,48 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { getCurrentUser } from '@/lib/auth-helpers'
+
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+
+  const model = await prisma.model.findUnique({
+    where: { id },
+    include: { facePhotos: true },
+  })
+
+  if (!model) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(model)
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+  const body = await req.json()
+
+  const model = await prisma.model.update({
+    where: { id },
+    data: {
+      name: body.name,
+      heightCm: body.heightCm,
+      sizeTop: body.sizeTop,
+      sizeBottom: body.sizeBottom,
+    },
+    include: { facePhotos: true },
+  })
+
+  return NextResponse.json(model)
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+  await prisma.model.delete({ where: { id } })
+  return NextResponse.json({ success: true })
+}

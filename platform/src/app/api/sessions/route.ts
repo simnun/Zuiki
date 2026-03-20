@@ -1,0 +1,53 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { getCurrentUser } from '@/lib/auth-helpers'
+
+export async function GET() {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user.companyId) return NextResponse.json({ error: 'No company' }, { status: 403 })
+
+  const sessions = await prisma.shootingSession.findMany({
+    where: { companyId: user.companyId },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      _count: { select: { catalogItems: true } },
+      createdBy: { select: { firstName: true, lastName: true } },
+    },
+  })
+
+  return NextResponse.json(sessions)
+}
+
+export async function POST(req: NextRequest) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user.companyId) return NextResponse.json({ error: 'No company' }, { status: 403 })
+
+  const body = await req.json()
+  const { brand, season, year, shootingDate, shootType, modelIds, mannequin } = body
+
+  const session = await prisma.shootingSession.create({
+    data: {
+      companyId: user.companyId,
+      createdById: user.id,
+      brand,
+      season,
+      year,
+      shootingDate: new Date(shootingDate),
+      shootType,
+      sessionModels: modelIds?.length
+        ? { create: modelIds.map((modelId: string) => ({ modelId })) }
+        : undefined,
+      mannequinConfig: mannequin
+        ? { create: { size: mannequin.size, bustCm: mannequin.bustCm, waistCm: mannequin.waistCm, hipsCm: mannequin.hipsCm } }
+        : undefined,
+    },
+    include: {
+      sessionModels: { include: { model: true } },
+      mannequinConfig: true,
+    },
+  })
+
+  return NextResponse.json(session, { status: 201 })
+}

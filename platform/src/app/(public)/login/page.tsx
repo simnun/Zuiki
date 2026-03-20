@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -14,13 +13,12 @@ export default function LoginPage() {
     setLoading(true)
 
     const res = await signIn('credentials', {
-      email,
       password,
       redirect: false,
     })
 
     if (res?.error) {
-      setError('Email o password non validi')
+      setError('Password errata')
       setLoading(false)
     } else {
       window.location.href = '/dashboard'
@@ -41,25 +39,23 @@ export default function LoginPage() {
           Catalogo <span style={{ color: 'var(--accent2)' }}>AI</span>
         </h1>
         <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', marginBottom: 32 }}>
-          Piattaforma di catalogazione AI per Zuiki
+          Inserisci la password per accedere
         </p>
 
         <form onSubmit={handleSubmit}>
           <div className="field">
-            <label>Email</label>
-            <input className="inp" type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="admin@zuiki.it" required />
-          </div>
-          <div className="field">
-            <label>Password</label>
+            <label>PASSWORD</label>
             <input className="inp" type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="••••" required />
+              placeholder="••••••••" required
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(e) }}
+            />
           </div>
 
           {error && (
             <div style={{
               background: '#fff5f5', border: '1px solid #ecc', borderRadius: 8,
               padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--err)',
+              fontWeight: 600, textAlign: 'center',
             }}>
               {error}
             </div>
@@ -70,12 +66,6 @@ export default function LoginPage() {
             {loading ? 'Accesso...' : 'Accedi'}
           </button>
         </form>
-
-        <div style={{ marginTop: 24, textAlign: 'center' }}>
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-            Contatta l&apos;amministratore per un account
-          </span>
-        </div>
       </div>
     </div>
   )

@@ -1,5 +1,4 @@
 import { auth } from '@/lib/auth'
-import type { UserRole } from '@/generated/prisma/client'
 import type { SessionUser } from '@/types'
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
@@ -19,7 +18,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   }
 }
 
-export async function authorize(allowedRoles: UserRole[]): Promise<SessionUser> {
+export async function authorize(allowedRoles: string[]): Promise<SessionUser> {
   const user = await getCurrentUser()
 
   if (!user) {

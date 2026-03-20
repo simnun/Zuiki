@@ -1,15 +1,13 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
-import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/db'
-import type { UserRole } from '@/generated/prisma/client'
+import { PWD } from '@/lib/constants'
 
 declare module 'next-auth' {
   interface Session {
     user: {
       id: string
       email: string
-      role: UserRole
+      role: string
       companyId: string | null
       firstName: string
       lastName: string
@@ -17,14 +15,12 @@ declare module 'next-auth' {
   }
 
   interface User {
-    role: UserRole
+    role: string
     companyId: string | null
     firstName: string
     lastName: string
   }
 }
-
-// JWT extended fields are accessed via type assertions in callbacks below
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
@@ -41,34 +37,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        const password = credentials?.password as string
+
+        // Simple password check — same as the original StepLogin
+        if (password !== PWD) {
           return null
         }
 
-        const email = credentials.email as string
-        const password = credentials.password as string
-
-        const user = await prisma.user.findUnique({
-          where: { email },
-        })
-
-        if (!user || !user.isActive) {
-          return null
-        }
-
-        const isPasswordValid = await bcrypt.compare(password, user.passwordHash)
-
-        if (!isPasswordValid) {
-          return null
-        }
+        const email = (credentials?.email as string) || 'user@zuiki.it'
 
         return {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          companyId: user.companyId,
-          firstName: user.firstName,
-          lastName: user.lastName,
+          id: '1',
+          email,
+          role: 'ADMIN',
+          companyId: null,
+          firstName: email.split('@')[0],
+          lastName: '',
         }
       },
     }),

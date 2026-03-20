@@ -1,9 +1,7 @@
-import { UserRole } from '@/generated/prisma/client'
-
 export type SessionUser = {
   id: string
   email: string
-  role: UserRole
+  role: string
   companyId: string | null
   firstName: string
   lastName: string

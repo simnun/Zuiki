@@ -83,7 +83,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             background: 'var(--subtle)', textDecoration: 'none',
             fontSize: 12, fontWeight: 600, color: 'var(--accent2)', textAlign: 'center',
           }}>
-            {sideOpen ? 'Catalogo Rapido' : '⚡'}
+            {sideOpen ? 'Catalogo AI' : '⚡'}
           </Link>
         </div>
       </aside>

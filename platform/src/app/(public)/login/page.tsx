@@ -72,9 +72,9 @@ export default function LoginPage() {
         </form>
 
         <div style={{ marginTop: 24, textAlign: 'center' }}>
-          <a href="/" style={{ fontSize: 12, color: 'var(--muted)', textDecoration: 'none' }}>
-            Usa Catalogo Rapido (senza account)
-          </a>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+            Contatta l&apos;amministratore per un account
+          </span>
         </div>
       </div>
     </div>

@@ -1,122 +1,82 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 
-type FacePhoto = { id: string; dataUrl: string }
+type FacePhoto = { id: string; photoUrl: string }
 type Model = {
   id: string; name: string; heightCm: number | null
   sizeTop: string | null; sizeBottom: string | null
   facePhotos: FacePhoto[]
 }
 
-const STORAGE_KEY = 'zm'
-const FACES_KEY = 'zfp'
-
-function loadModels(): Model[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const old = JSON.parse(raw)
-    if (!Array.isArray(old)) return []
-    const faces = JSON.parse(localStorage.getItem(FACES_KEY) || '{}')
-    // Support old format (array of {nm, h, ...}) and new format
-    return old.map((m: any, i: number) => {
-      const name = m.nm || m.name || ''
-      return {
-        id: m.id || `m_${i}`,
-        name,
-        heightCm: m.h || m.heightCm || null,
-        sizeTop: m.st || m.sizeTop || null,
-        sizeBottom: m.sb || m.sizeBottom || null,
-        facePhotos: (m.facePhotos || (faces[name] || []).map((url: string, j: number) => ({
-          id: `p_${i}_${j}`,
-          dataUrl: url,
-        }))),
-      }
-    })
-  } catch { return [] }
-}
-
-function saveModels(models: Model[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(models))
-  // Also save in old format for compatibility with wizard
-  const faces: Record<string, string[]> = {}
-  models.forEach(m => {
-    if (m.facePhotos.length > 0) {
-      faces[m.name] = m.facePhotos.map(p => p.dataUrl)
-    }
-  })
-  localStorage.setItem(FACES_KEY, JSON.stringify(faces))
-}
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.readAsDataURL(file)
-  })
-}
-
 export default function ModelsPage() {
   const [models, setModels] = useState<Model[]>([])
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [height, setHeight] = useState('')
   const [sizeTop, setSizeTop] = useState('')
   const [sizeBottom, setSizeBottom] = useState('')
+  const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState<string | null>(null)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
-  useEffect(() => { setModels(loadModels()) }, [])
-
-  const save = (updated: Model[]) => {
-    setModels(updated)
-    saveModels(updated)
+  const loadModels = () => {
+    fetch('/api/models').then(r => r.json()).then(d => {
+      setModels(Array.isArray(d) ? d : [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }
 
-  const handleAdd = (e: React.FormEvent) => {
+  useEffect(() => { loadModels() }, [])
+
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
-    const m: Model = {
-      id: `m_${Date.now()}`,
-      name,
-      heightCm: height ? parseInt(height) : null,
-      sizeTop: sizeTop || null,
-      sizeBottom: sizeBottom || null,
-      facePhotos: [],
+    setSaving(true)
+    const res = await fetch('/api/models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        heightCm: height ? parseInt(height) : null,
+        sizeTop: sizeTop || null,
+        sizeBottom: sizeBottom || null,
+      }),
+    })
+    if (res.ok) {
+      setName(''); setHeight(''); setSizeTop(''); setSizeBottom('')
+      setShowForm(false)
+      loadModels()
     }
-    save([...models, m])
-    setName(''); setHeight(''); setSizeTop(''); setSizeBottom('')
-    setShowForm(false)
+    setSaving(false)
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Eliminare questa modella?')) return
-    save(models.filter(m => m.id !== id))
+    await fetch(`/api/models/${id}`, { method: 'DELETE' })
+    loadModels()
   }
 
   const handlePhotoUpload = async (modelId: string, files: FileList | null) => {
     if (!files || files.length === 0) return
     setUploading(modelId)
 
-    const newPhotos: FacePhoto[] = []
+    const formData = new FormData()
     for (let i = 0; i < files.length; i++) {
-      const dataUrl = await fileToDataUrl(files[i])
-      newPhotos.push({ id: `p_${Date.now()}_${i}`, dataUrl })
+      formData.append('photos', files[i])
     }
 
-    save(models.map(m =>
-      m.id === modelId
-        ? { ...m, facePhotos: [...m.facePhotos, ...newPhotos] }
-        : m
-    ))
+    await fetch(`/api/models/${modelId}/photos`, {
+      method: 'POST',
+      body: formData,
+    })
+
     setUploading(null)
+    loadModels()
   }
 
-  const handlePhotoDelete = (modelId: string, photoId: string) => {
-    save(models.map(m =>
-      m.id === modelId
-        ? { ...m, facePhotos: m.facePhotos.filter(p => p.id !== photoId) }
-        : m
-    ))
+  const handlePhotoDelete = async (modelId: string, photoId: string) => {
+    await fetch(`/api/models/${modelId}/photos?photoId=${photoId}`, { method: 'DELETE' })
+    loadModels()
   }
 
   return (
@@ -155,12 +115,16 @@ export default function ModelsPage() {
                 <input className="inp" value={sizeBottom} onChange={e => setSizeBottom(e.target.value)} placeholder="40" />
               </div>
             </div>
-            <button className="btn btn-p" type="submit">Salva Modella</button>
+            <button className="btn btn-p" type="submit" disabled={saving}>
+              {saving ? 'Salvataggio...' : 'Salva Modella'}
+            </button>
           </form>
         </div>
       )}
 
-      {models.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40 }}><div className="spinner" /></div>
+      ) : models.length === 0 ? (
         <div className="card" style={{ padding: '48px 24px', textAlign: 'center' }}>
           <p style={{ color: 'var(--muted)', fontSize: 14 }}>Nessuna modella registrata</p>
         </div>
@@ -192,7 +156,7 @@ export default function ModelsPage() {
                   {m.facePhotos.map(p => (
                     <div key={p.id} style={{ position: 'relative' }}>
                       <img
-                        src={p.dataUrl}
+                        src={p.photoUrl}
                         alt="Foto viso"
                         style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }}
                       />
@@ -227,7 +191,6 @@ export default function ModelsPage() {
                       border: '2px dashed var(--border)', background: 'var(--subtle)',
                       cursor: 'pointer', display: 'flex', alignItems: 'center',
                       justifyContent: 'center', fontSize: 22, color: 'var(--muted)',
-                      transition: 'border-color .2s',
                     }}
                   >
                     {uploading === m.id ? '...' : '+'}

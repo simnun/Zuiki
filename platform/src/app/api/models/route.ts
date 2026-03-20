@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
 
+const DEFAULT_COMPANY = 'zuiki-default'
+
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!user.companyId) return NextResponse.json({ error: 'No company' }, { status: 403 })
+
+  const companyId = user.companyId || DEFAULT_COMPANY
 
   const models = await prisma.model.findMany({
-    where: { companyId: user.companyId },
+    where: { companyId },
     include: { facePhotos: true },
     orderBy: { name: 'asc' },
   })
@@ -19,13 +22,13 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!user.companyId) return NextResponse.json({ error: 'No company' }, { status: 403 })
 
+  const companyId = user.companyId || DEFAULT_COMPANY
   const body = await req.json()
 
   const model = await prisma.model.create({
     data: {
-      companyId: user.companyId,
+      companyId,
       name: body.name,
       heightCm: body.heightCm,
       sizeTop: body.sizeTop,

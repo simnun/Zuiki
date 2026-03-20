@@ -371,3 +371,23 @@ CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
     "applied_steps_count" INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT "_prisma_migrations_pkey" PRIMARY KEY ("id")
 );
+
+-- ─── SEED: Azienda + Utente Admin ─────────────────────────
+-- Crea l'azienda Zuiki
+INSERT INTO "companies" ("id", "name", "slug", "isActive", "createdAt", "updatedAt")
+VALUES ('company-zuiki-001', 'Zuiki', 'zuiki', true, now(), now());
+
+-- Crea l'utente admin (email: admin@zuiki.it, password: S99)
+INSERT INTO "users" ("id", "email", "passwordHash", "firstName", "lastName", "role", "companyId", "isActive", "createdAt", "updatedAt")
+VALUES (
+    'user-admin-001',
+    'admin@zuiki.it',
+    '$2b$10$Zvhliwj7EoOmtKtKMhfPoeb/H99kaUABW1S0KuumBREkLenT0JLga',
+    'Admin',
+    'Zuiki',
+    'super_admin',
+    'company-zuiki-001',
+    true,
+    now(),
+    now()
+);

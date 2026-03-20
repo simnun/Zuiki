@@ -1,98 +1,122 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { getSignedUrl } from '@/lib/storage'
 
-type FacePhoto = { id: string; photoUrl: string }
+type FacePhoto = { id: string; dataUrl: string }
 type Model = {
   id: string; name: string; heightCm: number | null
   sizeTop: string | null; sizeBottom: string | null
   facePhotos: FacePhoto[]
 }
 
+const STORAGE_KEY = 'zm'
+const FACES_KEY = 'zfp'
+
+function loadModels(): Model[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    const old = JSON.parse(raw)
+    if (!Array.isArray(old)) return []
+    const faces = JSON.parse(localStorage.getItem(FACES_KEY) || '{}')
+    // Support old format (array of {nm, h, ...}) and new format
+    return old.map((m: any, i: number) => {
+      const name = m.nm || m.name || ''
+      return {
+        id: m.id || `m_${i}`,
+        name,
+        heightCm: m.h || m.heightCm || null,
+        sizeTop: m.st || m.sizeTop || null,
+        sizeBottom: m.sb || m.sizeBottom || null,
+        facePhotos: (m.facePhotos || (faces[name] || []).map((url: string, j: number) => ({
+          id: `p_${i}_${j}`,
+          dataUrl: url,
+        }))),
+      }
+    })
+  } catch { return [] }
+}
+
+function saveModels(models: Model[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(models))
+  // Also save in old format for compatibility with wizard
+  const faces: Record<string, string[]> = {}
+  models.forEach(m => {
+    if (m.facePhotos.length > 0) {
+      faces[m.name] = m.facePhotos.map(p => p.dataUrl)
+    }
+  })
+  localStorage.setItem(FACES_KEY, JSON.stringify(faces))
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function ModelsPage() {
   const [models, setModels] = useState<Model[]>([])
-  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [height, setHeight] = useState('')
   const [sizeTop, setSizeTop] = useState('')
   const [sizeBottom, setSizeBottom] = useState('')
-  const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState<string | null>(null)
-  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
-  const loadModels = () => {
-    fetch('/api/models').then(r => r.json()).then(async (d) => {
-      const models = Array.isArray(d) ? d : []
-      setModels(models)
-      setLoading(false)
+  useEffect(() => { setModels(loadModels()) }, [])
 
-      // Get signed URLs for face photos
-      const urls: Record<string, string> = {}
-      for (const model of models) {
-        for (const photo of model.facePhotos) {
-          try {
-            const res = await fetch(`/api/files?path=${encodeURIComponent(photo.photoUrl)}`)
-            const data = await res.json()
-            if (data.url) urls[photo.id] = data.url
-          } catch { /* ignore */ }
-        }
-      }
-      setSignedUrls(urls)
-    })
+  const save = (updated: Model[]) => {
+    setModels(updated)
+    saveModels(updated)
   }
 
-  useEffect(() => { loadModels() }, [])
-
-  const handleAdd = async (e: React.FormEvent) => {
+  const handleAdd = (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
-    const res = await fetch('/api/models', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        heightCm: height ? parseInt(height) : null,
-        sizeTop: sizeTop || null,
-        sizeBottom: sizeBottom || null,
-      }),
-    })
-    if (res.ok) {
-      setName(''); setHeight(''); setSizeTop(''); setSizeBottom('')
-      setShowForm(false)
-      loadModels()
+    const m: Model = {
+      id: `m_${Date.now()}`,
+      name,
+      heightCm: height ? parseInt(height) : null,
+      sizeTop: sizeTop || null,
+      sizeBottom: sizeBottom || null,
+      facePhotos: [],
     }
-    setSaving(false)
+    save([...models, m])
+    setName(''); setHeight(''); setSizeTop(''); setSizeBottom('')
+    setShowForm(false)
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm('Eliminare questa modella?')) return
-    await fetch(`/api/models/${id}`, { method: 'DELETE' })
-    loadModels()
+    save(models.filter(m => m.id !== id))
   }
 
   const handlePhotoUpload = async (modelId: string, files: FileList | null) => {
     if (!files || files.length === 0) return
     setUploading(modelId)
 
-    const formData = new FormData()
+    const newPhotos: FacePhoto[] = []
     for (let i = 0; i < files.length; i++) {
-      formData.append('photos', files[i])
+      const dataUrl = await fileToDataUrl(files[i])
+      newPhotos.push({ id: `p_${Date.now()}_${i}`, dataUrl })
     }
 
-    await fetch(`/api/models/${modelId}/photos`, {
-      method: 'POST',
-      body: formData,
-    })
-
+    save(models.map(m =>
+      m.id === modelId
+        ? { ...m, facePhotos: [...m.facePhotos, ...newPhotos] }
+        : m
+    ))
     setUploading(null)
-    loadModels()
   }
 
-  const handlePhotoDelete = async (modelId: string, photoId: string) => {
-    await fetch(`/api/models/${modelId}/photos?photoId=${photoId}`, { method: 'DELETE' })
-    loadModels()
+  const handlePhotoDelete = (modelId: string, photoId: string) => {
+    save(models.map(m =>
+      m.id === modelId
+        ? { ...m, facePhotos: m.facePhotos.filter(p => p.id !== photoId) }
+        : m
+    ))
   }
 
   return (
@@ -131,16 +155,12 @@ export default function ModelsPage() {
                 <input className="inp" value={sizeBottom} onChange={e => setSizeBottom(e.target.value)} placeholder="40" />
               </div>
             </div>
-            <button className="btn btn-p" type="submit" disabled={saving}>
-              {saving ? 'Salvataggio...' : 'Salva Modella'}
-            </button>
+            <button className="btn btn-p" type="submit">Salva Modella</button>
           </form>
         </div>
       )}
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 40 }}><div className="spinner" /></div>
-      ) : models.length === 0 ? (
+      {models.length === 0 ? (
         <div className="card" style={{ padding: '48px 24px', textAlign: 'center' }}>
           <p style={{ color: 'var(--muted)', fontSize: 14 }}>Nessuna modella registrata</p>
         </div>
@@ -153,8 +173,8 @@ export default function ModelsPage() {
                   <div style={{ fontSize: 20, fontWeight: 700 }}>{m.name}</div>
                   <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
                     {m.heightCm ? `${m.heightCm} cm` : ''}
-                    {m.sizeTop ? ` \u2022 Top: ${m.sizeTop}` : ''}
-                    {m.sizeBottom ? ` \u2022 Bottom: ${m.sizeBottom}` : ''}
+                    {m.sizeTop ? ` · Top: ${m.sizeTop}` : ''}
+                    {m.sizeBottom ? ` · Bottom: ${m.sizeBottom}` : ''}
                     {!m.heightCm && !m.sizeTop && !m.sizeBottom ? 'Nessun dettaglio' : ''}
                   </div>
                 </div>
@@ -163,7 +183,6 @@ export default function ModelsPage() {
                 </button>
               </div>
 
-              {/* Face photos section */}
               <div>
                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1.2, color: 'var(--muted)', marginBottom: 10 }}>
                   Foto del viso ({m.facePhotos.length})
@@ -172,22 +191,11 @@ export default function ModelsPage() {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
                   {m.facePhotos.map(p => (
                     <div key={p.id} style={{ position: 'relative' }}>
-                      {signedUrls[p.id] ? (
-                        <img
-                          src={signedUrls[p.id]}
-                          alt="Foto viso"
-                          className="face-thumb"
-                          style={{ width: 64, height: 64 }}
-                        />
-                      ) : (
-                        <div style={{
-                          width: 64, height: 64, borderRadius: '50%', background: 'var(--subtle)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          border: '2px solid var(--border)', fontSize: 10, color: 'var(--muted)',
-                        }}>
-                          Foto
-                        </div>
-                      )}
+                      <img
+                        src={p.dataUrl}
+                        alt="Foto viso"
+                        style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }}
+                      />
                       <button
                         onClick={() => handlePhotoDelete(m.id, p.id)}
                         style={{
@@ -198,36 +206,36 @@ export default function ModelsPage() {
                           alignItems: 'center', justifyContent: 'center',
                         }}
                       >
-                        \u2715
+                        ✕
                       </button>
                     </div>
                   ))}
 
-                  {/* Add photo button */}
                   <input
                     type="file"
                     accept="image/*"
                     multiple
                     style={{ display: 'none' }}
                     ref={el => { fileInputRefs.current[m.id] = el }}
-                    onChange={e => handlePhotoUpload(m.id, e.target.files)}
+                    onChange={e => { handlePhotoUpload(m.id, e.target.files); e.target.value = '' }}
                   />
                   <button
-                    className="face-add"
-                    style={{ width: 64, height: 64 }}
                     onClick={() => fileInputRefs.current[m.id]?.click()}
                     disabled={uploading === m.id}
+                    style={{
+                      width: 64, height: 64, borderRadius: '50%',
+                      border: '2px dashed var(--border)', background: 'var(--subtle)',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: 22, color: 'var(--muted)',
+                      transition: 'border-color .2s',
+                    }}
                   >
-                    {uploading === m.id ? (
-                      <div className="animate-spin-custom" style={{ width: 18, height: 18 }} />
-                    ) : (
-                      '+'
-                    )}
+                    {uploading === m.id ? '...' : '+'}
                   </button>
                 </div>
 
                 {m.facePhotos.length === 0 && (
-                  <p style={{ fontSize: 12, color: 'var(--warn)', marginTop: 8 }}>
+                  <p style={{ fontSize: 12, color: '#b8860b', marginTop: 8 }}>
                     Aggiungi almeno una foto del viso per il riconoscimento AI nelle sessioni
                   </p>
                 )}

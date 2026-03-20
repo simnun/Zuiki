@@ -142,7 +142,7 @@ export function mTags(o: { ds: string; cat: string; sub: string; nm: string; lic
     const licAnno = "licenza" + an;
     if (!t.includes(licAnno)) t.push(licAnno);
   }
-  return [...new Set(t)].join("; ") + ";";
+  return Array.from(new Set(t)).join("; ") + ";";
 }
 
 export function mTagsLoveskin(o: { tipo: string; sfx: string; lic: string | null; vestibilita: string | null; sporty: boolean }, cfg: SessionConfig) {
@@ -173,7 +173,7 @@ export function mTagsLoveskin(o: { tipo: string; sfx: string; lic: string | null
     if (licTag && !t.includes(licTag)) t.push(licTag);
     if (!t.includes("licenza")) t.push("licenza");
   }
-  return [...new Set(t)].join("; ") + ";";
+  return Array.from(new Set(t)).join("; ") + ";";
 }
 
 export function fmtTime(ms: number) {

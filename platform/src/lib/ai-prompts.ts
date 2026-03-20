@@ -100,7 +100,7 @@ export function genMetaKeys(it: CatalogItem, cfg: SessionConfig) {
   const keys = [br, tipo, nm, cfg.st?.toLowerCase() || "", "donna", "moda"];
   if (it.ai?.licenza && it.ai.licenza !== "null") keys.push(it.ai.licenza.toLowerCase());
   if (it.excelInfo?.caratteristica) keys.push(it.excelInfo.caratteristica.toLowerCase());
-  return [...new Set(keys.filter(k => k && k.length > 1))].join(", ");
+  return Array.from(new Set(keys.filter(k => k && k.length > 1))).join(", ");
 }
 
 export function genAltImgPrompt(it: CatalogItem) {

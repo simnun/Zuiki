@@ -77,7 +77,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       }
     }
 
-    const keepRows = [0, 1, ...[...processedRows].sort((a, b) => a - b)];
+    const keepRows = [0, 1, ...Array.from(processedRows).sort((a, b) => a - b)];
     const newWs: any = {};
     for (let ni = 0; ni < keepRows.length; ni++) {
       const oi = keepRows[ni];

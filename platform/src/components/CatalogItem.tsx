@@ -202,7 +202,7 @@ export default function CatalogItemCard({ it, idx, onRetryOne, onSuggestCorr, on
               <label>Composizione</label>
               <input className="inp" placeholder="es: 100% cotone" defaultValue={it.cp}
                 onBlur={(e) => {
-                  const newDs = it.ds.replace(/Composizione:.*$/s, `Composizione:\u00A0${fmtComp(e.target.value)}`);
+                  const newDs = it.ds.replace(/Composizione:[\s\S]*$/, `Composizione:\u00A0${fmtComp(e.target.value)}`);
                   dispatch({ type: "SET_ITEM", idx, payload: { cp: e.target.value, ds: newDs } });
                 }} />
             </div>

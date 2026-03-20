@@ -726,10 +726,10 @@ origData[ri][12]=it.tg||""; // M: tags
 origData[ri][13]=it.altImg||""; // N: Default Alt Image
 origData[ri][14]=cm[it.sku]||""; // O: Correlati
 }
-// Fill empty I and J cells with defaults (1 and 0) for ALL rows
+// Fill empty G and H cells with defaults (1 and 0) for ALL rows
 for(let ri=1;ri<origData.length;ri++){
-if(!origData[ri][8]&&origData[ri][8]!==0)origData[ri][8]=1;
-if(!origData[ri][9]&&origData[ri][9]!==0)origData[ri][9]=0;
+if(!origData[ri][6]&&origData[ri][6]!==0)origData[ri][6]=1; // G default 1
+if(!origData[ri][7]&&origData[ri][7]!==0)origData[ri][7]=0; // H default 0
 }
 
 const newWs=XLSX.utils.aoa_to_sheet(origData);

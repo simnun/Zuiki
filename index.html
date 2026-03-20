@@ -613,7 +613,7 @@ function wrapHtml(text){if(!text)return"";const pStyle='style="margin: 0px; font
 
 function genMetaTitle(it){const br=cfg.br==="zuiki"?"Zuiki":"Loveskin";const ex=getExcelInfo(it.sku);const tipo=it.tp||"";const nm=it.nm||tipo;return`${nm} | ${br}`;}
 
-function genMetaDesc(it){const br=cfg.br==="zuiki"?"Zuiki":"Loveskin";const nm=it.nm||it.tp;const tipo=it.tp||"";const desc=it.ai?.dettagli_descrizione||"";const shortDesc=desc.length>120?desc.slice(0,117)+"...":desc;return`Acquista ${nm} ${br}. ${shortDesc}`.slice(0,160);}
+function genMetaDesc(it){const br=cfg.br==="zuiki"?"Zuiki":"Loveskin";const nm=it.nm||it.tp;const desc=it.ai?.dettagli_descrizione||"";const full=`Acquista ${nm} ${br}. ${desc}`;if(full.length<=160)return full;const cut=full.slice(0,160);const lastSpace=cut.lastIndexOf(" ");return lastSpace>100?cut.slice(0,lastSpace):cut;}
 
 function genMetaKeys(it){const br=cfg.br==="zuiki"?"zuiki":"loveskin";const tipo=(it.tp||"").toLowerCase();const nm=(it.nm||"").toLowerCase();const ex=getExcelInfo(it.sku);const keys=[br,tipo,nm,cfg.st?.toLowerCase()||"","donna","moda"];if(it.ai?.licenza&&it.ai.licenza!=="null")keys.push(it.ai.licenza.toLowerCase());if(ex?.caratteristica)keys.push(ex.caratteristica.toLowerCase());return[...new Set(keys.filter(k=>k&&k.length>1))].join(", ");}
 
@@ -711,6 +711,11 @@ origData[ri][10]=it.metaKeys||genMetaKeys(it); // K: meta_keys
 origData[ri][12]=it.tg||""; // M: tags
 origData[ri][13]=it.altImg||""; // N: Default Alt Image
 origData[ri][14]=cm[it.sku]||""; // O: Correlati
+}
+// Fill empty I and J cells with defaults (1 and 0) for ALL rows
+for(let ri=1;ri<origData.length;ri++){
+if(!origData[ri][8]&&origData[ri][8]!==0)origData[ri][8]=1;
+if(!origData[ri][9]&&origData[ri][9]!==0)origData[ri][9]=0;
 }
 
 const newWs=XLSX.utils.aoa_to_sheet(origData);

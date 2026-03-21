@@ -30,7 +30,9 @@ export async function GET() {
       },
       orderBy: { name: 'asc' },
     })
-    return NextResponse.json(companies)
+    if (companies.length > 0) return NextResponse.json(companies)
+    // DB returned empty — use fallback
+    return NextResponse.json(FALLBACK_COMPANIES)
   } catch {
     // DB unreachable — return fallback
     return NextResponse.json(FALLBACK_COMPANIES)

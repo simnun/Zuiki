@@ -35,7 +35,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     })
 
-    if (!company) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (!company) {
+      // Not found in DB — try fallback
+      if (id === FALLBACK_COMPANY.id) return NextResponse.json(FALLBACK_COMPANY)
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
     return NextResponse.json(company)
   } catch {
     // DB unreachable — return fallback if matching

@@ -19,15 +19,20 @@ export async function GET() {
   if (!user.companyId) return NextResponse.json({ error: 'No company' }, { status: 400 })
 
   try {
-    const users = await prisma.user.findMany({
-      where: { companyId: user.companyId },
-      select: {
-        id: true, email: true, firstName: true, lastName: true,
-        role: true, isActive: true, createdAt: true,
-      },
-      orderBy: { createdAt: 'asc' },
-    })
-    return NextResponse.json(users)
+    const users = await Promise.race([
+      prisma.user.findMany({
+        where: { companyId: user.companyId },
+        select: {
+          id: true, email: true, firstName: true, lastName: true,
+          role: true, isActive: true, createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+    ])
+    if (users && users.length > 0) return NextResponse.json(users)
+    // DB returned empty — use fallback if available
+    return NextResponse.json(FALLBACK_USERS[user.companyId] || [])
   } catch {
     return NextResponse.json(FALLBACK_USERS[user.companyId] || [])
   }

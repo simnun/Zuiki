@@ -26,7 +26,9 @@ export async function GET() {
         pricingPlan: true, walletCredits: true, usedCredits: true, creditRenewalDate: true,
       },
     })
-    return NextResponse.json(company)
+    if (company) return NextResponse.json(company)
+    // Not found in DB — use fallback
+    return NextResponse.json(FALLBACK_PROFILES[user.companyId] || { error: 'Company not found' })
   } catch {
     return NextResponse.json(FALLBACK_PROFILES[user.companyId] || { error: 'DB unreachable' })
   }

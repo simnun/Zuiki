@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 
 const NAV = [
   { href: '/admin/companies', label: 'Aziende', icon: '◆' },
@@ -19,6 +20,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       else window.location.href = '/login'
     }).catch(() => window.location.href = '/login')
   }, [])
+
+  const handleLogout = async () => {
+    await signOut({ redirect: false })
+    window.location.href = '/login'
+  }
 
   if (!user) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}><div className="spinner" /></div>
 
@@ -49,8 +55,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )
           })}
         </nav>
-        <div style={{ padding: '0 16px' }}>
-          <Link href="/dashboard" style={{ fontSize: 12, color: '#666', textDecoration: 'none' }}>← Dashboard</Link>
+        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, color: '#888' }}>
+            {user.firstName} {user.lastName}
+          </div>
+          <button onClick={handleLogout} style={{
+            display: 'block', width: '100%', padding: '10px 12px', borderRadius: 8,
+            background: '#2a2a2a', border: '1px solid #333',
+            fontSize: 12, fontWeight: 600, color: '#888', textAlign: 'center',
+            cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+          }}>
+            Esci
+          </button>
         </div>
       </aside>
       <main style={{ flex: 1, padding: '32px 40px', maxWidth: 1200 }}>{children}</main>

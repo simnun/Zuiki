@@ -12,16 +12,19 @@ export async function GET() {
       ? { companyId: user.companyId }
       : { createdById: user.id }
 
-  const tickets = await prisma.supportTicket.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    include: {
-      createdBy: { select: { firstName: true, lastName: true } },
-      _count: { select: { messages: true } },
-    },
-  })
-
-  return NextResponse.json(tickets)
+  try {
+    const tickets = await prisma.supportTicket.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        createdBy: { select: { firstName: true, lastName: true } },
+        _count: { select: { messages: true } },
+      },
+    })
+    return NextResponse.json(tickets)
+  } catch {
+    return NextResponse.json([])
+  }
 }
 
 export async function POST(req: NextRequest) {

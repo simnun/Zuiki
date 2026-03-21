@@ -15,13 +15,16 @@ export async function GET() {
 
   if (!where) return NextResponse.json({ error: 'No company' }, { status: 403 })
 
-  const billing = await prisma.monthlyBilling.findMany({
-    where,
-    orderBy: { month: 'desc' },
-    include: {
-      company: { select: { name: true } },
-    },
-  })
-
-  return NextResponse.json(billing)
+  try {
+    const billing = await prisma.monthlyBilling.findMany({
+      where,
+      orderBy: { month: 'desc' },
+      include: {
+        company: { select: { name: true } },
+      },
+    })
+    return NextResponse.json(billing)
+  } catch {
+    return NextResponse.json([])
+  }
 }

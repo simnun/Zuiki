@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
 
 const ROLE_HOME: Record<string, string> = {
@@ -13,6 +13,15 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+
+  // If already logged in, redirect to appropriate page
+  useEffect(() => {
+    fetch('/api/auth/session').then(r => r.json()).then(d => {
+      if (d?.user?.role) {
+        window.location.href = ROLE_HOME[d.user.role] || '/dashboard'
+      }
+    }).catch(() => {})
+  }, [])
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {

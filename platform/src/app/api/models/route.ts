@@ -11,13 +11,16 @@ export async function GET() {
 
   const companyId = user.companyId || DEFAULT_COMPANY
 
-  const models = await prisma.model.findMany({
-    where: { companyId },
-    include: { facePhotos: true },
-    orderBy: { name: 'asc' },
-  })
-
-  return NextResponse.json(models)
+  try {
+    const models = await prisma.model.findMany({
+      where: { companyId },
+      include: { facePhotos: true },
+      orderBy: { name: 'asc' },
+    })
+    return NextResponse.json(models)
+  } catch {
+    return NextResponse.json([])
+  }
 }
 
 export async function POST(req: NextRequest) {

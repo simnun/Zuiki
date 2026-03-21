@@ -8,17 +8,20 @@ export async function GET() {
   if (!['super_admin', 'owner', 'user'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   if (!user.companyId && user.role !== 'super_admin') return NextResponse.json({ error: 'No company' }, { status: 403 })
 
-  const where = user.role === 'super_admin' ? {} : { companyId: user.companyId! }
-  const sessions = await prisma.shootingSession.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    include: {
-      _count: { select: { catalogItems: true } },
-      createdBy: { select: { firstName: true, lastName: true } },
-    },
-  })
-
-  return NextResponse.json(sessions)
+  try {
+    const where = user.role === 'super_admin' ? {} : { companyId: user.companyId! }
+    const sessions = await prisma.shootingSession.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        _count: { select: { catalogItems: true } },
+        createdBy: { select: { firstName: true, lastName: true } },
+      },
+    })
+    return NextResponse.json(sessions)
+  } catch {
+    return NextResponse.json([])
+  }
 }
 
 export async function POST(req: NextRequest) {

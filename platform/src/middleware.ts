@@ -14,10 +14,8 @@ export function middleware(req: NextRequest) {
   const isLoggedIn = !!sessionCookie?.value
 
   if (isPublic) {
-    // If logged in and trying to access login, redirect to dashboard
-    if (isLoggedIn && pathname === '/login') {
-      return NextResponse.redirect(new URL('/dashboard', req.url))
-    }
+    // Let login page handle redirect if user is already authenticated
+    // (avoids redirect loops when cookie exists but session is invalid)
     return NextResponse.next()
   }
 

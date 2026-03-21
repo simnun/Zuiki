@@ -115,12 +115,18 @@ export default function ModelsPage() {
             </div>
             <div className="grid2">
               <div className="field">
-                <label>Taglia sopra</label>
-                <input className="inp" value={sizeTop} onChange={e => setSizeTop(e.target.value)} placeholder="S" />
+                <label>Taglia parte superiore</label>
+                <select className="inp" value={sizeTop} onChange={e => setSizeTop(e.target.value)}>
+                  <option value="">Seleziona...</option>
+                  {['XS','S','M','L','XL','XXL'].map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
               <div className="field">
-                <label>Taglia sotto</label>
-                <input className="inp" value={sizeBottom} onChange={e => setSizeBottom(e.target.value)} placeholder="40" />
+                <label>Taglia parte inferiore</label>
+                <select className="inp" value={sizeBottom} onChange={e => setSizeBottom(e.target.value)}>
+                  <option value="">Seleziona...</option>
+                  {['38','40','42','44','46','48','50','52'].map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
             </div>
 

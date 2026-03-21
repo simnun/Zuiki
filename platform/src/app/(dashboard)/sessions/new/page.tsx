@@ -8,10 +8,65 @@ import { createActions } from "@/lib/catalog-actions";
 import Header from "@/components/Header";
 import Lightbox, { setLightboxOpener } from "@/components/Lightbox";
 import Wizard from "@/components/Wizard";
-import StepApiKey from "@/components/StepApiKey";
 import StepSetup from "@/components/StepSetup";
 import StepCatalog from "@/components/StepCatalog";
 import StepExport from "@/components/StepExport";
+
+function ApiKeyPrompt({ dispatch }: { dispatch: any }) {
+  const [key, setKey] = useState("");
+  const save = () => {
+    const v = key.trim();
+    if (v) {
+      localStorage.setItem("za", v);
+      dispatch({ type: "SET_STATE", payload: { ak: v, step: 0 } });
+    }
+  };
+  return (
+    <div className="animate-fadeUp" style={{ maxWidth: 560, margin: "40px auto" }}>
+      <div className="card" style={{ padding: 32 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>API Key richiesta</h2>
+        <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
+          Per utilizzare il catalogo AI serve la chiave API di Anthropic (Claude).
+          Senza di essa non è possibile processare le foto dello shooting.
+        </p>
+        <div className="field">
+          <label>API KEY ANTHROPIC</label>
+          <input
+            className="inp"
+            type="password"
+            value={key}
+            onChange={e => setKey(e.target.value)}
+            placeholder="sk-ant-api03-..."
+            onKeyDown={e => { if (e.key === "Enter") save(); }}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <button className="btn btn-p" onClick={save} style={{ padding: "12px 28px" }}>
+            Salva e continua
+          </button>
+          <a href="/settings" style={{ fontSize: 12, color: "var(--muted)" }}>
+            Oppure vai alle Impostazioni
+          </a>
+        </div>
+        <div style={{
+          background: "var(--subtle)", borderRadius: 10, padding: "14px 16px",
+          marginTop: 20, border: "1px solid var(--border)",
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Come ottenere la API Key</div>
+          <ol style={{ fontSize: 12, color: "var(--muted)", margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
+            <li>Vai su <strong>console.anthropic.com</strong></li>
+            <li>Crea un account o accedi</li>
+            <li>Vai in <strong>API Keys</strong> e crea una nuova chiave</li>
+            <li>Copia la chiave e incollala qui sopra</li>
+          </ol>
+        </div>
+        <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 12 }}>
+          La chiave viene salvata solo nel tuo browser e non viene mai inviata ai nostri server.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function SessionContent() {
   const { state, dispatch, cAI, getExcelInfo } = useStore();
@@ -116,7 +171,7 @@ function SessionContent() {
         />
       )}
       <main style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px 80px" }}>
-        {step === -1 && <StepApiKey />}
+        {step === -1 && <ApiKeyPrompt dispatch={dispatch} />}
         {step === 0 && <StepSetup />}
         {step === 1 && <StepCatalog />}
         {step === 2 && <StepExport onFindCorrelations={handleFindCorrelations} />}

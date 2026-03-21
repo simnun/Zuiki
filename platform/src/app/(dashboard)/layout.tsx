@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: '◉' },
@@ -28,6 +29,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="spinner" />
     </div>
   )
+
+  const handleLogout = async () => {
+    await signOut({ redirect: false })
+    window.location.href = '/login'
+  }
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -73,14 +79,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         <div style={{ padding: '0 16px' }}>
-          {sideOpen && (
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-              {user.firstName} {user.lastName}
-            </div>
-          )}
-          <button onClick={() => {
-            fetch('/api/auth/signout', { method: 'POST' }).then(() => window.location.href = '/login')
-          }} style={{
+          <Link href="/settings" style={{
+            display: 'block', textDecoration: 'none', padding: '10px 12px',
+            borderRadius: 8, marginBottom: 8, cursor: 'pointer',
+            transition: 'background .15s',
+          }}>
+            {sideOpen ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontSize: 13, fontWeight: 700,
+                }}>
+                  {(user.firstName || 'U')[0].toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                    {user.firstName} {user.lastName}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>Impostazioni</div>
+                </div>
+              </div>
+            ) : (
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', fontSize: 13, fontWeight: 700, margin: '0 auto',
+              }}>
+                {(user.firstName || 'U')[0].toUpperCase()}
+              </div>
+            )}
+          </Link>
+          <button onClick={handleLogout} style={{
             display: 'block', width: '100%', padding: '10px 12px', borderRadius: 8,
             background: 'var(--subtle)', border: '1px solid var(--border)',
             fontSize: 12, fontWeight: 600, color: 'var(--muted)', textAlign: 'center',

@@ -94,7 +94,11 @@ export default function ModelsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         })
-        if (!res.ok) { flash('Errore nel salvataggio'); return }
+        if (!res.ok) {
+          const err = await res.json().catch(() => null)
+          flash(`Errore nel salvataggio: ${err?.error || res.statusText}`)
+          return
+        }
         savedModel = await res.json()
       } else {
         const res = await fetch('/api/models', {
@@ -102,7 +106,11 @@ export default function ModelsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         })
-        if (!res.ok) { flash('Errore nella creazione'); return }
+        if (!res.ok) {
+          const err = await res.json().catch(() => null)
+          flash(`Errore nella creazione: ${err?.error || res.statusText}`)
+          return
+        }
         savedModel = await res.json()
       }
 
@@ -190,8 +198,11 @@ export default function ModelsPage() {
 
       {msg && (
         <div style={{
-          background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8,
-          padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#2e7d32', fontWeight: 600,
+          background: msg.startsWith('Errore') ? '#fce4ec' : '#e8f5e9',
+          border: `1px solid ${msg.startsWith('Errore') ? '#ef9a9a' : '#a5d6a7'}`,
+          borderRadius: 8,
+          padding: '10px 16px', marginBottom: 20, fontSize: 13,
+          color: msg.startsWith('Errore') ? '#c62828' : '#2e7d32', fontWeight: 600,
         }}>{msg}</div>
       )}
 

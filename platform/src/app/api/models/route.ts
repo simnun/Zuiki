@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
 
-const DEFAULT_COMPANY = 'zuiki-default'
-
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!['super_admin', 'owner', 'user'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const companyId = user.companyId || DEFAULT_COMPANY
+  const companyId = user.companyId
+  if (!companyId) return NextResponse.json([])
 
   try {
     const models = await prisma.model.findMany({
@@ -28,19 +27,28 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!['owner', 'user'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const companyId = user.companyId || DEFAULT_COMPANY
+  const companyId = user.companyId
+  if (!companyId) {
+    return NextResponse.json({ error: 'User has no company' }, { status: 400 })
+  }
+
   const body = await req.json()
 
-  const model = await prisma.model.create({
-    data: {
-      companyId,
-      name: body.name,
-      heightCm: body.heightCm,
-      sizeTop: body.sizeTop,
-      sizeBottom: body.sizeBottom,
-    },
-    include: { facePhotos: true },
-  })
+  try {
+    const model = await prisma.model.create({
+      data: {
+        companyId,
+        name: body.name,
+        heightCm: body.heightCm ? parseInt(body.heightCm) : null,
+        sizeTop: body.sizeTop || null,
+        sizeBottom: body.sizeBottom || null,
+      },
+      include: { facePhotos: true },
+    })
 
-  return NextResponse.json(model, { status: 201 })
+    return NextResponse.json(model, { status: 201 })
+  } catch (e: any) {
+    console.error('[API] Model create error:', e)
+    return NextResponse.json({ error: e.message || 'Database error' }, { status: 500 })
+  }
 }

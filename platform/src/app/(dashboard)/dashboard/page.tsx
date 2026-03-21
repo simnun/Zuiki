@@ -20,13 +20,19 @@ type Session = {
 export default function DashboardPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
+  const [role, setRole] = useState('')
 
   useEffect(() => {
+    fetch('/api/auth/session').then(r => r.json()).then(d => {
+      if (d?.user?.role) setRole(d.user.role)
+    })
     fetch('/api/sessions')
       .then(r => r.json())
       .then(d => { setSessions(Array.isArray(d) ? d : []); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
+
+  const canCreateSession = ['owner', 'user', 'super_admin'].includes(role)
 
   const stats = {
     total: sessions.length,
@@ -55,9 +61,11 @@ export default function DashboardPage() {
           <h1 style={{ fontSize: 26, fontWeight: 700 }}>Dashboard</h1>
           <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Panoramica sessioni di shooting</p>
         </div>
-        <Link href="/sessions/new" className="btn btn-p" style={{ textDecoration: 'none' }}>
-          + Nuova Sessione
-        </Link>
+        {canCreateSession && (
+          <Link href="/sessions/new" className="btn btn-p" style={{ textDecoration: 'none' }}>
+            + Nuova Sessione
+          </Link>
+        )}
       </div>
 
       {/* Stats */}
@@ -83,9 +91,11 @@ export default function DashboardPage() {
       ) : sessions.length === 0 ? (
         <div className="card" style={{ padding: '48px 24px', textAlign: 'center' }}>
           <p style={{ fontSize: 15, color: 'var(--muted)', marginBottom: 16 }}>Nessuna sessione ancora</p>
-          <Link href="/sessions/new" className="btn btn-p" style={{ textDecoration: 'none' }}>
-            Crea la prima sessione
-          </Link>
+          {canCreateSession && (
+            <Link href="/sessions/new" className="btn btn-p" style={{ textDecoration: 'none' }}>
+              Crea la prima sessione
+            </Link>
+          )}
         </div>
       ) : (
         <div className="card" style={{ overflow: 'hidden' }}>

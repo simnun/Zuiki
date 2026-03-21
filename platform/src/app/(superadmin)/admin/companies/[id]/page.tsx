@@ -47,6 +47,31 @@ export default function CompanyDetailPage() {
     }
   }
 
+  const toggleActive = async (userId: string, currentActive: boolean) => {
+    const res = await fetch(`/api/companies/${id}/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive: !currentActive }),
+    })
+    if (res.ok) {
+      loadUsers()
+      flash(currentActive ? 'Utente disattivato' : 'Utente riattivato')
+    } else {
+      flash('Errore')
+    }
+  }
+
+  const deleteUser = async (userId: string, name: string) => {
+    if (!confirm(`Eliminare definitivamente l'utente ${name}?`)) return
+    const res = await fetch(`/api/companies/${id}/users/${userId}`, { method: 'DELETE' })
+    if (res.ok) {
+      loadUsers()
+      flash('Utente eliminato')
+    } else {
+      flash('Errore nella cancellazione')
+    }
+  }
+
   if (!company) return <div style={{ textAlign: 'center', padding: 60 }}><div className="spinner" /></div>
 
   return (
@@ -75,7 +100,7 @@ export default function CompanyDetailPage() {
       <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Utenti</h2>
       <div className="card" style={{ overflow: 'hidden', marginBottom: 24 }}>
         <table className="tbl">
-          <thead><tr><th>Nome</th><th>Email</th><th>Ruolo</th><th>Attivo</th></tr></thead>
+          <thead><tr><th>Nome</th><th>Email</th><th>Ruolo</th><th>Attivo</th><th></th></tr></thead>
           <tbody>
             {users.map(u => (
               <tr key={u.id}>
@@ -91,6 +116,18 @@ export default function CompanyDetailPage() {
                   </span>
                 </td>
                 <td style={{ color: u.isActive ? 'var(--ok)' : 'var(--err)', fontWeight: 700, fontSize: 12 }}>{u.isActive ? 'Si' : 'No'}</td>
+                <td style={{ textAlign: 'right' }}>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <button onClick={() => toggleActive(u.id, u.isActive)} className="btn btn-s"
+                      style={{ padding: '4px 10px', fontSize: 11 }}>
+                      {u.isActive ? 'Disattiva' : 'Riattiva'}
+                    </button>
+                    <button onClick={() => deleteUser(u.id, `${u.firstName} ${u.lastName}`)} className="btn btn-d"
+                      style={{ padding: '4px 10px', fontSize: 11 }}>
+                      Elimina
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

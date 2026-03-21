@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
+import { inngest } from '@/lib/inngest'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -25,6 +26,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     where: { sessionId: id, status: 'pending' },
     data: { status: 'processing' },
   })
+
+  // Trigger Inngest background job
+  try {
+    await inngest.send({
+      name: 'catalog/session.process',
+      data: { sessionId: id },
+    })
+  } catch (e) {
+    console.error('[INNGEST] Failed to send event, processing will run on next trigger:', e)
+  }
 
   return NextResponse.json({
     sessionId: id,

@@ -37,6 +37,9 @@ export const ROUTE_ACCESS: Record<string, AppRole[]> = {
   '/support': ['super_admin', 'owner', 'admin', 'user'],
   '/dashboard': ['super_admin', 'owner', 'admin', 'user'],
   '/settings': ['super_admin', 'owner', 'admin', 'user'],
+  '/profile': ['super_admin', 'owner', 'admin', 'user'],
+  '/company': ['owner', 'admin', 'user'],
+  '/team': ['owner', 'admin', 'user'],
 }
 
 export function canAccessRoute(role: string, pathname: string): boolean {

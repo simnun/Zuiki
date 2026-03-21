@@ -1,21 +1,11 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
-// Same format as wizard (StepSetup) — stored in localStorage "zm"
-type Modella = { nome: string; altezza: string; tagliaSopra: string; tagliaSotto: string }
-// Face photos — stored in localStorage "zfp" as Record<nome, dataUrl[]>
+type FacePhoto = { id: string; photoUrl: string }
+type Model = { id: string; name: string; heightCm: number | null; sizeTop: string | null; sizeBottom: string | null; facePhotos: FacePhoto[] }
 
 const TL_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 const TS_SIZES = ['38', '40', '42', '44', '46', '48', '50', '52']
-
-function loadMod(): Modella[] {
-  try { return JSON.parse(localStorage.getItem('zm') || '[]') } catch { return [] }
-}
-function loadFaces(): Record<string, string[]> {
-  try { return JSON.parse(localStorage.getItem('zfp') || '{}') } catch { return {} }
-}
-function saveMod(mod: Modella[]) { localStorage.setItem('zm', JSON.stringify(mod)) }
-function saveFaces(fp: Record<string, string[]>) { localStorage.setItem('zfp', JSON.stringify(fp)) }
 
 function resizeImg(file: File): Promise<string> {
   return new Promise(r => {
@@ -41,10 +31,11 @@ function resizeImg(file: File): Promise<string> {
 }
 
 export default function ModelsPage() {
-  const [mod, setMod] = useState<Modella[]>([])
-  const [facePh, setFacePh] = useState<Record<string, string[]>>({})
+  const [models, setModels] = useState<Model[]>([])
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [editIdx, setEditIdx] = useState<number | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [msg, setMsg] = useState('')
   // Form fields
   const [nome, setNome] = useState('')
   const [altezza, setAltezza] = useState('')
@@ -52,73 +43,112 @@ export default function ModelsPage() {
   const [tagliaSotto, setTagliaSotto] = useState('')
   const [tmpFaces, setTmpFaces] = useState<string[]>([])
   const fileRef = useRef<HTMLInputElement | null>(null)
-  const addFileRefs = useRef<Record<number, HTMLInputElement | null>>({})
+  const addFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
-  useEffect(() => { setMod(loadMod()); setFacePh(loadFaces()) }, [])
+  const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
+
+  const loadModels = useCallback(() => {
+    fetch('/api/models').then(r => r.json()).then(d => {
+      setModels(Array.isArray(d) ? d : [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { loadModels() }, [loadModels])
 
   const resetForm = () => {
     setNome(''); setAltezza(''); setTagliaSopra(''); setTagliaSotto('')
-    setTmpFaces([]); setEditIdx(null); setShowForm(false)
+    setTmpFaces([]); setEditId(null); setShowForm(false)
   }
 
   const openNew = () => {
     resetForm()
     setShowForm(true)
-    setEditIdx(null)
+    setEditId(null)
   }
 
-  const openEdit = (idx: number) => {
-    const m = mod[idx]
-    setNome(m.nome); setAltezza(m.altezza)
-    setTagliaSopra(m.tagliaSopra); setTagliaSotto(m.tagliaSotto)
-    setTmpFaces(facePh[m.nome] || [])
-    setEditIdx(idx)
+  const openEdit = (m: Model) => {
+    setNome(m.name)
+    setAltezza(m.heightCm?.toString() || '')
+    setTagliaSopra(m.sizeTop || '')
+    setTagliaSotto(m.sizeBottom || '')
+    setTmpFaces(m.facePhotos.map(p => p.photoUrl))
+    setEditId(m.id)
     setShowForm(true)
   }
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!nome || !altezza || !tagliaSopra || !tagliaSotto) {
-      alert('Compila tutti i campi: nome, altezza, taglia sopra e taglia sotto')
+      flash('Compila tutti i campi: nome, altezza, taglia sopra e taglia sotto')
       return
     }
 
-    let newMod = [...mod]
-    const newFp = { ...facePh }
+    const body = { name: nome, heightCm: parseInt(altezza), sizeTop: tagliaSopra, sizeBottom: tagliaSotto }
 
-    if (editIdx !== null) {
-      // Editing existing: remove old face photos if name changed
-      const oldName = mod[editIdx].nome
-      if (oldName !== nome) {
-        delete newFp[oldName]
+    try {
+      let savedModel: Model
+      if (editId) {
+        const res = await fetch(`/api/models/${editId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) { flash('Errore nel salvataggio'); return }
+        savedModel = await res.json()
+      } else {
+        const res = await fetch('/api/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) { flash('Errore nella creazione'); return }
+        savedModel = await res.json()
       }
-      newMod[editIdx] = { nome, altezza, tagliaSopra, tagliaSotto }
-    } else {
-      // Creating new: prevent duplicates
-      newMod = [...newMod.filter(x => x.nome !== nome), { nome, altezza, tagliaSopra, tagliaSotto }]
-    }
 
-    // Save face photos
-    if (tmpFaces.length > 0) {
-      newFp[nome] = tmpFaces
-    } else {
-      delete newFp[nome]
-    }
+      // Upload new face photos (those that are data URLs not already in DB)
+      const existingUrls = new Set(savedModel.facePhotos.map(p => p.photoUrl))
+      const newFaces = tmpFaces.filter(url => !existingUrls.has(url))
 
-    saveMod(newMod); saveFaces(newFp)
-    setMod(newMod); setFacePh(newFp)
-    resetForm()
+      if (newFaces.length > 0) {
+        for (const dataUrl of newFaces) {
+          const blob = await (await fetch(dataUrl)).blob()
+          const formData = new FormData()
+          formData.append('photos', new File([blob], 'face.jpg', { type: 'image/jpeg' }))
+          await fetch(`/api/models/${savedModel.id}/photos`, { method: 'POST', body: formData })
+        }
+      }
+
+      // Delete removed face photos
+      const keptUrls = new Set(tmpFaces)
+      for (const photo of savedModel.facePhotos) {
+        if (!keptUrls.has(photo.photoUrl)) {
+          await fetch(`/api/models/${savedModel.id}/photos?photoId=${photo.id}`, { method: 'DELETE' })
+        }
+      }
+
+      loadModels()
+      resetForm()
+      flash(editId ? 'Modella aggiornata' : 'Modella creata')
+    } catch {
+      flash('Errore di rete')
+    }
   }
 
-  const handleDelete = (idx: number) => {
+  const handleDelete = async (m: Model) => {
     if (!confirm('Eliminare questa modella?')) return
-    const m = mod[idx]
-    const newMod = mod.filter((_, i) => i !== idx)
-    const newFp = { ...facePh }
-    delete newFp[m.nome]
-    saveMod(newMod); saveFaces(newFp)
-    setMod(newMod); setFacePh(newFp)
-    if (editIdx === idx) resetForm()
+    try {
+      const res = await fetch(`/api/models/${m.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        loadModels()
+        if (editId === m.id) resetForm()
+        flash('Modella eliminata')
+      } else {
+        flash('Errore nella cancellazione')
+      }
+    } catch {
+      flash('Errore di rete')
+    }
   }
 
   const addTmpFace = async (files: FileList | null) => {
@@ -130,26 +160,20 @@ export default function ModelsPage() {
     setTmpFaces(newFaces)
   }
 
-  const addFaceToExisting = async (idx: number, files: FileList | null) => {
+  const addFaceToExisting = async (model: Model, files: FileList | null) => {
     if (!files) return
-    const m = mod[idx]
-    const newFp = { ...facePh }
-    if (!newFp[m.nome]) newFp[m.nome] = []
+    const formData = new FormData()
     for (let i = 0; i < files.length; i++) {
-      newFp[m.nome] = [...newFp[m.nome], await resizeImg(files[i])]
+      const blob = await (await fetch(await resizeImg(files[i]))).blob()
+      formData.append('photos', new File([blob], 'face.jpg', { type: 'image/jpeg' }))
     }
-    saveFaces(newFp)
-    setFacePh(newFp)
+    const res = await fetch(`/api/models/${model.id}/photos`, { method: 'POST', body: formData })
+    if (res.ok) loadModels()
   }
 
-  const removeFaceFromExisting = (nome: string, photoIdx: number) => {
-    const newFp = { ...facePh }
-    if (newFp[nome]) {
-      newFp[nome] = newFp[nome].filter((_, i) => i !== photoIdx)
-      if (!newFp[nome].length) delete newFp[nome]
-      saveFaces(newFp)
-      setFacePh(newFp)
-    }
+  const removeFaceFromExisting = async (model: Model, photo: FacePhoto) => {
+    const res = await fetch(`/api/models/${model.id}/photos?photoId=${photo.id}`, { method: 'DELETE' })
+    if (res.ok) loadModels()
   }
 
   return (
@@ -164,10 +188,17 @@ export default function ModelsPage() {
         </button>
       </div>
 
+      {msg && (
+        <div style={{
+          background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8,
+          padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#2e7d32', fontWeight: 600,
+        }}>{msg}</div>
+      )}
+
       {showForm && (
         <div className="card" style={{ padding: '24px', marginBottom: 24 }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>
-            {editIdx !== null ? 'Modifica Modella' : 'Nuova Modella'}
+            {editId ? 'Modifica Modella' : 'Nuova Modella'}
           </h3>
           <form onSubmit={handleSave}>
             <div className="grid2">
@@ -221,7 +252,7 @@ export default function ModelsPage() {
 
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-p" type="submit">
-                {editIdx !== null ? 'Salva modifiche' : 'Salva modella'}
+                {editId ? 'Salva modifiche' : 'Salva modella'}
               </button>
               <button className="btn btn-s" type="button" onClick={resetForm}>Annulla</button>
             </div>
@@ -229,28 +260,28 @@ export default function ModelsPage() {
         </div>
       )}
 
-      {mod.length === 0 ? (
+      {loading ? <div className="spinner" /> : models.length === 0 ? (
         <div className="card" style={{ padding: '48px 24px', textAlign: 'center' }}>
           <p style={{ color: 'var(--muted)', fontSize: 14 }}>Nessuna modella registrata</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {mod.map((m, idx) => {
-            const photos = facePh[m.nome] || []
+          {models.map(m => {
+            const photos = m.facePhotos || []
             return (
-              <div key={m.nome} className="card" style={{ padding: '24px' }}>
+              <div key={m.id} className="card" style={{ padding: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                   <div>
-                    <div style={{ fontSize: 20, fontWeight: 700 }}>{m.nome}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{m.name}</div>
                     <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                      {m.altezza} cm · {m.tagliaSopra} / {m.tagliaSotto}
+                      {m.heightCm} cm · {m.sizeTop} / {m.sizeBottom}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => openEdit(idx)} className="btn btn-s" style={{ padding: '6px 14px', fontSize: 12 }}>
+                    <button onClick={() => openEdit(m)} className="btn btn-s" style={{ padding: '6px 14px', fontSize: 12 }}>
                       Modifica
                     </button>
-                    <button onClick={() => handleDelete(idx)} className="btn btn-d" style={{ padding: '6px 14px', fontSize: 12 }}>
+                    <button onClick={() => handleDelete(m)} className="btn btn-d" style={{ padding: '6px 14px', fontSize: 12 }}>
                       Elimina
                     </button>
                   </div>
@@ -261,19 +292,19 @@ export default function ModelsPage() {
                     Foto del viso ({photos.length})
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-                    {photos.map((url, pi) => (
-                      <div key={pi} style={{ position: 'relative' }}>
-                        <img src={url} alt="Foto viso" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }} />
-                        <button onClick={() => removeFaceFromExisting(m.nome, pi)}
+                    {photos.map(photo => (
+                      <div key={photo.id} style={{ position: 'relative' }}>
+                        <img src={photo.photoUrl} alt="Foto viso" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }} />
+                        <button onClick={() => removeFaceFromExisting(m, photo)}
                           style={{ position: 'absolute', top: -4, right: -4, width: 20, height: 20, borderRadius: '50%', background: 'var(--err)', color: '#fff', border: 'none', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           ✕
                         </button>
                       </div>
                     ))}
                     <input type="file" accept="image/*" multiple style={{ display: 'none' }}
-                      ref={el => { addFileRefs.current[idx] = el }}
-                      onChange={e => { addFaceToExisting(idx, e.target.files); e.target.value = '' }} />
-                    <button onClick={() => addFileRefs.current[idx]?.click()}
+                      ref={el => { addFileRefs.current[m.id] = el }}
+                      onChange={e => { addFaceToExisting(m, e.target.files); e.target.value = '' }} />
+                    <button onClick={() => addFileRefs.current[m.id]?.click()}
                       style={{ width: 64, height: 64, borderRadius: '50%', border: '2px dashed var(--border)', background: 'var(--subtle)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: 'var(--muted)' }}>
                       +
                     </button>

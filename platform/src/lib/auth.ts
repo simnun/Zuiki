@@ -23,12 +23,18 @@ declare module 'next-auth' {
   }
 }
 
+// Pre-computed bcrypt hashes (avoids hashSync at module load time on serverless)
+// S99 hash: bcrypt.hashSync('S99', 10)
+// 1 hash: bcrypt.hashSync('1', 10)
+const HASH_S99 = '$2b$10$Zvhliwj7EoOmtKtKMhfPoeb/H99kaUABW1S0KuumBREkLenT0JLga'
+const HASH_1 = '$2b$10$2OKxalOJmW9d05aNZ67jouGBmB2FYlGYPDKIBlMgE1YXlVowoIgri'
+
 // Fallback users when DB is unreachable (seed data mirrored locally)
 const FALLBACK_USERS = [
   {
     id: 'user-admin-001',
     email: 'admin@zuiki.it',
-    passwordHash: '$2b$10$Zvhliwj7EoOmtKtKMhfPoeb/H99kaUABW1S0KuumBREkLenT0JLga',
+    passwordHash: HASH_S99,
     firstName: 'Admin',
     lastName: 'Zuiki',
     role: 'super_admin' as const,
@@ -38,7 +44,7 @@ const FALLBACK_USERS = [
   {
     id: 'user-owner-001',
     email: 'owner@provoloni.it',
-    passwordHash: bcrypt.hashSync('1', 10),
+    passwordHash: HASH_1,
     firstName: 'Proprietario',
     lastName: 'Provoloni',
     role: 'owner' as const,
@@ -48,7 +54,7 @@ const FALLBACK_USERS = [
   {
     id: 'user-admin-prov-001',
     email: 'admin@provoloni.it',
-    passwordHash: bcrypt.hashSync('1', 10),
+    passwordHash: HASH_1,
     firstName: 'Amministrativo',
     lastName: 'Provoloni',
     role: 'admin' as const,
@@ -58,7 +64,7 @@ const FALLBACK_USERS = [
   {
     id: 'user-user-001',
     email: 'user@provoloni.it',
-    passwordHash: bcrypt.hashSync('1', 10),
+    passwordHash: HASH_1,
     firstName: 'Utente',
     lastName: 'Provoloni',
     role: 'user' as const,
@@ -68,11 +74,15 @@ const FALLBACK_USERS = [
 ]
 
 async function findUser(email: string) {
+  // Try DB with a 3s timeout, fall back to local users if unreachable
   try {
-    const user = await prisma.user.findUnique({ where: { email } })
-    if (user) return user
+    const dbResult = await Promise.race([
+      prisma.user.findUnique({ where: { email } }),
+      new Promise<null>((_, reject) => setTimeout(() => reject(new Error('DB timeout')), 3000)),
+    ])
+    if (dbResult) return dbResult
   } catch {
-    // DB unreachable — fall through to fallback
+    // DB unreachable or timeout — fall through to fallback
   }
   return FALLBACK_USERS.find(u => u.email === email) || null
 }

@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx prisma generate && DATABASE_URL='postgresql://postgres.hhvgwgzzhtsvzljnfiuu:-%25v-CDg2NN7zg9A@aws-1-eu-central-1.pooler.supabase.com:5432/postgres?connect_timeout=10' npx prisma db push --accept-data-loss && next build",
+  "buildCommand": "npx prisma generate && next build",
   "framework": "nextjs",
   "installCommand": "npm install"
 }

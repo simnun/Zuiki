@@ -35,6 +35,13 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
 
   try {
+    // Ensure company exists (handles fallback auth when seed hasn't run)
+    await prisma.company.upsert({
+      where: { id: companyId },
+      update: {},
+      create: { id: companyId, name: 'Azienda', slug: companyId },
+    })
+
     const model = await prisma.model.create({
       data: {
         companyId,

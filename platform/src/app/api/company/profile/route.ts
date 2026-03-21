@@ -18,16 +18,25 @@ export async function GET() {
   if (!user.companyId) return NextResponse.json({ error: 'No company' }, { status: 400 })
 
   try {
-    const company = await prisma.company.findUnique({
-      where: { id: user.companyId },
-      select: {
-        id: true, name: true, slug: true, logoUrl: true,
-        vatNumber: true, billingEmail: true, billingAddress: true,
-        pricingPlan: true, walletCredits: true, usedCredits: true, creditRenewalDate: true,
-      },
-    })
+    // Try full select first, fall back to basic fields if columns don't exist yet
+    let company
+    try {
+      company = await prisma.company.findUnique({
+        where: { id: user.companyId },
+        select: {
+          id: true, name: true, slug: true, logoUrl: true, isActive: true, createdAt: true,
+          vatNumber: true, billingEmail: true, billingAddress: true,
+          pricingPlan: true, walletCredits: true, usedCredits: true, creditRenewalDate: true,
+        },
+      })
+    } catch {
+      // Billing columns may not exist yet — select basic fields only
+      company = await prisma.company.findUnique({
+        where: { id: user.companyId },
+        select: { id: true, name: true, slug: true, logoUrl: true, isActive: true, createdAt: true },
+      })
+    }
     if (company) return NextResponse.json(company)
-    // Not found in DB — use fallback
     return NextResponse.json(FALLBACK_PROFILES[user.companyId] || { error: 'Company not found' })
   } catch {
     return NextResponse.json(FALLBACK_PROFILES[user.companyId] || { error: 'DB unreachable' })

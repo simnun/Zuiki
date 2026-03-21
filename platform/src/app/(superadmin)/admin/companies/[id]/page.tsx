@@ -43,7 +43,7 @@ export default function CompanyDetailPage() {
       flash('Utente creato')
     } else {
       const err = await res.json()
-      flash(err.error === 'Email already in use' ? 'Email già in uso' : 'Errore')
+      flash(err.error === 'Email already in use' ? 'Email già in uso' : `Errore: ${err.error || 'Sconosciuto'}`)
     }
   }
 
@@ -57,7 +57,8 @@ export default function CompanyDetailPage() {
       loadUsers()
       flash(currentActive ? 'Utente disattivato' : 'Utente riattivato')
     } else {
-      flash('Errore')
+      const err = await res.json().catch(() => null)
+      flash(`Errore: ${err?.error || 'Operazione fallita'}`)
     }
   }
 
@@ -92,8 +93,10 @@ export default function CompanyDetailPage() {
 
       {msg && (
         <div style={{
-          background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8,
-          padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#2e7d32', fontWeight: 600,
+          background: msg.startsWith('Errore') ? '#fce4ec' : '#e8f5e9',
+          border: `1px solid ${msg.startsWith('Errore') ? '#ef9a9a' : '#a5d6a7'}`,
+          borderRadius: 8, padding: '10px 16px', marginBottom: 20, fontSize: 13,
+          color: msg.startsWith('Errore') ? '#c62828' : '#2e7d32', fontWeight: 600,
         }}>{msg}</div>
       )}
 

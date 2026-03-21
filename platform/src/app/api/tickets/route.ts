@@ -34,14 +34,18 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
 
-  const ticket = await prisma.supportTicket.create({
-    data: {
-      companyId: user.companyId,
-      createdById: user.id,
-      subject: body.subject,
-      description: body.description,
-    },
-  })
-
-  return NextResponse.json(ticket, { status: 201 })
+  try {
+    const ticket = await prisma.supportTicket.create({
+      data: {
+        companyId: user.companyId,
+        createdById: user.id,
+        subject: body.subject,
+        description: body.description,
+      },
+    })
+    return NextResponse.json(ticket, { status: 201 })
+  } catch (e: any) {
+    console.error('[API] Ticket create error:', e)
+    return NextResponse.json({ error: e.message || 'DB error' }, { status: 500 })
+  }
 }

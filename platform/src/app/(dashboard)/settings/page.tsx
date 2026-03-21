@@ -87,18 +87,30 @@ export default function SettingsPage() {
 
   const visibleTabs = tabs.filter(t => t.show)
 
-  const saveProfile = () => {
-    // Profile is read from session — for now just acknowledge
-    flash('Profilo salvato')
+  const saveProfile = async () => {
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstName, lastName }),
+      })
+      flash(res.ok ? 'Profilo salvato' : 'Errore nel salvataggio')
+    } catch {
+      flash('Errore di rete')
+    }
   }
 
   const saveCompany = async () => {
-    await fetch('/api/company/profile', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: coName, vatNumber: coVat, billingAddress: coAddress, billingEmail: coBillingEmail }),
-    })
-    flash('Dati azienda salvati')
+    try {
+      const res = await fetch('/api/company/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: coName, vatNumber: coVat, billingAddress: coAddress, billingEmail: coBillingEmail }),
+      })
+      flash(res.ok ? 'Dati azienda salvati' : 'Errore nel salvataggio')
+    } catch {
+      flash('Errore di rete')
+    }
   }
 
   const saveApiKey = async () => {

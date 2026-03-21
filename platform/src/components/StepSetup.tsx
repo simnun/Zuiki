@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback } from "react";
+import * as XLSX from "xlsx";
 import { useStore } from "@/lib/store";
 import { TS_SIZES, TL_SIZES } from "@/lib/constants";
 import { fD, resizeImg } from "@/lib/utils";
 import type { ExcelInfo } from "@/lib/catalog-types";
-
-declare const XLSX: any;
 
 export default function StepSetup() {
   const { state, dispatch } = useStore();
@@ -112,7 +111,7 @@ export default function StepSetup() {
       try {
         const wb = XLSX.read(e.target?.result, { type: "array", cellStyles: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        const json: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
         const newMap: Record<string, ExcelInfo> = {};
         for (let i = 2; i < json.length; i++) {
           const row = json[i];

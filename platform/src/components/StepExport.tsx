@@ -1,13 +1,12 @@
 "use client";
 
+import * as XLSX from "xlsx";
+import JSZip from "jszip";
 import { useStore } from "@/lib/store";
 import { esc, wrapHtml, fmtComp, convertToPng, toB, mT, runPool } from "@/lib/utils";
 import { SCMAP, SHOT_ORDER } from "@/lib/constants";
 import { genMetaTitle, genMetaKeys, classifyPhotosPrompt } from "@/lib/ai-prompts";
 import type { CatalogItem } from "@/lib/catalog-types";
-
-declare const XLSX: any;
-declare const JSZip: any;
 
 interface StepExportProps {
   onFindCorrelations: () => void;

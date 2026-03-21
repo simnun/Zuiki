@@ -2,21 +2,14 @@
 
 import { useRef } from "react";
 import { useStore } from "@/lib/store";
-import { PWD } from "@/lib/constants";
-
+// Legacy component — authentication now handled via NextAuth /login page
 export default function StepLogin() {
   const { state, dispatch } = useStore();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const doLogin = () => {
-    const v = inputRef.current?.value;
-    if (v === PWD) {
-      dispatch({ type: "SET_STATE", payload: { pwErr: false } });
-      localStorage.setItem("zauth", JSON.stringify({ ts: Date.now() }));
-      dispatch({ type: "SET_STEP", payload: state.ak ? 0 : -1 });
-    } else {
-      dispatch({ type: "SET_STATE", payload: { pwErr: true } });
-    }
+    // Redirect to NextAuth login
+    window.location.href = '/login';
   };
 
   return (

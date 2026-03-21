@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
-import { PWD } from '@/lib/constants'
+import { prisma } from '@/lib/db'
+import bcrypt from 'bcryptjs'
 
 declare module 'next-auth' {
   interface Session {
@@ -37,22 +38,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
+        const email = credentials?.email as string
         const password = credentials?.password as string
 
-        // Simple password check — same as the original StepLogin
-        if (password !== PWD) {
-          return null
-        }
+        if (!email || !password) return null
 
-        const email = (credentials?.email as string) || 'user@zuiki.it'
+        const user = await prisma.user.findUnique({
+          where: { email },
+        })
+
+        if (!user || !user.isActive) return null
+
+        const valid = await bcrypt.compare(password, user.passwordHash)
+        if (!valid) return null
 
         return {
-          id: '1',
-          email,
-          role: 'ADMIN',
-          companyId: null,
-          firstName: email.split('@')[0],
-          lastName: '',
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          companyId: user.companyId,
+          firstName: user.firstName,
+          lastName: user.lastName,
         }
       },
     }),

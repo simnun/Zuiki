@@ -73,6 +73,16 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Billing & API
+  apiKey            String?
+  vatNumber         String?
+  billingEmail      String?
+  billingAddress    String?   @db.Text
+  pricingPlan       String?   @default("base")
+  walletCredits     Decimal   @default(0) @db.Decimal(10, 2)
+  usedCredits       Decimal   @default(0) @db.Decimal(10, 2)
+  creditRenewalDate DateTime?
+
   users            User[]
   shootingSessions ShootingSession[]
   models           Model[]

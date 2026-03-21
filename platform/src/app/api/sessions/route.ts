@@ -5,10 +5,12 @@ import { getCurrentUser } from '@/lib/auth-helpers'
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!user.companyId) return NextResponse.json({ error: 'No company' }, { status: 403 })
+  if (!['super_admin', 'owner', 'user'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!user.companyId && user.role !== 'super_admin') return NextResponse.json({ error: 'No company' }, { status: 403 })
 
+  const where = user.role === 'super_admin' ? {} : { companyId: user.companyId! }
   const sessions = await prisma.shootingSession.findMany({
-    where: { companyId: user.companyId },
+    where,
     orderBy: { createdAt: 'desc' },
     include: {
       _count: { select: { catalogItems: true } },
@@ -22,6 +24,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['owner', 'user'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   if (!user.companyId) return NextResponse.json({ error: 'No company' }, { status: 403 })
 
   const body = await req.json()

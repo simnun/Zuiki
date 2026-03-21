@@ -2,7 +2,15 @@
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 
+const ROLE_HOME: Record<string, string> = {
+  super_admin: '/admin/companies',
+  owner: '/dashboard',
+  admin: '/billing/invoices',
+  user: '/sessions/new',
+}
+
 export default function LoginPage() {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -13,15 +21,19 @@ export default function LoginPage() {
     setLoading(true)
 
     const res = await signIn('credentials', {
+      email,
       password,
       redirect: false,
     })
 
     if (res?.error) {
-      setError('Password errata')
+      setError('Email o password errati')
       setLoading(false)
     } else {
-      window.location.href = '/dashboard'
+      // Fetch session to get role-based redirect
+      const sess = await fetch('/api/auth/session').then(r => r.json())
+      const role = sess?.user?.role || 'user'
+      window.location.href = ROLE_HOME[role] || '/dashboard'
     }
   }
 
@@ -39,15 +51,21 @@ export default function LoginPage() {
           Catalogo <span style={{ color: 'var(--accent2)' }}>AI</span>
         </h1>
         <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', marginBottom: 32 }}>
-          Inserisci la password per accedere
+          Inserisci email e password per accedere
         </p>
 
         <form onSubmit={handleSubmit}>
           <div className="field">
+            <label>EMAIL</label>
+            <input className="inp" type="email" value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="nome@azienda.it" required autoFocus
+            />
+          </div>
+
+          <div className="field">
             <label>PASSWORD</label>
             <input className="inp" type="password" value={password} onChange={e => setPassword(e.target.value)}
               placeholder="••••••••" required
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(e) }}
             />
           </div>
 

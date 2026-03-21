@@ -24,6 +24,9 @@
     "react-dom": "^18",
     "resend": "^6.9.4"
   },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",

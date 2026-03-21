@@ -55,5 +55,3 @@ export const INTIMO_CAT_MAP: Record<string, string> = {
   reggiseno: "reggiseni", slip: "slip", body: "body", pigiama: "pigiami",
   top: "topecanotte", canotta: "topecanotte",
 };
-
-export const PWD = "S99";

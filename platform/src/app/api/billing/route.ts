@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth-helpers'
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['super_admin', 'owner', 'admin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const where = user.role === 'super_admin'
     ? {}

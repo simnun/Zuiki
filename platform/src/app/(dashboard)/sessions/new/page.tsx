@@ -14,10 +14,16 @@ import StepExport from "@/components/StepExport";
 
 function ApiKeyPrompt({ dispatch }: { dispatch: any }) {
   const [key, setKey] = useState("");
-  const save = () => {
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
     const v = key.trim();
     if (v) {
-      localStorage.setItem("za", v);
+      setSaving(true);
+      await fetch("/api/company/apikey", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: v }),
+      });
       dispatch({ type: "SET_STATE", payload: { ak: v, step: 0 } });
     }
   };
@@ -41,8 +47,8 @@ function ApiKeyPrompt({ dispatch }: { dispatch: any }) {
           />
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <button className="btn btn-p" onClick={save} style={{ padding: "12px 28px" }}>
-            Salva e continua
+          <button className="btn btn-p" onClick={save} disabled={saving} style={{ padding: "12px 28px" }}>
+            {saving ? "Salvataggio..." : "Salva e continua"}
           </button>
           <a href="/settings" style={{ fontSize: 12, color: "var(--muted)" }}>
             Oppure vai alle Impostazioni
@@ -61,7 +67,7 @@ function ApiKeyPrompt({ dispatch }: { dispatch: any }) {
           </ol>
         </div>
         <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 12 }}>
-          La chiave viene salvata solo nel tuo browser e non viene mai inviata ai nostri server.
+          La chiave viene salvata in modo sicuro nel database della tua azienda.
         </p>
       </div>
     </div>
@@ -74,16 +80,20 @@ function SessionContent() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // On mount: skip login step, go to API key or setup
+  // On mount: skip login step, fetch API key from server
   useEffect(() => {
     if (step === -2) {
-      // User is already authenticated via NextAuth — skip login
-      const ak = localStorage.getItem("za") || "";
-      if (ak) {
-        dispatch({ type: "SET_STATE", payload: { step: 0, ak } });
-      } else {
-        dispatch({ type: "SET_STEP", payload: -1 });
-      }
+      fetch("/api/company/apikey")
+        .then(r => r.json())
+        .then(d => {
+          const ak = d.apiKey || "";
+          if (ak) {
+            dispatch({ type: "SET_STATE", payload: { step: 0, ak } });
+          } else {
+            dispatch({ type: "SET_STEP", payload: -1 });
+          }
+        })
+        .catch(() => dispatch({ type: "SET_STEP", payload: -1 }));
     }
   }, [step, dispatch]);
 

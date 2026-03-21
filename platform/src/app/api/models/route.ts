@@ -7,6 +7,7 @@ const DEFAULT_COMPANY = 'zuiki-default'
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['super_admin', 'owner', 'user'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const companyId = user.companyId || DEFAULT_COMPANY
 
@@ -22,6 +23,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['owner', 'user'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const companyId = user.companyId || DEFAULT_COMPANY
   const body = await req.json()

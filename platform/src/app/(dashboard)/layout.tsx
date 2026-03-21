@@ -3,14 +3,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-
-const NAV = [
-  { href: '/dashboard', label: 'Dashboard', icon: '◉' },
-  { href: '/sessions/new', label: 'Nuova Sessione', icon: '＋' },
-  { href: '/models', label: 'Modelle', icon: '♀' },
-  { href: '/billing/invoices', label: 'Fatturazione', icon: '€' },
-  { href: '/support/new', label: 'Supporto', icon: '?' },
-]
+import { ROLE_NAV, ROLE_HOME, canAccessRoute } from '@/lib/rbac'
+import type { AppRole } from '@/lib/rbac'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -19,16 +13,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     fetch('/api/auth/session').then(r => r.json()).then(d => {
-      if (d?.user) setUser(d.user)
-      else window.location.href = '/login'
+      if (d?.user) {
+        // Super admin goes to admin panel
+        if (d.user.role === 'super_admin') {
+          window.location.href = '/admin/companies'
+          return
+        }
+        setUser(d.user)
+      } else {
+        window.location.href = '/login'
+      }
     }).catch(() => window.location.href = '/login')
   }, [])
+
+  // Route access check
+  useEffect(() => {
+    if (user && !canAccessRoute(user.role, pathname)) {
+      const home = ROLE_HOME[user.role as AppRole] || '/dashboard'
+      window.location.href = home
+    }
+  }, [user, pathname])
 
   if (!user) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
       <div className="spinner" />
     </div>
   )
+
+  const navItems = ROLE_NAV[user.role as AppRole] || []
 
   const handleLogout = async () => {
     await signOut({ redirect: false })
@@ -60,7 +72,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav style={{ flex: 1 }}>
-          {NAV.map(n => {
+          {navItems.map(n => {
             const active = pathname === n.href || pathname.startsWith(n.href + '/')
             return (
               <Link key={n.href} href={n.href} style={{

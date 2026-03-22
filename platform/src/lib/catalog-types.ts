@@ -3,6 +3,7 @@ export interface ModellaInfo {
   altezza: string;
   tagliaSopra: string;
   tagliaSotto: string;
+  dbId?: string;
 }
 
 export interface MannequinConfig {

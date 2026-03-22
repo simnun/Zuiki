@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { useStore } from "@/lib/store";
 import { TS_SIZES, TL_SIZES } from "@/lib/constants";
@@ -10,6 +10,35 @@ import type { ExcelInfo } from "@/lib/catalog-types";
 export default function StepSetup() {
   const { state, dispatch } = useStore();
   const { cfg, mod, facePh, nM, tmpFaces, tmpNm, tmpAl, tmpTs, tmpTi, excelWb, excelRows, excelMap, excelFileName } = state;
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+
+  // Load models from database API on mount (single source of truth)
+  useEffect(() => {
+    if (modelsLoaded) return;
+    fetch('/api/models')
+      .then(r => r.ok ? r.json() : [])
+      .then((dbModels: any[]) => {
+        if (!Array.isArray(dbModels)) return;
+        const newMod = dbModels.map(m => ({
+          nome: m.name,
+          altezza: m.heightCm?.toString() || '',
+          tagliaSopra: m.sizeTop || '',
+          tagliaSotto: m.sizeBottom || '',
+          dbId: m.id,
+        }));
+        const newFacePh: Record<string, string[]> = {};
+        for (const m of dbModels) {
+          if (m.facePhotos?.length) {
+            newFacePh[m.name] = m.facePhotos.map((p: any) => p.photoUrl);
+          }
+        }
+        localStorage.setItem("zm", JSON.stringify(newMod));
+        localStorage.setItem("zfp", JSON.stringify(newFacePh));
+        dispatch({ type: "SET_STATE", payload: { mod: newMod, facePh: newFacePh } });
+        setModelsLoaded(true);
+      })
+      .catch(() => setModelsLoaded(true));
+  }, [modelsLoaded, dispatch]);
 
   const needsModel = cfg.shootType === "model" || cfg.shootType === "mixed";
   const rdyMann = cfg.shootType === "mannequin" && cfg.mannequin?.taglia;
@@ -23,7 +52,15 @@ export default function StepSetup() {
     dispatch({ type: "SET_CFG", payload: { selMods } });
   };
 
-  const removeMod = (nome: string) => {
+  const removeMod = async (nome: string) => {
+    // Find DB id if available and delete from API
+    const modelToRemove = mod.find(x => x.nome === nome);
+    if (modelToRemove?.dbId) {
+      try {
+        await fetch(`/api/models/${modelToRemove.dbId}`, { method: 'DELETE' });
+      } catch { /* ignore API errors */ }
+    }
+
     const newMod = mod.filter(x => x.nome !== nome);
     const newFacePh = { ...facePh };
     delete newFacePh[nome];
@@ -85,11 +122,36 @@ export default function StepSetup() {
     dispatch({ type: "SET_STATE", payload: { tmpFaces: tmpFaces.filter((_: string, i: number) => i !== idx) } });
   };
 
-  const saveNewModella = () => {
+  const saveNewModella = async () => {
     if (!tmpNm || !tmpAl || !tmpTs || !tmpTi) {
       alert("Compila tutti i campi: nome, altezza, taglia sopra e taglia sotto");
       return;
     }
+
+    // Save to database API
+    try {
+      const res = await fetch('/api/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: tmpNm, heightCm: parseInt(tmpAl), sizeTop: tmpTs, sizeBottom: tmpTi }),
+      });
+      if (res.ok) {
+        const savedModel = await res.json();
+        // Upload face photos if any
+        if (tmpFaces.length) {
+          for (const dataUrl of tmpFaces) {
+            try {
+              const blob = await (await fetch(dataUrl)).blob();
+              const formData = new FormData();
+              formData.append('photos', new File([blob], 'face.jpg', { type: 'image/jpeg' }));
+              await fetch(`/api/models/${savedModel.id}/photos`, { method: 'POST', body: formData });
+            } catch { /* ignore individual photo upload errors */ }
+          }
+        }
+      }
+    } catch { /* fallback to localStorage only */ }
+
+    // Update local state and localStorage
     const newMod = [...mod.filter(x => x.nome !== tmpNm), { nome: tmpNm, altezza: tmpAl, tagliaSopra: tmpTs, tagliaSotto: tmpTi }];
     localStorage.setItem("zm", JSON.stringify(newMod));
     const newFacePh = { ...facePh };

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth-helpers'
-import { prisma } from '@/lib/db'
+import { prisma, ensureCompanyExists } from '@/lib/db'
 
 // In-memory fallback store for API keys when DB is unreachable
 const memoryApiKeys: Record<string, string> = {}
@@ -33,6 +33,7 @@ export async function PUT(req: Request) {
   const { apiKey } = await req.json()
 
   try {
+    await ensureCompanyExists(user.companyId)
     await prisma.company.update({
       where: { id: user.companyId },
       data: { apiKey: apiKey || null },

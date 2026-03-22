@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma, ensureUserExists } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -30,6 +30,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params
   const body = await req.json()
+
+  await ensureUserExists(user)
 
   // Add message if provided
   if (body.message) {

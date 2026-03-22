@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma, ensureCompanyExists } from '@/lib/db'
 import { authorize } from '@/lib/auth-helpers'
 
 // Fallback company data
@@ -59,6 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params
     const body = await req.json()
 
+    await ensureCompanyExists(id)
     const company = await prisma.company.update({
       where: { id },
       data: { name: body.name, slug: body.slug, logoUrl: body.logoUrl, isActive: body.isActive },

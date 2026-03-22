@@ -93,6 +93,9 @@ export default function LoginPage() {
             {loading ? 'Accesso...' : 'Accedi'}
           </button>
         </form>
+        <p style={{ fontSize: 10, color: '#bbb', textAlign: 'center', marginTop: 24 }}>
+          Build: {process.env.NEXT_PUBLIC_BUILD_TIME}
+        </p>
       </div>
     </div>
   )

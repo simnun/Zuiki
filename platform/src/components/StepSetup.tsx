@@ -32,8 +32,6 @@ export default function StepSetup() {
             newFacePh[m.name] = m.facePhotos.map((p: any) => p.photoUrl);
           }
         }
-        localStorage.setItem("zm", JSON.stringify(newMod));
-        localStorage.setItem("zfp", JSON.stringify(newFacePh));
         dispatch({ type: "SET_STATE", payload: { mod: newMod, facePh: newFacePh } });
         setModelsLoaded(true);
       })
@@ -64,8 +62,6 @@ export default function StepSetup() {
     const newMod = mod.filter(x => x.nome !== nome);
     const newFacePh = { ...facePh };
     delete newFacePh[nome];
-    localStorage.setItem("zm", JSON.stringify(newMod));
-    localStorage.setItem("zfp", JSON.stringify(newFacePh));
     dispatch({
       type: "SET_STATE",
       payload: { mod: newMod, facePh: newFacePh },
@@ -86,7 +82,6 @@ export default function StepSetup() {
         const d = await resizeImg(f);
         newFacePh[modelName] = [...newFacePh[modelName], d];
       }
-      localStorage.setItem("zfp", JSON.stringify(newFacePh));
       dispatch({ type: "SET_STATE", payload: { facePh: newFacePh } });
     };
     i.click();
@@ -97,7 +92,6 @@ export default function StepSetup() {
     if (newFacePh[modelName]) {
       newFacePh[modelName] = newFacePh[modelName].filter((_: string, i: number) => i !== idx);
       if (!newFacePh[modelName].length) delete newFacePh[modelName];
-      localStorage.setItem("zfp", JSON.stringify(newFacePh));
       dispatch({ type: "SET_STATE", payload: { facePh: newFacePh } });
     }
   };
@@ -149,15 +143,13 @@ export default function StepSetup() {
           }
         }
       }
-    } catch { /* fallback to localStorage only */ }
+    } catch { /* ignore API errors, state updated below */ }
 
-    // Update local state and localStorage
+    // Update local state
     const newMod = [...mod.filter(x => x.nome !== tmpNm), { nome: tmpNm, altezza: tmpAl, tagliaSopra: tmpTs, tagliaSotto: tmpTi }];
-    localStorage.setItem("zm", JSON.stringify(newMod));
     const newFacePh = { ...facePh };
     if (tmpFaces.length) {
       newFacePh[tmpNm] = [...tmpFaces];
-      localStorage.setItem("zfp", JSON.stringify(newFacePh));
     }
     const selMods = cfg.selMods.includes(tmpNm) ? cfg.selMods : [...cfg.selMods, tmpNm];
     dispatch({

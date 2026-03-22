@@ -250,7 +250,7 @@ export function createProcessor(deps: ProcessorDeps) {
         const exi = getExcelInfo(sku);
         if (exi?.tipoArticolo) {
           const newCS = { ...cS, [u]: exi.tipoArticolo };
-          localStorage.setItem("zs", JSON.stringify(newCS));
+          fetch("/api/company/suffixes", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newCS) }).catch(() => {});
           dispatch({ type: "SET_STATE", payload: { cS: newCS } });
           s = u; tipo = exi.tipoArticolo;
         } else if (!newUnk.find(x => x.sf === u)) {
@@ -322,7 +322,7 @@ export function createProcessor(deps: ProcessorDeps) {
     const u = state.unk[unkIdx];
     if (!u?.vl?.trim()) return;
     const newCS = { ...state.cS, [u.sf]: u.vl.trim() };
-    localStorage.setItem("zs", JSON.stringify(newCS));
+    fetch("/api/company/suffixes", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newCS) }).catch(() => {});
     const newUnk = [...state.unk];
     newUnk[unkIdx] = { ...newUnk[unkIdx], dn: true };
     dispatch({ type: "SET_STATE", payload: { cS: newCS } });

@@ -137,16 +137,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // Load from localStorage on mount (API key is fetched from DB in sessions/new)
+  // Load data from DB on mount
   useEffect(() => {
-    const cS = JSON.parse(localStorage.getItem("zs") || "{}");
-    const mod = JSON.parse(localStorage.getItem("zm") || "[]");
-    const licMem = JSON.parse(localStorage.getItem("zlm") || "{}");
-    const facePh = JSON.parse(localStorage.getItem("zfp") || "{}");
+    // Suffixes from DB
+    fetch("/api/company/suffixes").then(r => r.ok ? r.json() : {}).then((data: Record<string, string>) => {
+      if (data && typeof data === "object") {
+        dispatch({ type: "SET_STATE", payload: { cS: data as Record<string, string> } });
+      }
+    }).catch(() => {});
 
-    // API key loaded from DB via /api/company/apikey in sessions/new page
+    // License memory from DB
+    fetch("/api/company/license-memory").then(r => r.ok ? r.json() : {}).then((data: Record<string, string>) => {
+      if (data && typeof data === "object") {
+        dispatch({ type: "SET_STATE", payload: { licMem: data as Record<string, string> } });
+      }
+    }).catch(() => {});
+
     // Start at step -2 (auth check), sessions/new handles the rest
-    dispatch({ type: "SET_STATE", payload: { cS, mod, licMem, facePh, step: -2 as StepIndex } });
+    dispatch({ type: "SET_STATE", payload: { step: -2 as StepIndex } });
   }, []);
 
   const cAI = useCallback(async (content: any, retries = 0): Promise<string> => {

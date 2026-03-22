@@ -1,12 +1,14 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getCurrentUser } from '@/lib/auth-helpers'
 
-// Temporary migration endpoint - DELETE after running once
-export async function POST() {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'super_admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+// Temporary migration endpoint - protected by secret token
+// DELETE THIS FILE after running the migration once
+const MIGRATE_SECRET = 'zuiki-migrate-2026-run'
+
+export async function GET(req: NextRequest) {
+  const token = req.nextUrl.searchParams.get('token')
+  if (token !== MIGRATE_SECRET) {
+    return NextResponse.json({ error: 'Invalid token' }, { status: 403 })
   }
 
   const results: string[] = []

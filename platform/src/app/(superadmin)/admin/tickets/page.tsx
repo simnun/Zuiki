@@ -35,7 +35,7 @@ export default function AdminTicketsPage() {
                   <td><span style={{ fontSize: 11, fontWeight: 700, color: statusColor[t.status] || 'var(--muted)' }}>{t.status}</span></td>
                   <td>{t._count.messages}</td>
                   <td style={{ fontSize: 12, color: 'var(--muted)' }}>{new Date(t.createdAt).toLocaleDateString('it-IT')}</td>
-                  <td><Link href={`/support/${t.id}`} className="btn btn-s" style={{ textDecoration: 'none', padding: '4px 12px', fontSize: 11 }}>Apri</Link></td>
+                  <td><Link href={`/admin/tickets/${t.id}`} className="btn btn-s" style={{ textDecoration: 'none', padding: '4px 12px', fontSize: 11 }}>Apri</Link></td>
                 </tr>
               ))}
             </tbody>

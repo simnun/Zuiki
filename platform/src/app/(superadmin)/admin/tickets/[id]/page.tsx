@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import TicketImage from '@/components/TicketImage'
 
 type Attachment = { id: string; storageKey: string | null; fileName: string | null; mimeType: string | null }
 type ReplyTo = { id: string; message: string; sender: { firstName: string; lastName: string; role: string } }
@@ -35,7 +36,7 @@ export default function AdminTicketDetailPage() {
   const [replyTo, setReplyTo] = useState<ReplyTo | null>(null)
   const [photos, setPhotos] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
-  const [lightbox, setLightbox] = useState<string | null>(null)
+  const [lightboxKey, setLightboxKey] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -123,12 +124,12 @@ export default function AdminTicketDetailPage() {
   return (
     <div className="animate-fadeUp" style={{ display: 'flex', gap: 24 }}>
       {/* Lightbox */}
-      {lightbox && (
-        <div onClick={() => setLightbox(null)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', zIndex: 9999,
+      {lightboxKey && (
+        <div onClick={() => setLightboxKey(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.9)', zIndex: 9999,
           display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out',
         }}>
-          <img src={lightbox} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
+          <TicketImage storageKey={lightboxKey} style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
         </div>
       )}
 
@@ -151,7 +152,7 @@ export default function AdminTicketDetailPage() {
             attachments={ticket.attachments}
             replyTo={null}
             onQuote={isClosed ? null : () => setReplyTo({ id: '', message: ticket.description, sender: { ...ticket.createdBy, role: 'user' } })}
-            onImageClick={setLightbox}
+            onImageClick={setLightboxKey}
           />
 
           {ticket.messages.map(m => {
@@ -166,7 +167,7 @@ export default function AdminTicketDetailPage() {
                 attachments={m.attachments}
                 replyTo={m.replyTo}
                 onQuote={isClosed ? null : () => setReplyTo({ id: m.id, message: m.message, sender: m.sender })}
-                onImageClick={setLightbox}
+                onImageClick={setLightboxKey}
               />
             )
           })}
@@ -342,7 +343,7 @@ function AdminMessageBubble({ sender, message, date, isAdmin, attachments, reply
   attachments: Attachment[]; replyTo: ReplyTo | null
   onQuote: (() => void) | null; onImageClick: (src: string) => void
 }) {
-  const images = attachments.filter(a => a.mimeType?.startsWith('image/'))
+  const images = (attachments || []).filter(a => a.mimeType?.startsWith('image/') && a.storageKey)
 
   return (
     <div style={{
@@ -383,13 +384,14 @@ function AdminMessageBubble({ sender, message, date, isAdmin, attachments, reply
         {images.length > 0 && (
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {images.map(img => (
-              <img key={img.id}
-                src={`/api/files?path=${encodeURIComponent(img.storageKey || '')}`}
+              <TicketImage
+                key={img.id}
+                storageKey={img.storageKey!}
                 alt={img.fileName || ''}
-                onClick={() => onImageClick(`/api/files?path=${encodeURIComponent(img.storageKey || '')}`)}
+                onClick={() => onImageClick(img.storageKey!)}
                 style={{
-                  width: images.length === 1 ? 240 : 120, height: images.length === 1 ? 'auto' : 120,
-                  objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in',
+                  width: images.length === 1 ? 240 : 120, height: images.length === 1 ? 180 : 120,
+                  objectFit: 'cover', borderRadius: 8,
                   border: `1px solid ${isAdmin ? 'rgba(255,255,255,0.2)' : '#444'}`,
                 }}
               />

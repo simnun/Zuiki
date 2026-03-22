@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import TicketImage from '@/components/TicketImage'
 
 type Attachment = { id: string; storageKey: string | null; fileName: string | null; mimeType: string | null }
 type ReplyTo = { id: string; message: string; sender: { firstName: string; lastName: string; role: string } }
@@ -33,7 +34,7 @@ export default function TicketDetailPage() {
   const [replyTo, setReplyTo] = useState<ReplyTo | null>(null)
   const [photos, setPhotos] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
-  const [lightbox, setLightbox] = useState<string | null>(null)
+  const [lightboxKey, setLightboxKey] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -70,7 +71,6 @@ export default function TicketDetailPage() {
     setError('')
 
     try {
-      // Send text message
       const res = await fetch(`/api/tickets/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -83,7 +83,6 @@ export default function TicketDetailPage() {
       if (!res.ok) throw new Error('Errore invio')
       const data = await res.json()
 
-      // Upload photos if any
       if (photos.length > 0 && data.newMessageId) {
         const formData = new FormData()
         formData.set('messageId', data.newMessageId)
@@ -111,12 +110,12 @@ export default function TicketDetailPage() {
   return (
     <div className="animate-fadeUp" style={{ maxWidth: 700 }}>
       {/* Lightbox */}
-      {lightbox && (
-        <div onClick={() => setLightbox(null)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', zIndex: 9999,
+      {lightboxKey && (
+        <div onClick={() => setLightboxKey(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.9)', zIndex: 9999,
           display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out',
         }}>
-          <img src={lightbox} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
+          <TicketImage storageKey={lightboxKey} style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
         </div>
       )}
 
@@ -147,16 +146,15 @@ export default function TicketDetailPage() {
 
       {/* Conversation */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-        {/* Original message */}
         <MessageBubble
           sender={`${ticket.createdBy.firstName} ${ticket.createdBy.lastName}`}
           message={ticket.description}
           date={ticket.createdAt}
           isAdmin={false}
-          attachments={ticket.attachments}
+          attachments={ticket.attachments || []}
           onQuote={null}
           replyTo={null}
-          onImageClick={setLightbox}
+          onImageClick={setLightboxKey}
         />
 
         {ticket.messages.map(m => {
@@ -168,10 +166,10 @@ export default function TicketDetailPage() {
               message={m.message}
               date={m.createdAt}
               isAdmin={isAdmin}
-              attachments={m.attachments}
+              attachments={m.attachments || []}
               replyTo={m.replyTo}
               onQuote={isClosed ? null : () => setReplyTo({ id: m.id, message: m.message, sender: m.sender })}
-              onImageClick={setLightbox}
+              onImageClick={setLightboxKey}
             />
           )
         })}
@@ -188,7 +186,6 @@ export default function TicketDetailPage() {
             }}>{error}</div>
           )}
 
-          {/* Quoting bar */}
           {replyTo && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
@@ -210,19 +207,10 @@ export default function TicketDetailPage() {
           )}
 
           <form onSubmit={handleReply}>
-            <textarea
-              className="inp"
-              rows={3}
-              value={reply}
-              onChange={e => setReply(e.target.value)}
+            <textarea className="inp" rows={3} value={reply} onChange={e => setReply(e.target.value)}
               placeholder="Scrivi un messaggio..."
-              style={{
-                fontSize: 14, lineHeight: 1.5, resize: 'vertical',
-                borderRadius: replyTo ? '0 0 12px 12px' : undefined,
-              }}
-            />
+              style={{ fontSize: 14, lineHeight: 1.5, resize: 'vertical', borderRadius: replyTo ? '0 0 12px 12px' : undefined }} />
 
-            {/* Photo previews */}
             {previews.length > 0 && (
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 {previews.map((src, i) => (
@@ -240,18 +228,12 @@ export default function TicketDetailPage() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input ref={fileInputRef} type="file" accept="image/*" multiple hidden
-                  onChange={e => handleAddPhotos(e.target.files)} />
+                <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={e => handleAddPhotos(e.target.files)} />
                 <button type="button" onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    background: 'none', border: '1px solid var(--border)', borderRadius: 8,
-                    padding: '6px 12px', fontSize: 12, color: 'var(--muted)', cursor: 'pointer', fontFamily: 'inherit',
-                  }}>
+                  style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: 'var(--muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
                   📷 Foto
                 </button>
-                <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                  {photos.length > 0 ? `${photos.length} foto` : ''}
-                </span>
+                {photos.length > 0 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{photos.length} foto</span>}
               </div>
               <button className="btn btn-p" type="submit" disabled={sending || (!reply.trim() && photos.length === 0)}
                 style={{ padding: '8px 20px', fontSize: 13 }}>
@@ -261,10 +243,7 @@ export default function TicketDetailPage() {
           </form>
         </div>
       ) : (
-        <div style={{
-          marginTop: 20, padding: '16px 20px', borderRadius: 12, textAlign: 'center',
-          background: 'var(--subtle)', border: '1px solid var(--border)',
-        }}>
+        <div style={{ marginTop: 20, padding: '16px 20px', borderRadius: 12, textAlign: 'center', background: 'var(--subtle)', border: '1px solid var(--border)' }}>
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
             Questo ticket è stato {ticket.status === 'resolved' ? 'risolto' : 'chiuso'}.{' '}
             <Link href="/support/new" style={{ color: 'var(--accent)' }}>Apri un nuovo ticket</Link> se hai bisogno di ulteriore assistenza.
@@ -278,9 +257,9 @@ export default function TicketDetailPage() {
 function MessageBubble({ sender, message, date, isAdmin, attachments, replyTo, onQuote, onImageClick }: {
   sender: string; message: string; date: string; isAdmin: boolean
   attachments: Attachment[]; replyTo: ReplyTo | null
-  onQuote: (() => void) | null; onImageClick: (src: string) => void
+  onQuote: (() => void) | null; onImageClick: (key: string) => void
 }) {
-  const images = attachments.filter(a => a.mimeType?.startsWith('image/'))
+  const images = (attachments || []).filter(a => a.mimeType?.startsWith('image/') && a.storageKey)
 
   return (
     <div style={{
@@ -297,7 +276,6 @@ function MessageBubble({ sender, message, date, isAdmin, attachments, replyTo, o
         border: isAdmin ? '1px solid var(--border)' : 'none',
         position: 'relative',
       }}>
-        {/* Quoted message */}
         {replyTo && (
           <div style={{
             padding: '8px 12px', marginBottom: 8, borderRadius: 8,
@@ -312,26 +290,24 @@ function MessageBubble({ sender, message, date, isAdmin, attachments, replyTo, o
           </div>
         )}
 
-        <div style={{
-          fontSize: 11, fontWeight: 700, marginBottom: 6,
-          color: isAdmin ? 'var(--accent2)' : 'rgba(255,255,255,0.8)',
-        }}>
+        <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: isAdmin ? 'var(--accent2)' : 'rgba(255,255,255,0.8)' }}>
           {sender}
           {isAdmin && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'var(--accent2)', color: '#fff' }}>SUPPORTO</span>}
         </div>
         <p style={{ fontSize: 14, lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{message}</p>
 
-        {/* Images */}
         {images.length > 0 && (
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {images.map(img => (
-              <img key={img.id}
-                src={`/api/files?path=${encodeURIComponent(img.storageKey || '')}`}
+              <TicketImage
+                key={img.id}
+                storageKey={img.storageKey!}
                 alt={img.fileName || ''}
-                onClick={() => onImageClick(`/api/files?path=${encodeURIComponent(img.storageKey || '')}`)}
+                onClick={() => onImageClick(img.storageKey!)}
                 style={{
-                  width: images.length === 1 ? 240 : 120, height: images.length === 1 ? 'auto' : 120,
-                  objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in',
+                  width: images.length === 1 ? 240 : 120,
+                  height: images.length === 1 ? 180 : 120,
+                  objectFit: 'cover', borderRadius: 8,
                   border: `1px solid ${isAdmin ? 'var(--border)' : 'rgba(255,255,255,0.2)'}`,
                 }}
               />
@@ -339,7 +315,6 @@ function MessageBubble({ sender, message, date, isAdmin, attachments, replyTo, o
           </div>
         )}
 
-        {/* Quote button */}
         {onQuote && (
           <button onClick={onQuote} title="Cita messaggio" style={{
             position: 'absolute', top: 8, right: 8, background: 'none', border: 'none',

@@ -99,12 +99,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
       </aside>
-      <main style={{ flex: 1, padding: '32px 40px', maxWidth: 1200, position: 'relative' }}>
-        {/* Notification bell top-right */}
-        <div style={{ position: 'absolute', top: 20, right: 40, zIndex: 100 }}>
+      <main style={{ flex: 1, maxWidth: 1200 }}>
+        {/* Top bar */}
+        <div style={{
+          display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
+          padding: '16px 40px 0', height: 48,
+        }}>
           <NotificationBell isDark />
         </div>
-        {children}
+        <div style={{ padding: '16px 40px 32px' }}>
+          {children}
+        </div>
       </main>
     </div>
   )

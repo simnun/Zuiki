@@ -167,15 +167,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main content */}
-      <main style={{ flex: 1, padding: '32px 40px', maxWidth: 1200, position: 'relative' }}>
-        {/* Top bar with notification bell */}
+      <main style={{ flex: 1, maxWidth: 1200 }}>
+        {/* Top bar */}
         <div style={{
-          position: 'absolute', top: 20, right: 40,
-          zIndex: 100,
+          display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
+          padding: '16px 40px 0', height: 48,
         }}>
           <NotificationBell />
         </div>
-        {children}
+        <div style={{ padding: '16px 40px 32px' }}>
+          {children}
+        </div>
       </main>
     </div>
   )

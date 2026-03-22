@@ -45,6 +45,16 @@ export default function AdminTicketDetailPage() {
   }
 
   useEffect(() => { load() }, [id])
+
+  // Mark ticket notifications as read when opening the page
+  useEffect(() => {
+    if (!id) return
+    fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ markByLink: `/admin/tickets/${id}` }),
+    }).catch(() => {})
+  }, [id])
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [ticket?.messages.length])

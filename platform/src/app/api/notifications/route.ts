@@ -36,6 +36,12 @@ export async function PATCH(req: NextRequest) {
         where: { userId: user.id, read: false },
         data: { read: true },
       })
+    } else if (body.markByLink) {
+      // Mark all notifications with a matching link as read (e.g. when opening a ticket)
+      await prisma.notification.updateMany({
+        where: { userId: user.id, read: false, link: body.markByLink },
+        data: { read: true },
+      })
     } else if (body.id) {
       await prisma.notification.update({
         where: { id: body.id },

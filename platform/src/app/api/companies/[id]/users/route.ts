@@ -55,6 +55,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
+    const company = await prisma.company.findUnique({ where: { id } })
+    if (!company) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 404 })
+    }
+
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
       return NextResponse.json({ error: 'Email already in use' }, { status: 409 })

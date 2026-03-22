@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth-helpers'
-import { prisma } from '@/lib/db'
+import { prisma, ensureCompanyExists } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 
 const FALLBACK_USERS: Record<string, any[]> = {
@@ -56,6 +56,8 @@ export async function POST(req: Request) {
   }
 
   try {
+    await ensureCompanyExists(user.companyId)
+
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
       return NextResponse.json({ error: 'Email already in use' }, { status: 409 })

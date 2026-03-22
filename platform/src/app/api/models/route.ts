@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma, ensureCompanyExists } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
 
 export async function GET() {
@@ -36,11 +36,7 @@ export async function POST(req: NextRequest) {
 
   try {
     // Ensure company exists (handles fallback auth when seed hasn't run)
-    await prisma.company.upsert({
-      where: { id: companyId },
-      update: {},
-      create: { id: companyId, name: 'Azienda', slug: companyId },
-    })
+    await ensureCompanyExists(companyId)
 
     const model = await prisma.model.create({
       data: {

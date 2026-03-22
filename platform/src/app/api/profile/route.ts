@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma, ensureUserExists } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
 
 export async function PATCH(req: NextRequest) {
@@ -7,6 +7,7 @@ export async function PATCH(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
+    await ensureUserExists(user)
     const { firstName, lastName, phone } = await req.json()
 
     const updated = await prisma.user.update({

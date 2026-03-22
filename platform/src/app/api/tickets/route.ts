@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma, ensureCompanyExists } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
 
 export async function GET() {
@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
 
   try {
+    await ensureCompanyExists(user.companyId)
+
     const ticket = await prisma.supportTicket.create({
       data: {
         companyId: user.companyId,

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth-helpers'
-import { prisma } from '@/lib/db'
+import { prisma, ensureCompanyExists } from '@/lib/db'
 
 const FALLBACK_PROFILES: Record<string, any> = {
   'company-provoloni-001': {
@@ -58,6 +58,7 @@ export async function PATCH(req: Request) {
   }
 
   try {
+    await ensureCompanyExists(user.companyId)
     await prisma.company.update({ where: { id: user.companyId }, data })
     return NextResponse.json({ ok: true })
   } catch {

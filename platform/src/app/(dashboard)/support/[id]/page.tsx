@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import TicketImage from '@/components/TicketImage'
 
-type Attachment = { id: string; storageKey: string | null; fileName: string | null; mimeType: string | null }
+type Attachment = { id: string; storageKey: string | null; linkUrl: string | null; fileName: string | null; mimeType: string | null }
 type ReplyTo = { id: string; message: string; sender: { firstName: string; lastName: string; role: string } }
 type Message = {
   id: string; message: string; createdAt: string; replyToId: string | null
@@ -34,7 +34,7 @@ export default function TicketDetailPage() {
   const [replyTo, setReplyTo] = useState<ReplyTo | null>(null)
   const [photos, setPhotos] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
-  const [lightboxKey, setLightboxKey] = useState<string | null>(null)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -110,12 +110,12 @@ export default function TicketDetailPage() {
   return (
     <div className="animate-fadeUp" style={{ maxWidth: 700 }}>
       {/* Lightbox */}
-      {lightboxKey && (
-        <div onClick={() => setLightboxKey(null)} style={{
+      {lightboxSrc && (
+        <div onClick={() => setLightboxSrc(null)} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.9)', zIndex: 9999,
           display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out',
         }}>
-          <TicketImage storageKey={lightboxKey} style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
+          <img src={lightboxSrc} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }} />
         </div>
       )}
 
@@ -154,7 +154,7 @@ export default function TicketDetailPage() {
           attachments={ticket.attachments || []}
           onQuote={null}
           replyTo={null}
-          onImageClick={setLightboxKey}
+          onImageClick={setLightboxSrc}
         />
 
         {ticket.messages.map(m => {
@@ -169,7 +169,7 @@ export default function TicketDetailPage() {
               attachments={m.attachments || []}
               replyTo={m.replyTo}
               onQuote={isClosed ? null : () => setReplyTo({ id: m.id, message: m.message, sender: m.sender })}
-              onImageClick={setLightboxKey}
+              onImageClick={setLightboxSrc}
             />
           )
         })}
@@ -257,9 +257,9 @@ export default function TicketDetailPage() {
 function MessageBubble({ sender, message, date, isAdmin, attachments, replyTo, onQuote, onImageClick }: {
   sender: string; message: string; date: string; isAdmin: boolean
   attachments: Attachment[]; replyTo: ReplyTo | null
-  onQuote: (() => void) | null; onImageClick: (key: string) => void
+  onQuote: (() => void) | null; onImageClick: (src: string) => void
 }) {
-  const images = (attachments || []).filter(a => a.mimeType?.startsWith('image/') && a.storageKey)
+  const images = (attachments || []).filter(a => a.mimeType?.startsWith('image/') && (a.linkUrl || a.storageKey))
 
   return (
     <div style={{
@@ -298,20 +298,23 @@ function MessageBubble({ sender, message, date, isAdmin, attachments, replyTo, o
 
         {images.length > 0 && (
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-            {images.map(img => (
-              <TicketImage
-                key={img.id}
-                storageKey={img.storageKey!}
-                alt={img.fileName || ''}
-                onClick={() => onImageClick(img.storageKey!)}
-                style={{
-                  width: images.length === 1 ? 240 : 120,
-                  height: images.length === 1 ? 180 : 120,
-                  objectFit: 'cover', borderRadius: 8,
-                  border: `1px solid ${isAdmin ? 'var(--border)' : 'rgba(255,255,255,0.2)'}`,
-                }}
-              />
-            ))}
+            {images.map(img => {
+              const src = img.linkUrl || ''
+              return (
+                <TicketImage
+                  key={img.id}
+                  src={src}
+                  alt={img.fileName || ''}
+                  onClick={() => onImageClick(src)}
+                  style={{
+                    width: images.length === 1 ? 240 : 120,
+                    height: images.length === 1 ? 180 : 120,
+                    objectFit: 'cover', borderRadius: 8,
+                    border: `1px solid ${isAdmin ? 'var(--border)' : 'rgba(255,255,255,0.2)'}`,
+                  }}
+                />
+              )
+            })}
           </div>
         )}
 

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
-import { uploadFile } from '@/lib/storage'
 
-const BUCKET = 'catalog-photos'
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 
@@ -13,7 +11,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id: ticketId } = await params
 
-  // Verify ticket exists and user has access
   const ticket = await prisma.supportTicket.findUnique({ where: { id: ticketId } })
   if (!ticket) return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
 
@@ -42,17 +39,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'File troppo grande (max 5MB)' }, { status: 400 })
       }
 
+      // Convert to base64 data URL (same approach as ModelFacePhoto)
       const buffer = Buffer.from(await file.arrayBuffer())
-      const ext = file.name.split('.').pop() || 'jpg'
-      const storagePath = `tickets/${ticketId}/${Date.now()}_${i}.${ext}`
-
-      await uploadFile(BUCKET, storagePath, buffer, file.type)
+      const base64 = buffer.toString('base64')
+      const dataUrl = `data:${file.type};base64,${base64}`
 
       const attachment = await prisma.ticketAttachment.create({
         data: {
           ticketId,
           messageId,
-          storageKey: storagePath,
+          // Store the data URL in linkUrl field (already exists in schema)
+          linkUrl: dataUrl,
           fileName: file.name,
           mimeType: file.type,
         },

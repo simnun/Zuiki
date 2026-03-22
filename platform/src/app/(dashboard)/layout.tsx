@@ -1,20 +1,21 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { ROLE_NAV, ROLE_HOME, canAccessRoute } from '@/lib/rbac'
 import type { AppRole } from '@/lib/rbac'
+import NotificationBell from '@/components/NotificationBell'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [user, setUser] = useState<any>(null)
   const [sideOpen, setSideOpen] = useState(true)
+  const [unreadTickets, setUnreadTickets] = useState(0)
 
   useEffect(() => {
     fetch('/api/auth/session').then(r => r.json()).then(d => {
       if (d?.user) {
-        // Super admin goes to admin panel
         if (d.user.role === 'super_admin') {
           window.location.href = '/admin/companies'
           return
@@ -26,7 +27,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }).catch(() => window.location.href = '/login')
   }, [])
 
-  // Route access check
+  // Fetch unread ticket notification count for badge
+  const loadUnread = useCallback(() => {
+    fetch('/api/notifications').then(r => r.json()).then(d => {
+      const ticketNotifs = (d.notifications || []).filter(
+        (n: any) => !n.read && (n.type === 'ticket_reply' || n.type === 'ticket_resolved')
+      )
+      setUnreadTickets(ticketNotifs.length)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      loadUnread()
+      const interval = setInterval(loadUnread, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [user, loadUnread])
+
   useEffect(() => {
     if (user && !canAccessRoute(user.role, pathname)) {
       const home = ROLE_HOME[user.role as AppRole] || '/dashboard'
@@ -74,6 +92,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav style={{ flex: 1 }}>
           {navItems.map(n => {
             const active = pathname === n.href || pathname.startsWith(n.href + '/')
+            const isSupport = n.href === '/support'
             return (
               <Link key={n.href} href={n.href} style={{
                 display: 'flex', alignItems: 'center', gap: 12,
@@ -82,9 +101,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 color: active ? '#fff' : 'var(--text)',
                 background: active ? 'var(--accent)' : 'transparent',
                 transition: 'all .15s',
+                position: 'relative',
               }}>
                 <span style={{ fontSize: 16, width: 28, textAlign: 'center' }}>{n.icon}</span>
                 {sideOpen && n.label}
+                {/* Unread badge on Support */}
+                {isSupport && unreadTickets > 0 && (
+                  <span style={{
+                    position: sideOpen ? 'static' : 'absolute',
+                    top: sideOpen ? undefined : 6,
+                    right: sideOpen ? undefined : 4,
+                    marginLeft: sideOpen ? 'auto' : undefined,
+                    background: '#e74c3c', color: '#fff', borderRadius: 10,
+                    minWidth: 18, height: 18, fontSize: 10, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '0 5px',
+                  }}>{unreadTickets}</span>
+                )}
               </Link>
             )
           })}
@@ -134,7 +167,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main content */}
-      <main style={{ flex: 1, padding: '32px 40px', maxWidth: 1200 }}>
+      <main style={{ flex: 1, padding: '32px 40px', maxWidth: 1200, position: 'relative' }}>
+        {/* Top bar with notification bell */}
+        <div style={{
+          position: 'absolute', top: 20, right: 40,
+          zIndex: 100,
+        }}>
+          <NotificationBell />
+        </div>
         {children}
       </main>
     </div>

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import NotificationBell from '@/components/NotificationBell'
 
 const NAV = [
   { href: '/admin/companies', label: 'Aziende', icon: '◆' },
@@ -13,6 +14,7 @@ const NAV = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [user, setUser] = useState<any>(null)
+  const [unreadTickets, setUnreadTickets] = useState(0)
 
   useEffect(() => {
     fetch('/api/auth/session').then(r => r.json()).then(d => {
@@ -20,6 +22,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       else window.location.href = '/login'
     }).catch(() => window.location.href = '/login')
   }, [])
+
+  // Fetch unread ticket count for nav badge
+  useEffect(() => {
+    if (!user) return
+    const load = () => {
+      fetch('/api/notifications').then(r => r.json()).then(d => {
+        const ticketNotifs = (d.notifications || []).filter(
+          (n: any) => !n.read && (n.type === 'ticket_reply' || n.type === 'ticket_resolved')
+        )
+        setUnreadTickets(ticketNotifs.length)
+      }).catch(() => {})
+    }
+    load()
+    const interval = setInterval(load, 30000)
+    return () => clearInterval(interval)
+  }, [user])
 
   const handleLogout = async () => {
     await signOut({ redirect: false })
@@ -42,6 +60,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <nav style={{ flex: 1 }}>
           {NAV.map(n => {
             const active = pathname.startsWith(n.href)
+            const isTicket = n.href === '/admin/tickets'
             return (
               <Link key={n.href} href={n.href} style={{
                 display: 'flex', alignItems: 'center', gap: 10,
@@ -49,8 +68,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 textDecoration: 'none', fontSize: 13, fontWeight: 600,
                 color: active ? '#fff' : '#888',
                 background: active ? 'var(--accent2)' : 'transparent',
+                position: 'relative',
               }}>
                 <span style={{ fontSize: 14 }}>{n.icon}</span> {n.label}
+                {/* Unread badge on Ticket */}
+                {isTicket && unreadTickets > 0 && (
+                  <span style={{
+                    marginLeft: 'auto',
+                    background: '#e74c3c', color: '#fff', borderRadius: 10,
+                    minWidth: 18, height: 18, fontSize: 10, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '0 5px',
+                  }}>{unreadTickets}</span>
+                )}
               </Link>
             )
           })}
@@ -69,7 +99,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
       </aside>
-      <main style={{ flex: 1, padding: '32px 40px', maxWidth: 1200 }}>{children}</main>
+      <main style={{ flex: 1, padding: '32px 40px', maxWidth: 1200, position: 'relative' }}>
+        {/* Notification bell top-right */}
+        <div style={{ position: 'absolute', top: 20, right: 40, zIndex: 100 }}>
+          <NotificationBell isDark />
+        </div>
+        {children}
+      </main>
     </div>
   )
 }

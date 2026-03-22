@@ -119,6 +119,7 @@ model User {
   usageAlerts           UsageAlert[]
   usageRecords          UsageRecord[]
   campaigns             Campaign[]
+  notifications         Notification[]
 
   @@index([companyId])
   @@map("users")
@@ -438,26 +439,33 @@ model SupportTicket {
 }
 
 model TicketMessage {
-  id        String   @id @default(uuid())
-  ticketId  String
-  senderId  String
-  message   String   @db.Text
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  ticketId   String
+  senderId   String
+  message    String   @db.Text
+  replyToId  String?
+  createdAt  DateTime @default(now())
 
-  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  sender User          @relation(fields: [senderId], references: [id])
+  ticket      SupportTicket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender      User               @relation(fields: [senderId], references: [id])
+  replyTo     TicketMessage?     @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies     TicketMessage[]    @relation("MessageReplies")
+  attachments TicketAttachment[]
 
   @@map("ticket_messages")
 }
 
 model TicketAttachment {
-  id        String  @id @default(uuid())
-  ticketId  String
+  id         String  @id @default(uuid())
+  ticketId   String
+  messageId  String?
   storageKey String?
   fileName   String?
+  mimeType   String?
   linkUrl    String?
 
-  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticket  SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  message TicketMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@map("ticket_attachments")
 }
@@ -476,6 +484,36 @@ model SessionExport {
   session ShootingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("session_exports")
+}
+
+// ─── NOTIFICATIONS ──────────────────────────────────────
+
+enum NotificationType {
+  ticket_reply
+  ticket_resolved
+  payment_due
+  payment_received
+  session_complete
+  session_failed
+  limit_warning
+  system
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String?
+  link      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
 
 // ─── NEWSLETTER / CAMPAIGNS ──────────────────────────────

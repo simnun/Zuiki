@@ -5,6 +5,9 @@ import { getCurrentUser } from '@/lib/auth-helpers'
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['owner', 'user', 'super_admin'].includes(user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { id } = await params
 
@@ -34,6 +37,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['owner', 'user', 'super_admin'].includes(user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { id } = await params
   const body = await req.json()
@@ -66,6 +72,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['owner', 'user', 'super_admin'].includes(user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   try {
     const { id } = await params

@@ -8,8 +8,18 @@ export async function GET(
 ) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['owner', 'user', 'super_admin'].includes(user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-  const { itemId } = await params
+  const { id, itemId } = await params
+
+  // Verify session ownership
+  const session = await prisma.shootingSession.findUnique({ where: { id }, select: { companyId: true } })
+  if (!session) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (session.companyId !== user.companyId && user.role !== 'super_admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const item = await prisma.catalogItem.findUnique({
     where: { id: itemId },
@@ -26,8 +36,19 @@ export async function PATCH(
 ) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['owner', 'user', 'super_admin'].includes(user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { id, itemId } = await params
+
+  // Verify session ownership
+  const sess = await prisma.shootingSession.findUnique({ where: { id }, select: { companyId: true } })
+  if (!sess) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (sess.companyId !== user.companyId && user.role !== 'super_admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const body = await req.json()
 
   try {
@@ -81,9 +102,19 @@ export async function DELETE(
 ) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['owner', 'user', 'super_admin'].includes(user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   try {
     const { itemId, id } = await params
+
+    // Verify session ownership
+    const sess = await prisma.shootingSession.findUnique({ where: { id }, select: { companyId: true } })
+    if (!sess) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (sess.companyId !== user.companyId && user.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     await prisma.catalogItem.delete({ where: { id: itemId } })
 

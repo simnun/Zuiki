@@ -1,7 +1,10 @@
 import { auth } from '@/lib/auth'
+import { ensureSchema } from '@/lib/db'
 import type { SessionUser } from '@/types'
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
+  // Ensure DB schema has all required columns (runs once per instance)
+  await ensureSchema()
   const session = await auth()
 
   if (!session?.user) {

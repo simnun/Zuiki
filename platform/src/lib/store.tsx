@@ -137,22 +137,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount (API key is fetched from DB in sessions/new)
   useEffect(() => {
     const cS = JSON.parse(localStorage.getItem("zs") || "{}");
     const mod = JSON.parse(localStorage.getItem("zm") || "[]");
-    const ak = localStorage.getItem("za") || "";
     const licMem = JSON.parse(localStorage.getItem("zlm") || "{}");
     const facePh = JSON.parse(localStorage.getItem("zfp") || "{}");
 
-    const isAuth = (() => {
-      const d = localStorage.getItem("zauth");
-      if (!d) return false;
-      try { const o = JSON.parse(d); return Date.now() - o.ts < 2 * 24 * 60 * 60 * 1000; } catch { return false; }
-    })();
-
-    const step: StepIndex = isAuth ? (ak ? 0 : -1) : -2;
-    dispatch({ type: "SET_STATE", payload: { cS, mod, ak, licMem, facePh, step } });
+    // API key loaded from DB via /api/company/apikey in sessions/new page
+    // Start at step -2 (auth check), sessions/new handles the rest
+    dispatch({ type: "SET_STATE", payload: { cS, mod, licMem, facePh, step: -2 as StepIndex } });
   }, []);
 
   const cAI = useCallback(async (content: any, retries = 0): Promise<string> => {

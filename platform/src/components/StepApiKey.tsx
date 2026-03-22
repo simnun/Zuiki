@@ -1,16 +1,22 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 
 export default function StepApiKey() {
   const { state, dispatch } = useStore();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [saving, setSaving] = useState(false);
 
-  const save = () => {
+  const save = async () => {
     const v = inputRef.current?.value?.trim();
     if (v) {
-      localStorage.setItem("za", v);
+      setSaving(true);
+      await fetch("/api/company/apikey", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: v }),
+      });
       dispatch({ type: "SET_STATE", payload: { ak: v } });
       dispatch({ type: "SET_STEP", payload: 0 });
     }
@@ -26,10 +32,10 @@ export default function StepApiKey() {
           <label>API KEY</label>
           <input ref={inputRef} className="inp" type="password" placeholder="sk-ant-..." defaultValue={state.ak} />
         </div>
-        <button className="btn btn-p" style={{ width: "100%", padding: 14, fontSize: 15 }} onClick={save}>
-          Salva e Continua
+        <button className="btn btn-p" style={{ width: "100%", padding: 14, fontSize: 15 }} onClick={save} disabled={saving}>
+          {saving ? "Salvataggio..." : "Salva e Continua"}
         </button>
-        <p style={{ fontSize: 11, color: "var(--muted)", textAlign: "center", marginTop: 12 }}>Salvata solo nel tuo browser</p>
+        <p style={{ fontSize: 11, color: "var(--muted)", textAlign: "center", marginTop: 12 }}>Salvata nel database della tua azienda</p>
       </div>
     </div>
   );

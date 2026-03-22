@@ -17,6 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
       attachments: true,
       createdBy: { select: { firstName: true, lastName: true } },
+      company: { select: { name: true } },
     },
   })
 

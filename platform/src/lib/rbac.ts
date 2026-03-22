@@ -7,18 +7,18 @@ export const ROLE_NAV: Record<AppRole, Array<{ href: string; label: string; icon
     { href: '/sessions/new', label: 'Nuova Sessione', icon: '＋' },
     { href: '/models', label: 'Modelle', icon: '♀' },
     { href: '/billing/invoices', label: 'Fatturazione', icon: '€' },
-    { href: '/support/new', label: 'Supporto', icon: '?' },
+    { href: '/support', label: 'Supporto', icon: '?' },
   ],
   admin: [
     { href: '/dashboard', label: 'Dashboard', icon: '◉' },
     { href: '/billing/invoices', label: 'Fatturazione', icon: '€' },
-    { href: '/support/new', label: 'Supporto', icon: '?' },
+    { href: '/support', label: 'Supporto', icon: '?' },
   ],
   user: [
     { href: '/dashboard', label: 'Dashboard', icon: '◉' },
     { href: '/sessions/new', label: 'Nuova Sessione', icon: '＋' },
     { href: '/models', label: 'Modelle', icon: '♀' },
-    { href: '/support/new', label: 'Supporto', icon: '?' },
+    { href: '/support', label: 'Supporto', icon: '?' },
   ],
 }
 

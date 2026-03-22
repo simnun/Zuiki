@@ -15,13 +15,26 @@ export async function GET() {
   try {
     const tickets = await prisma.supportTicket.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { updatedAt: 'desc' },
       include: {
         createdBy: { select: { firstName: true, lastName: true } },
+        company: { select: { name: true } },
         _count: { select: { messages: true } },
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { sender: { select: { firstName: true, lastName: true, role: true } } },
+        },
       },
     })
-    return NextResponse.json(tickets)
+
+    const enriched = tickets.map(t => ({
+      ...t,
+      lastMessage: t.messages[0] || null,
+      messages: undefined,
+    }))
+
+    return NextResponse.json(enriched)
   } catch {
     return NextResponse.json([])
   }

@@ -21,31 +21,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const denied = await verifyModelAccess(id, user)
   if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
-  const formData = await req.formData()
-  const files = formData.getAll('photos') as File[]
+  try {
+    const formData = await req.formData()
+    const files = formData.getAll('photos') as File[]
 
-  if (!files.length) {
-    return NextResponse.json({ error: 'No files provided' }, { status: 400 })
+    if (!files.length) {
+      return NextResponse.json({ error: 'No files provided' }, { status: 400 })
+    }
+
+    const uploaded = []
+
+    for (const file of files) {
+      const buffer = Buffer.from(await file.arrayBuffer())
+      const base64 = buffer.toString('base64')
+      const dataUrl = `data:${file.type};base64,${base64}`
+
+      const photo = await prisma.modelFacePhoto.create({
+        data: {
+          modelId: id,
+          photoUrl: dataUrl,
+        },
+      })
+
+      uploaded.push(photo)
+    }
+
+    return NextResponse.json(uploaded, { status: 201 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
-
-  const uploaded = []
-
-  for (const file of files) {
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const base64 = buffer.toString('base64')
-    const dataUrl = `data:${file.type};base64,${base64}`
-
-    const photo = await prisma.modelFacePhoto.create({
-      data: {
-        modelId: id,
-        photoUrl: dataUrl,
-      },
-    })
-
-    uploaded.push(photo)
-  }
-
-  return NextResponse.json(uploaded, { status: 201 })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -58,9 +63,14 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const denied = await verifyModelAccess(id, user)
   if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
-  const photoId = req.nextUrl.searchParams.get('photoId')
-  if (!photoId) return NextResponse.json({ error: 'photoId required' }, { status: 400 })
+  try {
+    const photoId = req.nextUrl.searchParams.get('photoId')
+    if (!photoId) return NextResponse.json({ error: 'photoId required' }, { status: 400 })
 
-  await prisma.modelFacePhoto.delete({ where: { id: photoId } })
-  return NextResponse.json({ success: true })
+    await prisma.modelFacePhoto.delete({ where: { id: photoId } })
+    return NextResponse.json({ success: true })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }

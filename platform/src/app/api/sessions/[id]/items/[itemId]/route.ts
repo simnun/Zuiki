@@ -30,44 +30,49 @@ export async function PATCH(
   const { id, itemId } = await params
   const body = await req.json()
 
-  const item = await prisma.catalogItem.update({
-    where: { id: itemId },
-    data: {
-      productName: body.productName,
-      productType: body.productType,
-      color: body.color,
-      composition: body.composition,
-      shortDesc: body.shortDesc,
-      longDesc: body.longDesc,
-      seoTags: body.seoTags,
-      metaTitle: body.metaTitle,
-      metaDesc: body.metaDesc,
-      metaKeywords: body.metaKeywords,
-      altImage: body.altImage,
-      aiResponse: body.aiResponse,
-      license: body.license,
-      recognizedModel: body.recognizedModel,
-      status: body.status,
-      errorMessage: body.errorMessage,
-      processingTimeMs: body.processingTimeMs,
-    },
-    include: { photos: { orderBy: { sortOrder: 'asc' } } },
-  })
+  try {
+    const item = await prisma.catalogItem.update({
+      where: { id: itemId },
+      data: {
+        productName: body.productName,
+        productType: body.productType,
+        color: body.color,
+        composition: body.composition,
+        shortDesc: body.shortDesc,
+        longDesc: body.longDesc,
+        seoTags: body.seoTags,
+        metaTitle: body.metaTitle,
+        metaDesc: body.metaDesc,
+        metaKeywords: body.metaKeywords,
+        altImage: body.altImage,
+        aiResponse: body.aiResponse,
+        license: body.license,
+        recognizedModel: body.recognizedModel,
+        status: body.status,
+        errorMessage: body.errorMessage,
+        processingTimeMs: body.processingTimeMs,
+      },
+      include: { photos: { orderBy: { sortOrder: 'asc' } } },
+    })
 
-  // Update session counters if status changed
-  if (body.status === 'done') {
-    await prisma.shootingSession.update({
-      where: { id },
-      data: { processedItems: { increment: 1 } },
-    })
-  } else if (body.status === 'error') {
-    await prisma.shootingSession.update({
-      where: { id },
-      data: { failedItems: { increment: 1 } },
-    })
+    // Update session counters if status changed
+    if (body.status === 'done') {
+      await prisma.shootingSession.update({
+        where: { id },
+        data: { processedItems: { increment: 1 } },
+      })
+    } else if (body.status === 'error') {
+      await prisma.shootingSession.update({
+        where: { id },
+        data: { failedItems: { increment: 1 } },
+      })
+    }
+
+    return NextResponse.json(item)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
-
-  return NextResponse.json(item)
 }
 
 export async function DELETE(
@@ -77,14 +82,19 @@ export async function DELETE(
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { itemId, id } = await params
+  try {
+    const { itemId, id } = await params
 
-  await prisma.catalogItem.delete({ where: { id: itemId } })
+    await prisma.catalogItem.delete({ where: { id: itemId } })
 
-  await prisma.shootingSession.update({
-    where: { id },
-    data: { totalItems: { decrement: 1 } },
-  })
+    await prisma.shootingSession.update({
+      where: { id },
+      data: { totalItems: { decrement: 1 } },
+    })
 
-  return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }

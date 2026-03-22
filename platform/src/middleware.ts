@@ -5,7 +5,7 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // Public routes that don't need auth
-  const publicPaths = ['/', '/login', '/api/auth', '/api/contact', '/api/debug-ticket']
+  const publicPaths = ['/', '/login', '/api/auth', '/api/contact']
   const isPublic = pathname === '/' || publicPaths.slice(1).some(p => pathname.startsWith(p))
 
   // Check for auth session cookie (Auth.js v5 uses __Secure- prefix in production)

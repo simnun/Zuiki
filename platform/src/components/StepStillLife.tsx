@@ -30,6 +30,8 @@ export default function StepStillLife() {
   const [removingBg, setRemovingBg] = useState(false);
   const [bgProgress, setBgProgress] = useState(0);
   const [bgZipProgress, setBgZipProgress] = useState<number | null>(null);
+  const [bgDone, setBgDone] = useState(false);
+  const [bgError, setBgError] = useState<string | null>(null);
   const [stepLabel, setStepLabel] = useState("");
 
   const buildItems = (): StillLifeItem[] => {
@@ -174,9 +176,12 @@ CRITICAL: Do NOT change the garment itself, its color, shape, position or the wh
 
     setRemovingBg(true);
     setBgProgress(0);
+    setBgDone(false);
+    setBgError(null);
 
     const updated = [...slItems];
     let processed = 0;
+    let errors = 0;
 
     for (let i = 0; i < updated.length; i++) {
       if (!updated[i].generated) continue;
@@ -186,6 +191,7 @@ CRITICAL: Do NOT change the garment itself, its color, shape, position or the wh
         updated[i] = { ...updated[i], noBg: noBgUrl };
       } catch (err: any) {
         console.error("BG removal error for", updated[i].sku, err);
+        errors++;
       }
       processed++;
       setBgProgress(Math.round((processed / generated.length) * 100));
@@ -194,6 +200,12 @@ CRITICAL: Do NOT change the garment itself, its color, shape, position or the wh
 
     setBgProgress(100);
     setRemovingBg(false);
+    setBgDone(true);
+    if (errors > 0 && errors === generated.length) {
+      setBgError("Rimozione sfondo fallita per tutte le immagini. BRIA potrebbe essere offline.");
+    } else if (errors > 0) {
+      setBgError(`${errors} immagini non scontornate (errore BRIA)`);
+    }
   };
 
   const downloadZip = async () => {
@@ -414,47 +426,58 @@ CRITICAL: Do NOT change the garment itself, its color, shape, position or the wh
           </div>
 
           {/* Background removal section */}
-          <div className="card" style={{ padding: 20, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Rimuovi Sfondo</h4>
-              <p style={{ fontSize: 12, color: "var(--muted)" }}>
-                {noBgCount > 0
-                  ? `${noBgCount} immagini scontornate pronte`
-                  : "Ottieni PNG trasparenti senza sfondo (BRIA-RMBG-2.0)"}
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              {removingBg && (
-                <div style={{ textAlign: "center", minWidth: 140 }}>
-                  <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden", marginBottom: 4 }}>
-                    <div style={{ height: "100%", width: `${bgProgress}%`, background: "var(--accent2)", borderRadius: 2, transition: "width 0.3s" }} />
-                  </div>
-                  <p style={{ fontSize: 10, color: "var(--muted)" }}>Elaborazione... {bgProgress}%</p>
-                </div>
-              )}
-              {noBgCount === 0 && (
-                <button className="btn btn-s" disabled={!generatedCount || removingBg}
-                  style={{ padding: "10px 24px", fontSize: 13, borderRadius: 10, border: "2px solid var(--accent2)", color: "var(--accent2)", fontWeight: 600 }}
-                  onClick={removeBackgrounds}>
-                  {removingBg ? "Elaborazione..." : "Rimuovi Sfondo"}
-                </button>
-              )}
-              {noBgCount > 0 && (
-                <>
-                  {bgZipProgress !== null && (
-                    <div style={{ width: 120 }}>
-                      <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${bgZipProgress}%`, background: "var(--accent2)", borderRadius: 2, transition: "width 0.3s" }} />
-                      </div>
+          <div className="card" style={{ padding: 20, marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Rimuovi Sfondo</h4>
+                <p style={{ fontSize: 12, color: "var(--muted)" }}>
+                  {removingBg
+                    ? `Elaborazione in corso... ${bgProgress}%`
+                    : noBgCount > 0
+                      ? `${noBgCount} immagini scontornate pronte`
+                      : "Ottieni PNG trasparenti senza sfondo (BRIA-RMBG-2.0)"}
+                </p>
+                {bgError && <p style={{ fontSize: 11, color: "var(--err)", marginTop: 4 }}>{bgError}</p>}
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                {removingBg && (
+                  <div style={{ minWidth: 140 }}>
+                    <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${bgProgress}%`, background: "var(--accent2)", borderRadius: 3, transition: "width 0.3s" }} />
                     </div>
-                  )}
-                  <button className="btn btn-g" disabled={bgZipProgress !== null}
-                    style={{ padding: "12px 32px", fontSize: 14, borderRadius: 10, background: "var(--accent2)" }}
-                    onClick={downloadNoBgZip}>
-                    {bgZipProgress !== null ? `ZIP... ${bgZipProgress}%` : `Scarica scontornate (${noBgCount})`}
+                  </div>
+                )}
+                {!bgDone && !removingBg && (
+                  <button className="btn btn-s" disabled={!generatedCount}
+                    style={{ padding: "10px 24px", fontSize: 13, borderRadius: 10, border: "2px solid var(--accent2)", color: "var(--accent2)", fontWeight: 600 }}
+                    onClick={removeBackgrounds}>
+                    Rimuovi Sfondo
                   </button>
-                </>
-              )}
+                )}
+                {bgDone && noBgCount > 0 && (
+                  <>
+                    {bgZipProgress !== null && (
+                      <div style={{ width: 120 }}>
+                        <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${bgZipProgress}%`, background: "var(--accent2)", borderRadius: 2, transition: "width 0.3s" }} />
+                        </div>
+                      </div>
+                    )}
+                    <button className="btn btn-g" disabled={bgZipProgress !== null}
+                      style={{ padding: "12px 32px", fontSize: 14, borderRadius: 10, background: "var(--accent2)" }}
+                      onClick={downloadNoBgZip}>
+                      {bgZipProgress !== null ? `ZIP... ${bgZipProgress}%` : `Scarica scontornate (${noBgCount})`}
+                    </button>
+                  </>
+                )}
+                {bgDone && noBgCount === 0 && (
+                  <button className="btn btn-s"
+                    style={{ padding: "10px 24px", fontSize: 13, borderRadius: 10, border: "2px solid var(--accent2)", color: "var(--accent2)", fontWeight: 600 }}
+                    onClick={() => { setBgDone(false); setBgError(null); }}>
+                    Riprova
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

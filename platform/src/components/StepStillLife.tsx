@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import JSZip from "jszip";
 import { useStore } from "@/lib/store";
 import { toB, mT } from "@/lib/utils";
@@ -25,6 +25,15 @@ export default function StepStillLife() {
   const [slItems, setSlItems] = useState<StillLifeItem[]>([]);
   const [progress, setProgress] = useState(0);
   const [zipProgress, setZipProgress] = useState<number | null>(null);
+  const [apiKey, setApiKey] = useState("");
+
+  // Fetch API key on mount
+  useEffect(() => {
+    fetch("/api/company/apikey")
+      .then(r => r.json())
+      .then(d => { if (d.apiKey) setApiKey(d.apiKey); })
+      .catch(() => {});
+  }, []);
 
   // Build list of items with their first photo (codicearticolo_colore_1)
   const buildItems = (): StillLifeItem[] => {
@@ -39,19 +48,34 @@ export default function StepStillLife() {
     })).filter(it => it.sourceFile);
   };
 
-  // Generate still life using Claude image generation via server-side proxy
+  // Generate still life using Claude image generation (direct browser call for large image responses)
   const generateStillLife = async (sourceFile: File): Promise<string> => {
+    if (!apiKey) throw new Error("API key mancante. Vai in Impostazioni > API Key.");
+
     const b64 = await toB(sourceFile);
     const mediaType = mT(sourceFile);
 
-    const content = [
-      {
-        type: "image",
-        source: { type: "base64", media_type: mediaType, data: b64 },
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
       },
-      {
-        type: "text",
-        text: `Genera un'immagine still life piatto (flat lay) di questo capo di abbigliamento.
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 16384,
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: mediaType, data: b64 },
+            },
+            {
+              type: "text",
+              text: `Genera un'immagine still life piatto (flat lay) di questo capo di abbigliamento.
 
 ISTRUZIONI PRECISE:
 - Il capo deve essere disteso in piano come se fosse appoggiato su una superficie, visto dall'alto
@@ -63,30 +87,29 @@ ISTRUZIONI PRECISE:
 - Formato: quadrato, alta risoluzione
 
 Genera SOLO l'immagine, senza testo.`,
-      },
-    ];
-
-    const response = await fetch("/api/ai/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, max_tokens: 16384 }),
+            },
+          ],
+        }],
+      }),
     });
 
     if (!response.ok) {
       const err = await response.text();
-      throw new Error(`Errore API: ${response.status}`);
+      throw new Error(`Errore API ${response.status}: ${err.slice(0, 200)}`);
     }
 
     const data = await response.json();
-    if (data.error) throw new Error(data.error);
+    if (data.error) throw new Error(data.error.message || data.error);
 
-    // Check for image content block in the raw response
+    // Find image content block
     const imgBlock = data.content?.find((c: any) => c.type === "image");
     if (imgBlock?.source?.data) {
       return `data:${imgBlock.source.media_type || "image/png"};base64,${imgBlock.source.data}`;
     }
 
-    throw new Error("Nessuna immagine generata dall'AI");
+    // If no image block, the model returned text instead
+    const textBlock = data.content?.find((c: any) => c.type === "text");
+    throw new Error(textBlock?.text?.slice(0, 150) || "Nessuna immagine generata dall'AI");
   };
 
   const startGeneration = async () => {
@@ -237,7 +260,7 @@ Genera SOLO l'immagine, senza testo.`,
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={it.generated} alt={it.sku} style={{ width: 80, height: 80, objectFit: "contain", margin: "0 auto", borderRadius: 6 }} />
                 ) : it.error ? (
-                  <div style={{ width: 80, height: 80, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--err)", fontSize: 10 }}>Errore</div>
+                  <div title={it.error} style={{ width: 80, height: 80, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--err)", fontSize: 9, padding: 4, textAlign: "center", overflow: "hidden" }}>{it.error.slice(0, 60)}</div>
                 ) : (
                   <div style={{ width: 80, height: 80, margin: "0 auto", background: "var(--border)", borderRadius: 6 }} />
                 )}
@@ -293,11 +316,11 @@ Genera SOLO l'immagine, senza testo.`,
                           background: "repeating-conic-gradient(#f0f0f0 0% 25%, #fff 0% 50%) 0 0 / 10px 10px",
                         }} />
                     ) : (
-                      <div style={{
+                      <div title={it.error || "Errore"} style={{
                         width: 80, height: 80, borderRadius: 6, border: "2px solid var(--err)",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 10, color: "var(--err)", background: "#fff5f5",
-                      }}>Errore</div>
+                        fontSize: 9, color: "var(--err)", background: "#fff5f5", padding: 4, textAlign: "center", overflow: "hidden",
+                      }}>{(it.error || "Errore").slice(0, 50)}</div>
                     )}
                     <p style={{ fontSize: 9, color: it.generated ? "var(--accent2)" : "var(--err)", fontWeight: 600, marginTop: 2 }}>
                       {it.generated ? "Still Life" : "Fallito"}

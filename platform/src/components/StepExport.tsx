@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { useStore } from "@/lib/store";
@@ -16,12 +17,30 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
   const { state, dispatch, cAI, getExcelInfo } = useStore();
   const { items, corr, cL, cD, cfg, excelWb, excelRows, excelMap, excelFileName } = state;
   const done = items.filter(i => i.st === "done");
+  const [zipProgress, setZipProgress] = useState<number | null>(null);
+  const [zipEta, setZipEta] = useState("");
 
+  // Build corrMap excluding removed correlations
   const corrMap: Record<string, string> = {};
   corr.forEach(cr => cr.skus.forEach((s: string) => {
     const o = cr.skus.filter((x: string) => x !== s).join("; ");
     corrMap[s] = corrMap[s] ? corrMap[s] + "; " + o : o;
   }));
+
+  // Remove a SKU from a correlation group
+  const removeCorrSku = (corrIdx: number, sku: string) => {
+    const updated = corr.map((cr, i) => {
+      if (i !== corrIdx) return cr;
+      return { ...cr, skus: cr.skus.filter((s: string) => s !== sku) };
+    }).filter(cr => cr.skus.length >= 2);
+    dispatch({ type: "SET_STATE", payload: { corr: updated } });
+  };
+
+  // Get first preview image for a SKU
+  const getItemThumb = (sku: string): string | null => {
+    const it = items.find(i => i.sku === sku);
+    return it?.ap?.[0] || null;
+  };
 
   const expCSV = () => {
     if (!done.length) return;
@@ -117,8 +136,24 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
   const downloadPhotos = async () => {
     if (!done.length) return;
     const zip = new JSZip();
+    const total = done.length;
+    const startTime = Date.now();
+    setZipProgress(0);
+    setZipEta("Calcolo...");
 
-    for (const it of done) {
+    for (let pi = 0; pi < done.length; pi++) {
+      const it = done[pi];
+      // Update progress
+      const pct = Math.round((pi / total) * 100);
+      setZipProgress(pct);
+      if (pi > 0) {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const perItem = elapsed / pi;
+        const remaining = Math.ceil(perItem * (total - pi));
+        const mins = Math.floor(remaining / 60);
+        const secs = remaining % 60;
+        setZipEta(mins > 0 ? `~${mins}m ${secs}s` : `~${secs}s`);
+      }
       // Classify photos
       const ex = getExcelInfo(it.sku);
       const colori = (ex?.colori || it.cl || "").split(";").map((c: string) => c.trim()).filter(Boolean);
@@ -168,11 +203,16 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       }
     }
 
+    setZipProgress(95);
+    setZipEta("Creazione ZIP...");
     const content = await zip.generateAsync({ type: "blob" });
+    setZipProgress(100);
+    setZipEta("");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(content);
     a.download = `foto_${cfg.br}_${SCMAP[cfg.st] || ""}${cfg.an}_${new Date().toISOString().slice(0, 10)}.zip`;
     a.click();
+    setTimeout(() => setZipProgress(null), 1500);
   };
 
   // Correlation section
@@ -185,10 +225,32 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       </div>
     );
   } else if (corr.length) {
-    corrSection = corr.map((cr, i) => (
-      <div key={i} className="cc">
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>{cr.outfit_name || "Outfit"}</div>
-        <div style={{ marginBottom: 6 }}>{(cr.skus || []).map((s: string) => <span key={s} className="cs">{s}</span>)}</div>
+    corrSection = corr.map((cr, ci) => (
+      <div key={ci} className="cc">
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{cr.outfit_name || "Outfit"}</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+          {(cr.skus || []).map((s: string) => {
+            const thumb = getItemThumb(s);
+            const it = items.find(x => x.sku === s);
+            return (
+              <div key={s} style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: 8, background: "var(--subtle)", borderRadius: 8, border: "1px solid var(--border)", minWidth: 90 }}>
+                <button
+                  onClick={() => removeCorrSku(ci, s)}
+                  style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: "50%", background: "var(--err)", color: "#fff", border: "none", fontSize: 10, cursor: "pointer", lineHeight: "18px", padding: 0, zIndex: 1 }}
+                  title="Rimuovi da correlazione"
+                >✕</button>
+                {thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={thumb} alt={s} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6 }} />
+                ) : (
+                  <div style={{ width: 64, height: 64, background: "var(--border)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "var(--muted)" }}>No img</div>
+                )}
+                <span style={{ fontSize: 11, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>{s}</span>
+                {it?.tp && <span style={{ fontSize: 10, color: "var(--muted)" }}>{it.tp}</span>}
+              </div>
+            );
+          })}
+        </div>
         <p style={{ fontSize: 12, color: "var(--muted)" }}>{cr.motivo || ""}</p>
       </div>
     ));
@@ -264,21 +326,28 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
             ⬇ Scarica CSV ({done.length} prodotti)
           </button>
         )}
-        <button className="btn btn-p" disabled={!done.length} style={{ padding: "14px 40px", fontSize: 15, borderRadius: 12 }}
-          onClick={async (e) => {
-            const btn = e.currentTarget;
-            btn.disabled = true;
-            btn.textContent = "Preparazione ZIP...";
-            try {
-              await downloadPhotos();
-            } catch (err: any) {
-              alert("Errore: " + err.message);
-            }
-            btn.disabled = false;
-            btn.textContent = "📸 Scarica Foto Rinominate";
-          }}>
-          📸 Scarica Foto Rinominate
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <button className="btn btn-p" disabled={!done.length || zipProgress !== null} style={{ padding: "14px 40px", fontSize: 15, borderRadius: 12 }}
+            onClick={async () => {
+              try {
+                await downloadPhotos();
+              } catch (err: any) {
+                alert("Errore: " + err.message);
+                setZipProgress(null);
+                setZipEta("");
+              }
+            }}>
+            {zipProgress !== null ? `Preparazione ZIP... ${zipProgress}%` : "📸 Scarica Foto Rinominate"}
+          </button>
+          {zipProgress !== null && (
+            <div style={{ width: 260 }}>
+              <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${zipProgress}%`, background: "var(--accent)", borderRadius: 3, transition: "width 0.3s ease" }} />
+              </div>
+              {zipEta && <p style={{ fontSize: 11, color: "var(--muted)", textAlign: "center", marginTop: 4 }}>{zipEta}</p>}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

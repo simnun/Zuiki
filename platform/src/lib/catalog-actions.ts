@@ -174,9 +174,15 @@ Rispondi SOLO JSON: {"modello_dettaglio":"2-3 parole","dettagli_descrizione":"ma
       }
       c.push({
         type: "text",
-        text: `Analizza le foto sopra. Trova articoli che sono stati chiaramente scattati NELLO STESSO SET/OUTFIT (stessa scena, stessa modella, stessi accessori, croppati dallo stesso scatto fotografico).
+        text: `Analizza le foto sopra. Trova correlazioni SOLO in questi due casi:
+1. STESSO OUTFIT: articoli indossati dalla STESSA modella nella STESSA foto a figura intera (es. una t-shirt e un pantalone nella stessa foto). Devono essere chiaramente un top + un bottom (o accessorio) dallo stesso scatto.
+2. STESSA LICENZA: articoli che condividono la stessa licenza/personaggio (es. tutte le t-shirt SuperGirl DC-Comics). Indica la licenza nel motivo.
+
+NON correlare articoli solo perché hanno materiale/tessuto simile o colore simile.
+NON correlare articoli solo perché sono dello stesso tipo (es. due t-shirt senza licenza in comune).
+
 Rispondi SOLO con JSON valido, senza markdown e senza backtick:
-[{"outfit_name":"descrizione breve outfit","skus":["SKU1","SKU2"],"motivo":"perché sono correlati"}]
+[{"outfit_name":"descrizione breve","skus":["SKU1","SKU2"],"motivo":"perché sono correlati"}]
 Se non trovi nessun match, rispondi con: []`,
       });
       try {

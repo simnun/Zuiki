@@ -25,6 +25,7 @@ export default function StepStillLife() {
   const [slItems, setSlItems] = useState<StillLifeItem[]>([]);
   const [progress, setProgress] = useState(0);
   const [zipProgress, setZipProgress] = useState<number | null>(null);
+  const [billingError, setBillingError] = useState(false);
 
   // Build list of items with their first photo (codicearticolo_colore_1)
   const buildItems = (): StillLifeItem[] => {
@@ -66,6 +67,7 @@ Genera SOLO l'immagine, senza testo.`,
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+      if (err.billingRequired) setBillingError(true);
       throw new Error(err.error || `Errore API: ${response.status}`);
     }
 
@@ -240,6 +242,24 @@ Genera SOLO l'immagine, senza testo.`,
       {/* Preview phase */}
       {phase === "preview" && (
         <div>
+          {billingError && (
+            <div className="card" style={{ padding: 20, marginBottom: 20, background: "#FFF3CD", border: "1px solid #FFD700" }}>
+              <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, color: "#856404" }}>Fatturazione Google AI richiesta</h4>
+              <p style={{ fontSize: 13, color: "#856404", marginBottom: 12, lineHeight: 1.5 }}>
+                La generazione immagini richiede il piano Pay-as-you-go di Google AI (~€0,04/immagine).
+              </p>
+              <ol style={{ fontSize: 12, color: "#856404", paddingLeft: 20, lineHeight: 1.8, marginBottom: 12 }}>
+                <li>Vai su <a href="https://ai.dev/projects" target="_blank" rel="noopener" style={{ color: "#0066CC", fontWeight: 600 }}>ai.dev/projects</a></li>
+                <li>Seleziona il tuo progetto Google AI</li>
+                <li>Abilita la fatturazione (Pay-as-you-go)</li>
+                <li>Torna qui e riprova</li>
+              </ol>
+              <button className="btn btn-p" style={{ padding: "10px 24px", fontSize: 13 }}
+                onClick={() => { setBillingError(false); setPhase("intro"); }}>
+                Riprova generazione
+              </button>
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <p style={{ fontSize: 14 }}>
               <strong style={{ color: "var(--ok)" }}>{generatedCount}</strong> still life generati

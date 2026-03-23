@@ -22,15 +22,13 @@ export default function StepStillLife() {
   const { items, cfg } = state;
   const done = items.filter(i => i.st === "done");
 
-  const [phase, setPhase] = useState<"intro" | "generating" | "preview">("intro");
+  const [phase, setPhase] = useState<"intro" | "generating" | "cleaning" | "removing-bg" | "preview">("intro");
   const [slItems, setSlItems] = useState<StillLifeItem[]>([]);
   const [progress, setProgress] = useState(0);
   const [zipProgress, setZipProgress] = useState<number | null>(null);
   const [billingError, setBillingError] = useState(false);
-  const [removingBg, setRemovingBg] = useState(false);
-  const [bgProgress, setBgProgress] = useState(0);
   const [bgZipProgress, setBgZipProgress] = useState<number | null>(null);
-  const [bgError, setBgError] = useState<string | null>(null);
+  const [stepLabel, setStepLabel] = useState("");
 
   const buildItems = (): StillLifeItem[] => {
     return done.map(it => ({
@@ -84,12 +82,49 @@ Genera SOLO l'immagine, senza testo.`,
     return `data:${data.mimeType || "image/png"};base64,${data.imageBase64}`;
   };
 
+  const cleanLabels = async (dataUrl: string): Promise<string> => {
+    const b64 = dataUrl.split(",")[1];
+    const mimeMatch = dataUrl.match(/data:([^;]+)/);
+
+    const response = await fetch("/api/ai/image-gen", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        imageBase64: b64,
+        mimeType: mimeMatch ? mimeMatch[1] : "image/png",
+        prompt: `Look at this flat lay photo of a clothing item on a white background.
+
+IF there are any visible labels, tags, brand markings, care labels, size labels, price tags, or any text/stickers on the garment:
+- Remove them completely
+- Fill the area naturally with the fabric texture/color that would be underneath
+- Keep EVERYTHING else exactly identical (colors, position, folds, shadows, proportions)
+
+IF there are NO labels or tags visible, return the image exactly as-is without any modifications.
+
+CRITICAL: Do NOT change the garment itself, its color, shape, position or the white background. Only remove labels/tags if present.`,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+      throw new Error(err.error || `Errore pulizia: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    if (!data.imageBase64) throw new Error("Nessuna immagine dalla pulizia");
+
+    return `data:${data.mimeType || "image/png"};base64,${data.imageBase64}`;
+  };
+
   const startGeneration = async () => {
     const list = buildItems();
     setSlItems(list);
     setPhase("generating");
     setProgress(0);
+    setStepLabel("Generazione still life...");
 
+    // Step 1: Generate still life images
     const updated = [...list];
     for (let i = 0; i < updated.length; i++) {
       updated[i] = { ...updated[i], loading: true };
@@ -103,6 +138,46 @@ Genera SOLO l'immagine, senza testo.`,
         console.error("Still life error:", err);
         updated[i] = { ...updated[i], error: err.message || "Errore generazione", loading: false };
       }
+      setSlItems([...updated]);
+    }
+
+    // Step 2: Clean labels from generated images
+    setPhase("cleaning");
+    setProgress(0);
+    setStepLabel("Pulizia etichette...");
+
+    const withImages = updated.filter(it => it.generated);
+    let cleaned = 0;
+    for (let i = 0; i < updated.length; i++) {
+      if (!updated[i].generated) continue;
+      try {
+        const cleanUrl = await cleanLabels(updated[i].generated!);
+        updated[i] = { ...updated[i], generated: cleanUrl };
+      } catch (err: any) {
+        console.error("Label cleanup error for", updated[i].sku, err);
+        // Keep the original image if cleanup fails
+      }
+      cleaned++;
+      setProgress(Math.round((cleaned / withImages.length) * 100));
+      setSlItems([...updated]);
+    }
+
+    // Step 3: Remove backgrounds with BRIA
+    setPhase("removing-bg");
+    setProgress(0);
+    setStepLabel("Rimozione sfondo...");
+
+    let bgDone = 0;
+    for (let i = 0; i < updated.length; i++) {
+      if (!updated[i].generated) continue;
+      try {
+        const noBgUrl = await removeBg(updated[i].generated!);
+        updated[i] = { ...updated[i], noBg: noBgUrl };
+      } catch (err: any) {
+        console.error("BG removal error for", updated[i].sku, err);
+      }
+      bgDone++;
+      setProgress(Math.round((bgDone / withImages.length) * 100));
       setSlItems([...updated]);
     }
 
@@ -149,35 +224,6 @@ Genera SOLO l'immagine, senza testo.`,
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     return `data:${data.mimeType || "image/png"};base64,${data.imageBase64}`;
-  };
-
-  const removeBackgrounds = async () => {
-    const generated = slItems.filter(it => it.generated);
-    if (!generated.length) return;
-
-    setRemovingBg(true);
-    setBgProgress(0);
-    setBgError(null);
-
-    const updated = [...slItems];
-    let processed = 0;
-
-    for (let i = 0; i < updated.length; i++) {
-      if (!updated[i].generated) continue;
-
-      try {
-        const noBgUrl = await removeBg(updated[i].generated!);
-        updated[i] = { ...updated[i], noBg: noBgUrl };
-      } catch (err: any) {
-        console.error("BG removal error for", updated[i].sku, err);
-      }
-      processed++;
-      setBgProgress(Math.round((processed / generated.length) * 100));
-      setSlItems([...updated]);
-    }
-
-    setBgProgress(100);
-    setRemovingBg(false);
   };
 
   const downloadNoBgZip = async () => {
@@ -276,15 +322,18 @@ Genera SOLO l'immagine, senza testo.`,
         </div>
       )}
 
-      {/* Generating phase */}
-      {phase === "generating" && (
+      {/* Processing phases: generating, cleaning labels, removing bg */}
+      {(phase === "generating" || phase === "cleaning" || phase === "removing-bg") && (
         <div className="card" style={{ padding: 32 }}>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div className="spinner" style={{ marginBottom: 12 }} />
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Generazione in corso...</h3>
-            <p style={{ fontSize: 13, color: "var(--muted)" }}>
-              {generatedCount + errorCount}/{slItems.length} completati
-            </p>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{stepLabel}</h3>
+            <div style={{ display: "flex", justifyContent: "center", gap: 16, fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
+              <span style={{ fontWeight: phase === "generating" ? 700 : 400, color: phase === "generating" ? "var(--accent2)" : undefined }}>1. Generazione</span>
+              <span style={{ fontWeight: phase === "cleaning" ? 700 : 400, color: phase === "cleaning" ? "var(--accent2)" : undefined }}>2. Pulizia etichette</span>
+              <span style={{ fontWeight: phase === "removing-bg" ? 700 : 400, color: phase === "removing-bg" ? "var(--accent2)" : undefined }}>3. Rimozione sfondo</span>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--muted)" }}>{progress}%</p>
           </div>
           <div style={{ height: 8, background: "var(--subtle)", borderRadius: 4, overflow: "hidden", marginBottom: 24 }}>
             <div style={{ height: "100%", width: `${progress}%`, background: "var(--accent2)", borderRadius: 4, transition: "width 0.3s" }} />
@@ -351,36 +400,6 @@ Genera SOLO l'immagine, senza testo.`,
                 onClick={downloadZip}>
                 {zipProgress !== null ? `Creazione ZIP... ${zipProgress}%` : `Scarica con sfondo (${generatedCount})`}
               </button>
-            </div>
-          </div>
-
-          {/* Background removal section */}
-          <div className="card" style={{ padding: 20, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Rimuovi Sfondo</h4>
-              <p style={{ fontSize: 12, color: "var(--muted)" }}>
-                {noBgCount > 0
-                  ? `${noBgCount} immagini scontornate pronte`
-                  : "Ottieni PNG trasparenti senza sfondo"}
-              </p>
-              {bgError && <p style={{ fontSize: 11, color: "var(--err)", marginTop: 4 }}>{bgError}</p>}
-            </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              {removingBg && (
-                <div style={{ textAlign: "center", minWidth: 140 }}>
-                  <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden", marginBottom: 4 }}>
-                    <div style={{ height: "100%", width: `${bgProgress}%`, background: "var(--accent2)", borderRadius: 2, transition: "width 0.3s" }} />
-                  </div>
-                  <p style={{ fontSize: 10, color: "var(--muted)" }}>Elaborazione... {bgProgress}%</p>
-                </div>
-              )}
-              {noBgCount === 0 && (
-                <button className="btn btn-s" disabled={!generatedCount || removingBg}
-                  style={{ padding: "10px 24px", fontSize: 13, borderRadius: 10, border: "2px solid var(--accent2)", color: "var(--accent2)", fontWeight: 600 }}
-                  onClick={removeBackgrounds}>
-                  {removingBg ? "Elaborazione..." : "Rimuovi Sfondo"}
-                </button>
-              )}
               {noBgCount > 0 && (
                 <>
                   {bgZipProgress !== null && (

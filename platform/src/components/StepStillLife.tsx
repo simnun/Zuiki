@@ -140,116 +140,32 @@ Genera SOLO l'immagine, senza testo.`,
     setTimeout(() => setZipProgress(null), 1500);
   };
 
-  // Canvas-based white background removal using flood-fill from edges
-  // Works best with pure white (#FFFFFF) backgrounds without shadows
-  const removeWhiteBg = (dataUrl: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const c = document.createElement("canvas");
-        c.width = img.width;
-        c.height = img.height;
-        const ctx = c.getContext("2d")!;
-        ctx.drawImage(img, 0, 0);
-        const id = ctx.getImageData(0, 0, c.width, c.height);
-        const d = id.data;
-        const w = c.width, h = c.height;
-        const total = w * h;
-
-        // Strict threshold: only pure white / near-white pixels
-        const T = 248;
-
-        // "Whiteness" score: how close to pure white (0 = not white, 1 = pure white)
-        const whiteness = (idx: number) => {
-          const p = idx * 4;
-          const r = d[p], g = d[p + 1], b = d[p + 2];
-          const min = Math.min(r, g, b);
-          if (min < 230) return 0;
-          return (min - 230) / 25; // 0 at 230, 1 at 255
-        };
-
-        const isWhite = (idx: number) => {
-          const p = idx * 4;
-          return d[p] >= T && d[p + 1] >= T && d[p + 2] >= T;
-        };
-
-        // BFS flood-fill from edges
-        const vis = new Uint8Array(total);
-        const queue: number[] = [];
-
-        for (let x = 0; x < w; x++) {
-          if (isWhite(x)) { vis[x] = 1; queue.push(x); }
-          const bot = (h - 1) * w + x;
-          if (isWhite(bot)) { vis[bot] = 1; queue.push(bot); }
-        }
-        for (let y = 1; y < h - 1; y++) {
-          const left = y * w;
-          if (isWhite(left)) { vis[left] = 1; queue.push(left); }
-          const right = y * w + w - 1;
-          if (isWhite(right)) { vis[right] = 1; queue.push(right); }
-        }
-
-        let head = 0;
-        while (head < queue.length) {
-          const idx = queue[head++];
-          const x = idx % w, y = (idx - x) / w;
-          const neighbors = [
-            y > 0 ? idx - w : -1,
-            y < h - 1 ? idx + w : -1,
-            x > 0 ? idx - 1 : -1,
-            x < w - 1 ? idx + 1 : -1,
-          ];
-          for (const n of neighbors) {
-            if (n >= 0 && vis[n] === 0 && isWhite(n)) {
-              vis[n] = 1;
-              queue.push(n);
-            }
-          }
-        }
-
-        // Make background transparent
-        for (let i = 0; i < total; i++) {
-          if (vis[i] === 1) {
-            d[i * 4 + 3] = 0;
-          }
-        }
-
-        // Multi-pass soft edge: smooth alpha transition at boundaries
-        const alpha = new Uint8Array(total);
-        for (let i = 0; i < total; i++) alpha[i] = d[i * 4 + 3];
-
-        // Pass 1: semi-transparent edge pixels based on whiteness
-        for (let y = 1; y < h - 1; y++) {
-          for (let x = 1; x < w - 1; x++) {
-            const i = y * w + x;
-            if (alpha[i] > 0) {
-              // Count transparent neighbors (including diagonals)
-              let tn = 0;
-              if (alpha[i - 1] === 0) tn++;
-              if (alpha[i + 1] === 0) tn++;
-              if (alpha[i - w] === 0) tn++;
-              if (alpha[i + w] === 0) tn++;
-              if (alpha[i - w - 1] === 0) tn++;
-              if (alpha[i - w + 1] === 0) tn++;
-              if (alpha[i + w - 1] === 0) tn++;
-              if (alpha[i + w + 1] === 0) tn++;
-              if (tn > 0) {
-                const wh = whiteness(i);
-                // More white + more transparent neighbors = more transparent
-                const factor = Math.max(0, 1 - (tn / 8) * 0.5 - wh * 0.4);
-                d[i * 4 + 3] = Math.round(255 * factor);
-              }
-            }
-          }
-        }
-
-        ctx.putImageData(id, 0, 0);
-        resolve(c.toDataURL("image/png"));
-      };
-      img.onerror = () => reject(new Error("Image load failed"));
-      img.src = dataUrl;
-    });
+  // AI-powered background removal using @imgly/background-removal loaded from CDN
+  // Uses U2Net model (same as rembg) - runs entirely in browser, free, no API key
+  const loadRemoveBg = async () => {
+    const cdnBase = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/";
+    // Use dynamic import with webpackIgnore to load from CDN without bundling
+    const mod = await (new Function("url", "return import(url)"))(cdnBase + "index.js");
+    return (blob: Blob): Promise<Blob> =>
+      mod.removeBackground(blob, { publicPath: cdnBase, fetchArgs: { mode: "cors" } });
   };
+
+  const dataUrlToBlob = (dataUrl: string): Blob => {
+    const b64 = dataUrl.split(",")[1];
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let j = 0; j < binary.length; j++) bytes[j] = binary.charCodeAt(j);
+    const mimeMatch = dataUrl.match(/data:([^;]+)/);
+    return new Blob([bytes], { type: mimeMatch ? mimeMatch[1] : "image/png" });
+  };
+
+  const blobToDataUrl = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
 
   const removeBackgrounds = async () => {
     const generated = slItems.filter(it => it.generated);
@@ -258,16 +174,27 @@ Genera SOLO l'immagine, senza testo.`,
     setRemovingBg(true);
     setBgProgress(0);
 
+    let removeBg: (blob: Blob) => Promise<Blob>;
+    try {
+      removeBg = await loadRemoveBg();
+    } catch (err) {
+      console.error("Failed to load AI background removal:", err);
+      setRemovingBg(false);
+      return;
+    }
+
     const updated = [...slItems];
     let processed = 0;
     for (let i = 0; i < updated.length; i++) {
       if (!updated[i].generated) continue;
 
       try {
-        const noBgUrl = await removeWhiteBg(updated[i].generated!);
+        const blob = dataUrlToBlob(updated[i].generated!);
+        const resultBlob = await removeBg(blob);
+        const noBgUrl = await blobToDataUrl(resultBlob);
         updated[i] = { ...updated[i], noBg: noBgUrl };
       } catch (err: any) {
-        console.error("BG removal error:", err);
+        console.error("BG removal error for", updated[i].sku, err);
       }
       processed++;
       setBgProgress(Math.round((processed / generated.length) * 100));
@@ -464,7 +391,7 @@ Genera SOLO l'immagine, senza testo.`,
               <p style={{ fontSize: 12, color: "var(--muted)" }}>
                 {noBgCount > 0
                   ? `${noBgCount} immagini scontornate pronte per il download`
-                  : "Scontorna gli still life per ottenere PNG trasparenti (gratuito, elaborazione locale)"}
+                  : "Scontorno AI (modello U2Net) nel browser - gratuito, ~15 sec/immagine"}
               </p>
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>

@@ -27,52 +27,65 @@ export async function GET() {
   }
 }
 
-// POST: Test image generation
+// POST: Test image generation with multiple models
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GOOGLE_AI_API_KEY
   if (!apiKey) {
     return NextResponse.json({ ok: false, error: 'GOOGLE_AI_API_KEY not set' })
   }
 
-  const model = 'gemini-2.5-flash-image'
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+  const models = [
+    'gemini-2.0-flash',
+    'gemini-2.5-flash',
+    'gemini-3.1-flash-image-preview',
+    'gemini-2.5-flash-image',
+    'gemini-3-pro-image-preview',
+  ]
 
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: 'Generate a simple image of a white t-shirt laid flat on a pure white background, seen from above, flat lay photography style.' }] }],
-        generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE'],
-          temperature: 0.4,
-        },
-      }),
-    })
+  const results: any[] = []
 
-    if (!res.ok) {
-      const err = await res.text()
-      return NextResponse.json({ ok: false, model, status: res.status, error: err.slice(0, 500) })
-    }
+  for (const model of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'Generate a simple image of a white t-shirt laid flat on a pure white background.' }] }],
+          generationConfig: {
+            responseModalities: ['TEXT', 'IMAGE'],
+            temperature: 0.4,
+          },
+        }),
+      })
 
-    const data = await res.json()
-    const candidates = data.candidates || []
-    for (const candidate of candidates) {
-      const parts = candidate.content?.parts || []
-      for (const part of parts) {
-        if (part.inlineData?.data) {
-          return NextResponse.json({
-            ok: true,
-            model,
-            mimeType: part.inlineData.mimeType,
-            imageBase64Length: part.inlineData.data.length,
-          })
-        }
+      if (!res.ok) {
+        const err = await res.text()
+        results.push({ model, ok: false, status: res.status, error: err.slice(0, 200) })
+        continue
       }
-    }
 
-    return NextResponse.json({ ok: false, model, error: 'No image in response', response: JSON.stringify(data).slice(0, 500) })
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, model, error: e.message })
+      const data = await res.json()
+      const candidates = data.candidates || []
+      let hasImage = false
+      for (const candidate of candidates) {
+        for (const part of (candidate.content?.parts || [])) {
+          if (part.inlineData?.data) {
+            results.push({ model, ok: true, hasImage: true, mimeType: part.inlineData.mimeType, imageLen: part.inlineData.data.length })
+            hasImage = true
+            break
+          }
+        }
+        if (hasImage) break
+      }
+      if (!hasImage) {
+        const textParts = candidates[0]?.content?.parts?.filter((p: any) => p.text) || []
+        results.push({ model, ok: true, hasImage: false, text: textParts.map((p: any) => p.text).join(' ').slice(0, 100) })
+      }
+    } catch (e: any) {
+      results.push({ model, ok: false, error: e.message })
+    }
   }
+
+  return NextResponse.json({ results })
 }

@@ -1,0 +1,128 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { getCurrentUser } from '@/lib/auth-helpers'
+
+// POST — Save all catalog items + correlations and mark session as completed
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['owner', 'user', 'super_admin'].includes(user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { id } = await params
+
+  const session = await prisma.shootingSession.findUnique({ where: { id }, select: { companyId: true } })
+  if (!session) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (session.companyId !== user.companyId && user.role !== 'super_admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const body = await req.json()
+  const { items, correlations } = body as {
+    items: Array<{
+      sku: string; productName: string; productType: string; suffix: string;
+      color: string; composition: string; shortDesc: string; longDesc: string;
+      seoTags: string; metaTitle: string; metaDesc: string; metaKeywords: string;
+      altImage: string; aiResponse: any; license: string; recognizedModel: string;
+      status: string; photoDataUrls?: string[];
+    }>;
+    correlations: Array<{ outfit_name: string; skus: string[]; motivo: string }>;
+  }
+
+  try {
+    // Delete existing items & correlations (idempotent re-save)
+    await prisma.catalogItem.deleteMany({ where: { sessionId: id } })
+    await prisma.correlation.deleteMany({ where: { sessionId: id } })
+
+    // Create all catalog items
+    const createdItems: Array<{ id: string; sku: string }> = []
+    let doneCount = 0
+    let failCount = 0
+
+    for (const it of items) {
+      const status = it.status === 'done' ? 'done' : it.status === 'error' ? 'error' : 'pending'
+      if (status === 'done') doneCount++
+      if (status === 'error') failCount++
+
+      const item = await prisma.catalogItem.create({
+        data: {
+          sessionId: id,
+          sku: it.sku,
+          productName: it.productName || null,
+          productType: it.productType || null,
+          suffix: it.suffix || null,
+          color: it.color || null,
+          composition: it.composition || null,
+          shortDesc: it.shortDesc || null,
+          longDesc: it.longDesc || null,
+          seoTags: it.seoTags || null,
+          metaTitle: it.metaTitle || null,
+          metaDesc: it.metaDesc || null,
+          metaKeywords: it.metaKeywords || null,
+          altImage: it.altImage || null,
+          aiResponse: it.aiResponse || undefined,
+          license: it.license || null,
+          recognizedModel: it.recognizedModel || null,
+          status: status as any,
+        },
+      })
+
+      // Store photo data URLs as ItemPhoto records
+      if (it.photoDataUrls?.length) {
+        for (let pi = 0; pi < it.photoDataUrls.length; pi++) {
+          await prisma.itemPhoto.create({
+            data: {
+              itemId: item.id,
+              storageKey: it.photoDataUrls[pi],
+              sortOrder: pi,
+            },
+          })
+        }
+      }
+
+      createdItems.push({ id: item.id, sku: it.sku })
+    }
+
+    // Create correlations
+    const skuToItemId: Record<string, string> = {}
+    createdItems.forEach(ci => { skuToItemId[ci.sku] = ci.id })
+
+    for (const corr of (correlations || [])) {
+      const validSkus = (corr.skus || []).filter(s => skuToItemId[s])
+      if (validSkus.length < 2) continue
+
+      await prisma.correlation.create({
+        data: {
+          sessionId: id,
+          outfitName: corr.outfit_name || null,
+          reason: corr.motivo || null,
+          items: {
+            create: validSkus.map(sku => ({ itemId: skuToItemId[sku] })),
+          },
+        },
+      })
+    }
+
+    // Update session status
+    const photosExpiresAt = new Date()
+    photosExpiresAt.setDate(photosExpiresAt.getDate() + 7)
+
+    await prisma.shootingSession.update({
+      where: { id },
+      data: {
+        status: 'completed',
+        totalItems: items.length,
+        processedItems: doneCount,
+        failedItems: failCount,
+        completedAt: new Date(),
+        photosExpiresAt,
+      },
+    })
+
+    return NextResponse.json({ ok: true, itemsCreated: createdItems.length, correlationsCreated: correlations?.length || 0 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}

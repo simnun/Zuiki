@@ -40,6 +40,8 @@ export interface AppState {
   tmpAl: string;
   tmpTs: string;
   tmpTi: string;
+  sessionId: string;
+  sessionSaved: boolean;
 }
 
 const defaultCfg: SessionConfig = {
@@ -79,6 +81,8 @@ function getInitialState(): AppState {
     tmpAl: "",
     tmpTs: "",
     tmpTi: "",
+    sessionId: "",
+    sessionSaved: false,
   };
 }
 

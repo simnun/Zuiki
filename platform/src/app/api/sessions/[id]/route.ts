@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         include: { photos: { orderBy: { sortOrder: 'asc' } } },
         orderBy: { createdAt: 'asc' },
       },
-      correlations: { include: { items: { include: { item: true } } } },
+      correlations: { include: { items: { include: { item: { include: { photos: { orderBy: { sortOrder: 'asc' }, take: 1 } } } } } } },
       excelFiles: true,
       createdBy: { select: { firstName: true, lastName: true } },
     },

@@ -103,4 +103,4 @@ export interface Correlation {
   motivo: string;
 }
 
-export type StepIndex = -2 | -1 | 0 | 1 | 2;
+export type StepIndex = -2 | -1 | 0 | 1 | 2 | 3;

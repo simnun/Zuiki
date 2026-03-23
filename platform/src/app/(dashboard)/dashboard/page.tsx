@@ -13,8 +13,10 @@ type Session = {
   processedItems: number
   failedItems: number
   createdAt: string
+  completedAt: string | null
+  photosExpiresAt: string | null
   createdBy: { firstName: string; lastName: string }
-  _count: { catalogItems: number }
+  _count: { catalogItems: number; correlations: number }
 }
 
 export default function DashboardPage() {
@@ -107,43 +109,63 @@ export default function DashboardPage() {
                 <th>Tipo</th>
                 <th>Stato</th>
                 <th>Prodotti</th>
+                <th>Correlati</th>
+                <th>Foto</th>
                 <th>Creata</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {sessions.map(s => (
-                <tr key={s.id}>
-                  <td><span style={{ fontWeight: 700 }}>{s.brand}</span></td>
-                  <td>{s.season} {s.year}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{s.shootType}</td>
-                  <td>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6,
-                      background: statusColor[s.status] + '18', color: statusColor[s.status],
-                    }}>
-                      {statusLabel[s.status] || s.status}
-                    </span>
-                  </td>
-                  <td>{s._count.catalogItems}</td>
-                  <td style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    {new Date(s.createdAt).toLocaleDateString('it-IT')}
-                  </td>
-                  <td style={{ display: 'flex', gap: 6 }}>
-                    <Link href={`/sessions/${s.id}`} className="btn btn-s" style={{ textDecoration: 'none', padding: '6px 14px', fontSize: 12 }}>
-                      Apri
-                    </Link>
-                    <button className="btn btn-d" style={{ padding: '6px 10px', fontSize: 12 }}
-                      onClick={async () => {
-                        if (!confirm('Eliminare questa sessione?')) return
-                        await fetch(`/api/sessions/${s.id}`, { method: 'DELETE' })
-                        setSessions(sessions.filter(x => x.id !== s.id))
+              {sessions.map(s => {
+                const photoDaysLeft = s.photosExpiresAt
+                  ? Math.max(0, Math.ceil((new Date(s.photosExpiresAt).getTime() - Date.now()) / 86400000))
+                  : null;
+                return (
+                  <tr key={s.id}>
+                    <td><span style={{ fontWeight: 700 }}>{s.brand}</span></td>
+                    <td>{s.season} {s.year}</td>
+                    <td style={{ textTransform: 'capitalize' }}>{s.shootType}</td>
+                    <td>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6,
+                        background: statusColor[s.status] + '18', color: statusColor[s.status],
                       }}>
-                      Elimina
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                        {statusLabel[s.status] || s.status}
+                      </span>
+                    </td>
+                    <td>{s._count.catalogItems}</td>
+                    <td>{s._count.correlations || 0}</td>
+                    <td>
+                      {photoDaysLeft !== null ? (
+                        <span style={{
+                          fontSize: 11, fontWeight: 600,
+                          color: photoDaysLeft <= 2 ? 'var(--err)' : photoDaysLeft <= 4 ? 'var(--warn)' : 'var(--ok)',
+                        }}>
+                          {photoDaysLeft > 0 ? `${photoDaysLeft}g` : 'Scadute'}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      {new Date(s.createdAt).toLocaleDateString('it-IT')}
+                    </td>
+                    <td style={{ display: 'flex', gap: 6 }}>
+                      <Link href={`/sessions/${s.id}`} className="btn btn-s" style={{ textDecoration: 'none', padding: '6px 14px', fontSize: 12 }}>
+                        Apri
+                      </Link>
+                      <button className="btn btn-d" style={{ padding: '6px 10px', fontSize: 12 }}
+                        onClick={async () => {
+                          if (!confirm('Eliminare questa sessione?')) return
+                          await fetch(`/api/sessions/${s.id}`, { method: 'DELETE' })
+                          setSessions(sessions.filter(x => x.id !== s.id))
+                        }}>
+                        Elimina
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

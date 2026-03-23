@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { useStore } from "@/lib/store";
@@ -15,10 +15,60 @@ interface StepExportProps {
 
 export default function StepExport({ onFindCorrelations }: StepExportProps) {
   const { state, dispatch, cAI, getExcelInfo } = useStore();
-  const { items, corr, cL, cD, cfg, excelWb, excelRows, excelMap, excelFileName } = state;
+  const { items, corr, cL, cD, cfg, excelWb, excelRows, excelMap, excelFileName, sessionId, sessionSaved } = state;
   const done = items.filter(i => i.st === "done");
   const [zipProgress, setZipProgress] = useState<number | null>(null);
   const [zipEta, setZipEta] = useState("");
+  const [saving, setSaving] = useState(false);
+  const saveTriggered = useRef(false);
+
+  // Save session data to DB on mount
+  const saveSessionToDB = useCallback(async () => {
+    if (!sessionId || saving) return;
+    setSaving(true);
+    try {
+      const payload = {
+        items: items.map(it => ({
+          sku: it.sku,
+          productName: it.nm || "",
+          productType: it.tp || "",
+          suffix: it.sf || "",
+          color: it.cl || "",
+          composition: it.cp || "",
+          shortDesc: it.ds || "",
+          longDesc: it.dl || "",
+          seoTags: it.tg || "",
+          metaTitle: it.metaTitle || "",
+          metaDesc: it.metaDesc || "",
+          metaKeywords: it.metaKeys || "",
+          altImage: it.altImg || "",
+          aiResponse: it.ai || null,
+          license: it.ai?.licenza || "",
+          recognizedModel: it.ai?.modella_riconosciuta || "",
+          status: it.st === "done" ? "done" : it.st === "err" ? "error" : "pending",
+          photoDataUrls: it.ap?.slice(0, 1) || [],
+        })),
+        correlations: corr,
+      };
+      const res = await fetch(`/api/sessions/${sessionId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        dispatch({ type: "SET_STATE", payload: { sessionSaved: true } });
+      }
+    } catch { /* non-blocking */ }
+    setSaving(false);
+  }, [sessionId, items, corr, saving, dispatch]);
+
+  // Auto-save on first mount of export step
+  useEffect(() => {
+    if (!saveTriggered.current && sessionId && done.length > 0) {
+      saveTriggered.current = true;
+      saveSessionToDB();
+    }
+  }, [sessionId, done.length, saveSessionToDB]);
 
   // Build corrMap excluding removed correlations
   const corrMap: Record<string, string> = {};
@@ -283,7 +333,14 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           <h2 style={{ fontSize: 24, fontWeight: 700 }}>Correlazioni &amp; Export</h2>
           <p style={{ color: "var(--muted)", fontSize: 13 }}>{done.length} prodotti pronti</p>
         </div>
-        <button className="btn btn-s" onClick={() => dispatch({ type: "SET_STEP", payload: 1 })}>← Catalogo</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {sessionSaved && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: "#e8f5e9", color: "var(--ok)" }}>Salvata</span>}
+          {saving && <span style={{ fontSize: 11, color: "var(--muted)" }}>Salvataggio...</span>}
+          <button className="btn btn-s" style={{ padding: "6px 14px", fontSize: 12 }} disabled={saving} onClick={saveSessionToDB}>
+            Salva sessione
+          </button>
+          <button className="btn btn-s" onClick={() => dispatch({ type: "SET_STEP", payload: 1 })}>← Catalogo</button>
+        </div>
       </div>
 
       {/* Correlations */}
@@ -348,6 +405,18 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Still Life CTA */}
+      <div className="card" style={{ padding: 24, marginTop: 24, textAlign: "center", border: "2px dashed var(--accent2)" }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Genera Still Life Piatto</h3>
+        <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
+          Crea immagini flat lay senza sfondo (PNG) dei tuoi prodotti, ideali per e-commerce e cataloghi.
+        </p>
+        <button className="btn btn-p" style={{ padding: "12px 32px", fontSize: 14, borderRadius: 10, background: "var(--accent2)" }}
+          onClick={() => dispatch({ type: "SET_STEP", payload: 3 })} disabled={!done.length}>
+          Genera Still Life →
+        </button>
       </div>
     </div>
   );

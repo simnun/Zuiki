@@ -463,8 +463,38 @@ export default function StepSetup() {
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 28, gap: 10 }}>
         <button className="btn btn-s" onClick={() => dispatch({ type: "SET_STEP", payload: -1 })}>⚙ API Key</button>
         <button className="btn btn-p" disabled={!rdy}
-          onClick={() => {
+          onClick={async () => {
             dispatch({ type: "SET_CFG", payload: { noModel: cfg.shootType === "still" || cfg.shootType === "mixed" } });
+            // Create session in DB
+            try {
+              const ds = cfg.ds;
+              const shootingDate = ds.length === 8
+                ? `${ds.slice(4, 8)}-${ds.slice(2, 4)}-${ds.slice(0, 2)}`
+                : new Date().toISOString().slice(0, 10);
+              const modelDbIds = mod.filter(m => cfg.selMods.includes(m.nome) && m.dbId).map(m => m.dbId);
+              const res = await fetch('/api/sessions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  brand: cfg.br,
+                  season: cfg.st,
+                  year: cfg.an,
+                  shootingDate,
+                  shootType: cfg.shootType,
+                  modelIds: modelDbIds.length ? modelDbIds : undefined,
+                  mannequin: cfg.shootType === 'mannequin' && cfg.mannequin?.taglia ? {
+                    size: cfg.mannequin.taglia,
+                    bustCm: cfg.mannequin.petto ? parseInt(cfg.mannequin.petto) : undefined,
+                    waistCm: cfg.mannequin.vita ? parseInt(cfg.mannequin.vita) : undefined,
+                    hipsCm: cfg.mannequin.fianchi ? parseInt(cfg.mannequin.fianchi) : undefined,
+                  } : undefined,
+                }),
+              });
+              if (res.ok) {
+                const sess = await res.json();
+                dispatch({ type: "SET_STATE", payload: { sessionId: sess.id } });
+              }
+            } catch { /* session creation failure is non-blocking */ }
             dispatch({ type: "SET_STEP", payload: 1 });
           }}>
           Inizia Catalogazione →

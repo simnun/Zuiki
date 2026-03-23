@@ -461,7 +461,7 @@ select.inp { appearance: auto; -webkit-appearance: auto; }
   transition: transform .2s; transform-origin: center;
 }
 .land-nav-links a:hover::after { transform: scaleX(1); }
-.land-nav-cta { padding: 8px 20px !important; font-size: 13px !important; }
+.land-nav-cta { padding: 8px 20px !important; font-size: 13px !important; color: #fff !important; }
 .land-nav-cta::after { display: none !important; }
 .land-burger {
   display: none; background: none; border: none; cursor: pointer;

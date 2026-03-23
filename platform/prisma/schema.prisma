@@ -161,12 +161,13 @@ model ShootingSession {
   year           String
   shootingDate   DateTime      @db.Date
   shootType      ShootType
-  status         SessionStatus @default(draft)
-  totalItems     Int           @default(0)
-  processedItems Int           @default(0)
-  failedItems    Int           @default(0)
-  createdAt      DateTime      @default(now())
-  completedAt    DateTime?
+  status           SessionStatus @default(draft)
+  totalItems       Int           @default(0)
+  processedItems   Int           @default(0)
+  failedItems      Int           @default(0)
+  createdAt        DateTime      @default(now())
+  completedAt      DateTime?
+  photosExpiresAt  DateTime?
 
   company        Company          @relation(fields: [companyId], references: [id])
   createdBy      User             @relation(fields: [createdById], references: [id])

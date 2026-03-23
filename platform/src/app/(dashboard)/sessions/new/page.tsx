@@ -11,6 +11,7 @@ import Wizard from "@/components/Wizard";
 import StepSetup from "@/components/StepSetup";
 import StepCatalog from "@/components/StepCatalog";
 import StepExport from "@/components/StepExport";
+import StepStillLife from "@/components/StepStillLife";
 
 function ApiKeyPrompt({ dispatch }: { dispatch: any }) {
   const [key, setKey] = useState("");
@@ -185,6 +186,7 @@ function SessionContent() {
         {step === 0 && <StepSetup />}
         {step === 1 && <StepCatalog />}
         {step === 2 && <StepExport onFindCorrelations={handleFindCorrelations} />}
+        {step === 3 && <StepStillLife />}
       </main>
     </>
   );

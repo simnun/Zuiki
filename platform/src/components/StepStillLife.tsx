@@ -30,8 +30,8 @@ export default function StepStillLife() {
   const [removingBg, setRemovingBg] = useState(false);
   const [bgProgress, setBgProgress] = useState(0);
   const [bgZipProgress, setBgZipProgress] = useState<number | null>(null);
+  const [bgError, setBgError] = useState<string | null>(null);
 
-  // Build list of items with their first photo (codicearticolo_colore_1)
   const buildItems = (): StillLifeItem[] => {
     return done.map(it => ({
       sku: it.sku,
@@ -55,17 +55,16 @@ export default function StepStillLife() {
       body: JSON.stringify({
         imageBase64: b64,
         mimeType: mediaType,
-        prompt: `Genera un'immagine still life piatto (flat lay) professionale di questo capo di abbigliamento.
+        prompt: `Genera un'immagine still life piatto (flat lay) di questo capo di abbigliamento.
 
 ISTRUZIONI PRECISE:
-- Il capo deve essere disteso in piano come in uno scatto fotografico still life professionale, visto dall'alto (flat lay)
-- Lo sfondo deve essere BIANCO ASSOLUTO PURO (#FFFFFF). Ogni singolo pixel dello sfondo deve essere bianco puro 255,255,255. Nessuna sfumatura, nessun grigio, nessuna ombra. Bianco piatto totale.
-- ZERO OMBRE: nessuna ombra del capo sullo sfondo, nessuna ombra portata, nessuna ombra diffusa. Come se il capo fosse illuminato da una lightbox fotografica uniforme.
-- NESSUNA ETICHETTA: il capo NON deve mostrare etichette, cartellini, tag, label di marca o di composizione, né nella zona del collo né altrove. Il capo deve apparire completamente pulito, senza alcuna etichetta visibile.
-- Il capo deve essere ben centrato nell'immagine con margine attorno
+- Il capo deve essere disteso in piano come se fosse appoggiato su una superficie bianca, visto dall'alto
+- Lo sfondo deve essere BIANCO PURO
+- Il capo deve essere ben centrato nell'immagine
 - Nessuna modella, nessun manichino, solo il capo disteso piatto
 - Mantieni i colori e i dettagli originali del capo il più fedelmente possibile
-- L'immagine deve essere nitida e professionale, stile e-commerce premium
+- L'immagine deve essere nitida e professionale, come una foto per e-commerce
+- Non mostrare etichette, cartellini o tag di marca sul capo
 - Formato: quadrato, alta risoluzione
 
 Genera SOLO l'immagine, senza testo.`,
@@ -122,7 +121,6 @@ Genera SOLO l'immagine, senza testo.`,
       const colorName = it.color.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ_]/g, "");
       const fileName = `${it.sku}_${colorName}_SL_1.png`;
 
-      // Convert data URL to blob
       const b64 = it.generated!.split(",")[1];
       const binary = atob(b64);
       const bytes = new Uint8Array(binary.length);
@@ -138,16 +136,6 @@ Genera SOLO l'immagine, senza testo.`,
     a.download = `stilllife_${cfg.br}_${SCMAP[cfg.st] || ""}${cfg.an}_${new Date().toISOString().slice(0, 10)}.zip`;
     a.click();
     setTimeout(() => setZipProgress(null), 1500);
-  };
-
-  // AI-powered background removal using @imgly/background-removal loaded from CDN
-  // Uses U2Net model (same as rembg) - runs entirely in browser, free, no API key
-  const loadRemoveBg = async () => {
-    const cdnBase = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/";
-    // Use dynamic import with webpackIgnore to load from CDN without bundling
-    const mod = await (new Function("url", "return import(url)"))(cdnBase + "index.js");
-    return (blob: Blob): Promise<Blob> =>
-      mod.removeBackground(blob, { publicPath: cdnBase, fetchArgs: { mode: "cors" } });
   };
 
   const dataUrlToBlob = (dataUrl: string): Blob => {
@@ -173,12 +161,15 @@ Genera SOLO l'immagine, senza testo.`,
 
     setRemovingBg(true);
     setBgProgress(0);
+    setBgError(null);
 
-    let removeBg: (blob: Blob) => Promise<Blob>;
+    let removeBackground: (blob: Blob, config?: any) => Promise<Blob>;
     try {
-      removeBg = await loadRemoveBg();
+      const mod = await import("@imgly/background-removal");
+      removeBackground = mod.removeBackground;
     } catch (err) {
-      console.error("Failed to load AI background removal:", err);
+      console.error("Failed to load background removal:", err);
+      setBgError("Errore caricamento. Riprova.");
       setRemovingBg(false);
       return;
     }
@@ -190,7 +181,7 @@ Genera SOLO l'immagine, senza testo.`,
 
       try {
         const blob = dataUrlToBlob(updated[i].generated!);
-        const resultBlob = await removeBg(blob);
+        const resultBlob = await removeBackground(blob);
         const noBgUrl = await blobToDataUrl(resultBlob);
         updated[i] = { ...updated[i], noBg: noBgUrl };
       } catch (err: any) {
@@ -216,7 +207,6 @@ Genera SOLO l'immagine, senza testo.`,
       const colorName = it.color.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ_]/g, "");
       const fileName = `${it.sku}_${colorName}_SL_NOBG_1.png`;
 
-      // noBg is a data URL
       const b64 = it.noBg!.split(",")[1];
       const binary = atob(b64);
       const bytes = new Uint8Array(binary.length);
@@ -243,7 +233,7 @@ Genera SOLO l'immagine, senza testo.`,
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
         <div>
           <h2 style={{ fontSize: 24, fontWeight: 700 }}>Still Life Piatto</h2>
-          <p style={{ color: "var(--muted)", fontSize: 13 }}>Genera immagini flat lay per l{"'"}e-commerce (sfondo bianco + scontornato)</p>
+          <p style={{ color: "var(--muted)", fontSize: 13 }}>Genera immagini flat lay su sfondo bianco per l{"'"}e-commerce</p>
         </div>
         <button className="btn btn-s" onClick={() => dispatch({ type: "SET_STEP", payload: 2 })}>← Export</button>
       </div>
@@ -251,17 +241,15 @@ Genera SOLO l'immagine, senza testo.`,
       {/* Intro phase */}
       {phase === "intro" && (
         <div>
-          {/* Example section */}
           <div className="card" style={{ padding: 32, marginBottom: 24 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Come funziona?</h3>
             <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20, lineHeight: 1.6 }}>
-              L{"'"}AI (Google Gemini) analizza la foto principale di ogni prodotto e genera
-              un{"'"}immagine flat lay professionale. Dopo la generazione puoi scaricare sia la versione
-              con sfondo bianco che quella scontornata (PNG trasparente). ~10-20 sec per prodotto.
+              L{"'"}AI analizza la foto principale di ogni prodotto e genera un{"'"}immagine flat lay:
+              il capo disteso in piano su sfondo bianco. Dopo la generazione puoi anche
+              rimuovere lo sfondo per ottenere PNG trasparenti.
             </p>
 
             <div style={{ display: "flex", gap: 24, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
-              {/* Source example */}
               <div style={{ textAlign: "center" }}>
                 <div style={{ width: 200, height: 200, borderRadius: 12, border: "2px solid var(--border)", overflow: "hidden", background: "var(--subtle)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {done[0]?.ap?.[0] ? (
@@ -276,7 +264,6 @@ Genera SOLO l'immagine, senza testo.`,
 
               <div style={{ fontSize: 32, color: "var(--accent2)" }}>→</div>
 
-              {/* Still life example */}
               <div style={{ textAlign: "center" }}>
                 <div style={{
                   width: 200, height: 200, borderRadius: 12, border: "2px dashed var(--accent2)",
@@ -285,18 +272,17 @@ Genera SOLO l'immagine, senza testo.`,
                 }}>
                   <span style={{ fontSize: 40 }}>👕</span>
                 </div>
-                <p style={{ fontSize: 12, color: "var(--accent2)", fontWeight: 600, marginTop: 8 }}>Still Life Piatto (PNG trasparente)</p>
+                <p style={{ fontSize: 12, color: "var(--accent2)", fontWeight: 600, marginTop: 8 }}>Still Life Piatto</p>
               </div>
             </div>
           </div>
 
-          {/* Action */}
           <div className="card" style={{ padding: 24, textAlign: "center" }}>
             <p style={{ fontSize: 14, marginBottom: 16 }}>
               <strong>{done.length}</strong> prodotti pronti per la generazione still life
             </p>
             <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>
-              Ogni immagine viene generata da Google Gemini (~10-20 sec per prodotto).
+              ~10-20 secondi per prodotto.
             </p>
             <button className="btn btn-p" style={{ padding: "14px 40px", fontSize: 15, borderRadius: 12 }}
               onClick={startGeneration} disabled={!done.length}>
@@ -313,7 +299,7 @@ Genera SOLO l'immagine, senza testo.`,
             <div className="spinner" style={{ marginBottom: 12 }} />
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Generazione in corso...</h3>
             <p style={{ fontSize: 13, color: "var(--muted)" }}>
-              {generatedCount + errorCount}/{slItems.length} completati • {progress}%
+              {generatedCount + errorCount}/{slItems.length} completati
             </p>
           </div>
           <div style={{ height: 8, background: "var(--subtle)", borderRadius: 4, overflow: "hidden", marginBottom: 24 }}>
@@ -390,9 +376,10 @@ Genera SOLO l'immagine, senza testo.`,
               <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Rimuovi Sfondo</h4>
               <p style={{ fontSize: 12, color: "var(--muted)" }}>
                 {noBgCount > 0
-                  ? `${noBgCount} immagini scontornate pronte per il download`
-                  : "Scontorno AI (modello U2Net) nel browser - gratuito, ~15 sec/immagine"}
+                  ? `${noBgCount} immagini scontornate pronte`
+                  : "Ottieni PNG trasparenti senza sfondo"}
               </p>
+              {bgError && <p style={{ fontSize: 11, color: "var(--err)", marginTop: 4 }}>{bgError}</p>}
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               {removingBg && (
@@ -400,7 +387,7 @@ Genera SOLO l'immagine, senza testo.`,
                   <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden", marginBottom: 4 }}>
                     <div style={{ height: "100%", width: `${bgProgress}%`, background: "var(--accent2)", borderRadius: 2, transition: "width 0.3s" }} />
                   </div>
-                  <p style={{ fontSize: 10, color: "var(--muted)" }}>Rimozione sfondo... {bgProgress}%</p>
+                  <p style={{ fontSize: 10, color: "var(--muted)" }}>Elaborazione... {bgProgress}%</p>
                 </div>
               )}
               {noBgCount === 0 && (
@@ -422,7 +409,7 @@ Genera SOLO l'immagine, senza testo.`,
                   <button className="btn btn-g" disabled={bgZipProgress !== null}
                     style={{ padding: "12px 32px", fontSize: 14, borderRadius: 10, background: "var(--accent2)" }}
                     onClick={downloadNoBgZip}>
-                    {bgZipProgress !== null ? `Creazione ZIP... ${bgZipProgress}%` : `Scarica scontornate (${noBgCount})`}
+                    {bgZipProgress !== null ? `ZIP... ${bgZipProgress}%` : `Scarica scontornate (${noBgCount})`}
                   </button>
                 </>
               )}
@@ -433,21 +420,18 @@ Genera SOLO l'immagine, senza testo.`,
             {slItems.map(it => (
               <div key={it.sku} className="card" style={{ padding: 12, textAlign: "center" }}>
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 8 }}>
-                  {/* Original */}
                   <div>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={it.sourcePreview} alt="Originale" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)" }} />
                     <p style={{ fontSize: 9, color: "var(--muted)", marginTop: 2 }}>Originale</p>
                   </div>
-                  {/* Generated */}
                   <div>
                     {it.generated ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={it.generated} alt="Still Life"
                         style={{
                           width: 72, height: 72, objectFit: "contain", borderRadius: 6,
-                          border: "2px solid var(--accent2)",
-                          background: "#fff",
+                          border: "2px solid var(--accent2)", background: "#fff",
                         }} />
                     ) : (
                       <div style={{
@@ -457,10 +441,9 @@ Genera SOLO l'immagine, senza testo.`,
                       }}>Errore</div>
                     )}
                     <p style={{ fontSize: 9, color: it.generated ? "var(--accent2)" : "var(--err)", fontWeight: 600, marginTop: 2 }}>
-                      {it.generated ? "Con sfondo" : "Fallito"}
+                      {it.generated ? "Still Life" : "Fallito"}
                     </p>
                   </div>
-                  {/* No background version */}
                   {it.noBg && (
                     <div>
                       {/* eslint-disable-next-line @next/next/no-img-element */}

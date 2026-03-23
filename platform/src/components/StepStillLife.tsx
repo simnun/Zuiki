@@ -59,7 +59,7 @@ export default function StepStillLife() {
 
 ISTRUZIONI PRECISE:
 - Il capo deve essere disteso in piano come se fosse appoggiato su una superficie bianca, visto dall'alto
-- Lo sfondo deve essere BIANCO PURO
+- Lo sfondo deve essere BIANCO PURO (#FFFFFF)
 - Il capo deve essere ben centrato nell'immagine
 - Nessuna modella, nessun manichino, solo il capo disteso piatto
 - Mantieni i colori e i dettagli originali del capo il più fedelmente possibile
@@ -138,22 +138,40 @@ Genera SOLO l'immagine, senza testo.`,
     setTimeout(() => setZipProgress(null), 1500);
   };
 
-  const dataUrlToBlob = (dataUrl: string): Blob => {
+  // Server-side removal via remove.bg API (best quality)
+  const removeBgServer = async (dataUrl: string): Promise<string | null> => {
+    const b64 = dataUrl.split(",")[1];
+    const mimeMatch = dataUrl.match(/data:([^;]+)/);
+    const res = await fetch("/api/ai/remove-bg", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64: b64, mimeType: mimeMatch ? mimeMatch[1] : "image/png" }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.needsKey) return null; // API key not configured, skip
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+    return `data:${data.mimeType || "image/png"};base64,${data.imageBase64}`;
+  };
+
+  // Browser-side removal via @imgly/background-removal (fallback)
+  const removeBgBrowser = async (dataUrl: string): Promise<string> => {
+    const mod = await import("@imgly/background-removal");
     const b64 = dataUrl.split(",")[1];
     const binary = atob(b64);
     const bytes = new Uint8Array(binary.length);
     for (let j = 0; j < binary.length; j++) bytes[j] = binary.charCodeAt(j);
     const mimeMatch = dataUrl.match(/data:([^;]+)/);
-    return new Blob([bytes], { type: mimeMatch ? mimeMatch[1] : "image/png" });
-  };
-
-  const blobToDataUrl = (blob: Blob): Promise<string> =>
-    new Promise((resolve, reject) => {
+    const blob = new Blob([bytes], { type: mimeMatch ? mimeMatch[1] : "image/png" });
+    const result = await mod.removeBackground(blob, { model: "isnet" });
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
       reader.onerror = reject;
-      reader.readAsDataURL(blob);
+      reader.readAsDataURL(result);
     });
+  };
 
   const removeBackgrounds = async () => {
     const generated = slItems.filter(it => it.generated);
@@ -163,27 +181,51 @@ Genera SOLO l'immagine, senza testo.`,
     setBgProgress(0);
     setBgError(null);
 
-    let removeBackground: (blob: Blob, config?: any) => Promise<Blob>;
+    // Try server API first (remove.bg = best quality)
+    let useServer = true;
     try {
-      const mod = await import("@imgly/background-removal");
-      removeBackground = mod.removeBackground;
-    } catch (err) {
-      console.error("Failed to load background removal:", err);
-      setBgError("Errore caricamento. Riprova.");
-      setRemovingBg(false);
-      return;
+      const testResult = await removeBgServer(generated[0].generated!);
+      if (testResult === null) useServer = false; // no API key
+    } catch {
+      useServer = false;
+    }
+
+    // If server not available, prep browser fallback
+    if (!useServer) {
+      try {
+        await import("@imgly/background-removal");
+      } catch (err) {
+        setBgError("Errore caricamento. Riprova.");
+        setRemovingBg(false);
+        return;
+      }
     }
 
     const updated = [...slItems];
     let processed = 0;
+
+    // If server worked for first item, store result
+    if (useServer && updated.findIndex(it => it.generated) >= 0) {
+      const firstIdx = updated.findIndex(it => it.generated);
+      try {
+        const noBgUrl = await removeBgServer(updated[firstIdx].generated!);
+        if (noBgUrl) updated[firstIdx] = { ...updated[firstIdx], noBg: noBgUrl };
+      } catch (err: any) {
+        console.error("BG removal error:", err);
+      }
+      processed++;
+      setBgProgress(Math.round((processed / generated.length) * 100));
+      setSlItems([...updated]);
+    }
+
     for (let i = 0; i < updated.length; i++) {
-      if (!updated[i].generated) continue;
+      if (!updated[i].generated || updated[i].noBg) continue;
 
       try {
-        const blob = dataUrlToBlob(updated[i].generated!);
-        const resultBlob = await removeBackground(blob);
-        const noBgUrl = await blobToDataUrl(resultBlob);
-        updated[i] = { ...updated[i], noBg: noBgUrl };
+        const noBgUrl = useServer
+          ? await removeBgServer(updated[i].generated!)
+          : await removeBgBrowser(updated[i].generated!);
+        if (noBgUrl) updated[i] = { ...updated[i], noBg: noBgUrl };
       } catch (err: any) {
         console.error("BG removal error for", updated[i].sku, err);
       }

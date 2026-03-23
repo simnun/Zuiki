@@ -39,33 +39,19 @@ export default function StepStillLife() {
     })).filter(it => it.sourceFile);
   };
 
-  // Generate still life using Claude image generation
+  // Generate still life using Claude image generation via server-side proxy
   const generateStillLife = async (sourceFile: File): Promise<string> => {
-    const ak = state.ak;
     const b64 = await toB(sourceFile);
     const mediaType = mT(sourceFile);
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ak,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
+    const content = [
+      {
+        type: "image",
+        source: { type: "base64", media_type: mediaType, data: b64 },
       },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 16384,
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mediaType, data: b64 },
-            },
-            {
-              type: "text",
-              text: `Genera un'immagine still life piatto (flat lay) di questo capo di abbigliamento.
+      {
+        type: "text",
+        text: `Genera un'immagine still life piatto (flat lay) di questo capo di abbigliamento.
 
 ISTRUZIONI PRECISE:
 - Il capo deve essere disteso in piano come se fosse appoggiato su una superficie, visto dall'alto
@@ -77,10 +63,13 @@ ISTRUZIONI PRECISE:
 - Formato: quadrato, alta risoluzione
 
 Genera SOLO l'immagine, senza testo.`,
-            },
-          ],
-        }],
-      }),
+      },
+    ];
+
+    const response = await fetch("/api/ai/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, max_tokens: 16384 }),
     });
 
     if (!response.ok) {
@@ -89,7 +78,9 @@ Genera SOLO l'immagine, senza testo.`,
     }
 
     const data = await response.json();
-    // Find image content block
+    if (data.error) throw new Error(data.error);
+
+    // Check for image content block in the raw response
     const imgBlock = data.content?.find((c: any) => c.type === "image");
     if (imgBlock?.source?.data) {
       return `data:${imgBlock.source.media_type || "image/png"};base64,${imgBlock.source.data}`;

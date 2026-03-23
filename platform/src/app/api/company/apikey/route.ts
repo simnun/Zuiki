@@ -17,9 +17,10 @@ export async function GET() {
       where: { id: user.companyId },
       select: { apiKey: true },
     })
-    return NextResponse.json({ apiKey: company?.apiKey || '' })
+    const key = company?.apiKey || process.env.ANTHROPIC_API_KEY || ''
+    return NextResponse.json({ apiKey: key })
   } catch {
-    return NextResponse.json({ apiKey: memoryApiKeys[user.companyId] || '' })
+    return NextResponse.json({ apiKey: memoryApiKeys[user.companyId] || process.env.ANTHROPIC_API_KEY || '' })
   }
 }
 

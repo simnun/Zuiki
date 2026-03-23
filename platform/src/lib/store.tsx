@@ -162,16 +162,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const cAI = useCallback(async (content: any, retries = 0): Promise<string> => {
-    const ak = stateRef.current.ak;
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
+    const r = await fetch("/api/ai/chat", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ak,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1500, messages: [{ role: "user", content }] }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, max_tokens: 4096 }),
     });
     if ((r.status === 429 || r.status === 529 || r.status >= 500) && retries < 6) {
       const delay = Math.pow(2, retries) * 3000;
@@ -183,8 +177,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`HTTP ${r.status}: ${t.slice(0, 200)}`);
     }
     const d = await r.json();
-    if (d.error) throw new Error(d.error.message);
-    return d.content?.map((x: any) => x.text || "").join("") || "";
+    if (d.error) throw new Error(d.error);
+    return d.text || "";
   }, []);
 
   const getExcelInfo = useCallback((sku: string): ExcelInfo | null => {

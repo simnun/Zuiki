@@ -83,7 +83,7 @@ function parseSSEResult(sseText: string): { resultUrl: string | null; error: str
           if (item?.url) {
             resultUrl = item.url
           } else if (item?.path) {
-            resultUrl = `${HF_SPACE}/gradio_api/file=${item.path}`
+            resultUrl = `${HF_SPACE}/file=${item.path}`
           }
         }
       }
@@ -103,7 +103,7 @@ async function processViaUpload(imageBuffer: Buffer, mime: string): Promise<stri
   uploadForm.append('files', new Blob([new Uint8Array(imageBuffer)], { type: mime }), 'image.png')
 
   const uploadRes = await fetchRetry(
-    `${HF_SPACE}/gradio_api/upload`,
+    `${HF_SPACE}/upload`,
     { method: 'POST', body: uploadForm },
     { label: 'Upload' }
   )
@@ -115,7 +115,7 @@ async function processViaUpload(imageBuffer: Buffer, mime: string): Promise<stri
 
   // 2. Call /image endpoint (NOT /predict - the space uses named endpoints)
   const callRes = await fetchRetry(
-    `${HF_SPACE}/gradio_api/call/image`,
+    `${HF_SPACE}/call/image`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -136,7 +136,7 @@ async function processViaUpload(imageBuffer: Buffer, mime: string): Promise<stri
   const { event_id } = await callRes.json()
 
   // 3. Poll SSE result
-  return await pollSSEResult(`${HF_SPACE}/gradio_api/call/image/${event_id}`)
+  return await pollSSEResult(`${HF_SPACE}/call/image/${event_id}`)
 }
 
 // Process image via URL + /text endpoint (fallback)
@@ -146,7 +146,7 @@ async function processViaUrl(imageBuffer: Buffer, mime: string): Promise<string>
   const dataUrl = `data:${mime};base64,${base64}`
 
   const callRes = await fetchRetry(
-    `${HF_SPACE}/gradio_api/call/text`,
+    `${HF_SPACE}/call/text`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -159,7 +159,7 @@ async function processViaUrl(imageBuffer: Buffer, mime: string): Promise<string>
   }
   const { event_id } = await callRes.json()
 
-  return await pollSSEResult(`${HF_SPACE}/gradio_api/call/text/${event_id}`)
+  return await pollSSEResult(`${HF_SPACE}/call/text/${event_id}`)
 }
 
 // Poll SSE endpoint until we get a result

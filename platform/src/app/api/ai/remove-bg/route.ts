@@ -3,6 +3,8 @@ import { getCurrentUser } from '@/lib/auth-helpers'
 
 export const maxDuration = 120
 
+const HF_SPACE = 'https://briaai-bria-rmbg-2-0.hf.space'
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -12,44 +14,79 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'imageBase64 richiesto' }, { status: 400 })
   }
 
-  const apiKey = process.env.REMOVE_BG_API_KEY
-  if (!apiKey) {
-    return NextResponse.json({
-      error: 'REMOVE_BG_API_KEY non configurata. Registrati gratis su remove.bg/api e aggiungi la chiave nelle env vars.',
-      needsKey: true,
-    }, { status: 500 })
-  }
-
   try {
-    // Convert base64 to buffer
     const imageBuffer = Buffer.from(imageBase64, 'base64')
 
-    const formData = new FormData()
-    formData.append('image_file', new Blob([imageBuffer], { type: mimeType || 'image/png' }), 'image.png')
-    formData.append('size', 'auto')
-    formData.append('format', 'png')
+    // 1. Upload image to HF Space
+    const uploadForm = new FormData()
+    uploadForm.append('files', new Blob([imageBuffer], { type: mimeType || 'image/png' }), 'image.png')
 
-    const response = await fetch('https://api.remove.bg/v1.0/removebg', {
+    const uploadRes = await fetch(`${HF_SPACE}/gradio_api/upload`, {
       method: 'POST',
-      headers: {
-        'X-Api-Key': apiKey,
-      },
-      body: formData,
+      body: uploadForm,
     })
+    if (!uploadRes.ok) {
+      throw new Error(`Upload fallito: ${uploadRes.status}`)
+    }
+    const uploadPaths = await uploadRes.json()
+    const filePath = uploadPaths[0]
 
-    if (!response.ok) {
-      const errText = await response.text()
-      let errMsg = `remove.bg errore: ${response.status}`
-      if (response.status === 402) {
-        errMsg = 'Crediti remove.bg esauriti (50 gratuiti/mese). Attendi il prossimo mese o acquista crediti su remove.bg.'
-      } else if (response.status === 403) {
-        errMsg = 'API Key remove.bg non valida.'
+    // 2. Call predict endpoint
+    const callRes = await fetch(`${HF_SPACE}/gradio_api/call/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: [{
+          path: filePath,
+          orig_name: 'image.png',
+          size: imageBuffer.length,
+          mime_type: mimeType || 'image/png',
+        }],
+      }),
+    })
+    if (!callRes.ok) {
+      throw new Error(`Predict fallito: ${callRes.status}`)
+    }
+    const { event_id } = await callRes.json()
+
+    // 3. Get result via SSE stream
+    const sseRes = await fetch(`${HF_SPACE}/gradio_api/call/predict/${event_id}`)
+    if (!sseRes.ok) {
+      throw new Error(`SSE fallito: ${sseRes.status}`)
+    }
+    const sseText = await sseRes.text()
+
+    // Parse SSE: find the "complete" event with data
+    const dataLines = sseText.split('\n').filter(l => l.startsWith('data: '))
+    let resultUrl: string | null = null
+
+    for (const line of dataLines) {
+      try {
+        const parsed = JSON.parse(line.slice(6))
+        // Result is in parsed[0].url or parsed[0].path
+        if (Array.isArray(parsed) && parsed[0]) {
+          const item = parsed[0]
+          if (item.url) {
+            resultUrl = item.url
+          } else if (item.path) {
+            resultUrl = `${HF_SPACE}/gradio_api/file=${item.path}`
+          }
+        }
+      } catch {
+        // skip non-JSON data lines (e.g. heartbeat)
       }
-      console.error('remove.bg error:', response.status, errText)
-      return NextResponse.json({ error: errMsg }, { status: response.status })
     }
 
-    const resultBuffer = await response.arrayBuffer()
+    if (!resultUrl) {
+      throw new Error('Nessun risultato dal modello')
+    }
+
+    // 4. Download the result image
+    const imgRes = await fetch(resultUrl)
+    if (!imgRes.ok) {
+      throw new Error(`Download risultato fallito: ${imgRes.status}`)
+    }
+    const resultBuffer = await imgRes.arrayBuffer()
     const resultBase64 = Buffer.from(resultBuffer).toString('base64')
 
     return NextResponse.json({
@@ -57,7 +94,7 @@ export async function POST(req: NextRequest) {
       mimeType: 'image/png',
     })
   } catch (err: any) {
-    console.error('remove.bg error:', err)
+    console.error('BRIA RMBG-2.0 error:', err)
     return NextResponse.json({
       error: err.message || 'Errore rimozione sfondo',
     }, { status: 500 })

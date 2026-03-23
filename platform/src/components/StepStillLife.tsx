@@ -39,54 +39,41 @@ export default function StepStillLife() {
     })).filter(it => it.sourceFile);
   };
 
-  // Generate still life using Claude image generation via server-side proxy
   const generateStillLife = async (sourceFile: File): Promise<string> => {
     const b64 = await toB(sourceFile);
     const mediaType = mT(sourceFile);
 
-    const content = [
-      {
-        type: "image",
-        source: { type: "base64", media_type: mediaType, data: b64 },
-      },
-      {
-        type: "text",
-        text: `Genera un'immagine still life piatto (flat lay) di questo capo di abbigliamento.
+    const response = await fetch("/api/ai/image-gen", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        imageBase64: b64,
+        mimeType: mediaType,
+        prompt: `Genera un'immagine still life piatto (flat lay) di questo capo di abbigliamento.
 
 ISTRUZIONI PRECISE:
-- Il capo deve essere disteso in piano come se fosse appoggiato su una superficie, visto dall'alto
-- Lo sfondo deve essere COMPLETAMENTE TRASPARENTE (PNG)
+- Il capo deve essere disteso in piano come se fosse appoggiato su una superficie bianca, visto dall'alto
+- Lo sfondo deve essere BIANCO PURO
 - Il capo deve essere ben centrato nell'immagine
 - Nessuna modella, nessun manichino, solo il capo disteso piatto
-- Mantieni i colori e i dettagli originali del capo
+- Mantieni i colori e i dettagli originali del capo il più fedelmente possibile
 - L'immagine deve essere nitida e professionale, come una foto per e-commerce
 - Formato: quadrato, alta risoluzione
 
 Genera SOLO l'immagine, senza testo.`,
-      },
-    ];
-
-    const response = await fetch("/api/ai/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, max_tokens: 16384 }),
+      }),
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Errore API: ${response.status}`);
+      const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+      throw new Error(err.error || `Errore API: ${response.status}`);
     }
 
     const data = await response.json();
     if (data.error) throw new Error(data.error);
+    if (!data.imageBase64) throw new Error("Nessuna immagine generata");
 
-    // Check for image content block in the raw response
-    const imgBlock = data.content?.find((c: any) => c.type === "image");
-    if (imgBlock?.source?.data) {
-      return `data:${imgBlock.source.media_type || "image/png"};base64,${imgBlock.source.data}`;
-    }
-
-    throw new Error("Nessuna immagine generata dall'AI");
+    return `data:${data.mimeType || "image/png"};base64,${data.imageBase64}`;
   };
 
   const startGeneration = async () => {
@@ -105,7 +92,8 @@ Genera SOLO l'immagine, senza testo.`,
         const dataUrl = await generateStillLife(updated[i].sourceFile);
         updated[i] = { ...updated[i], generated: dataUrl, loading: false };
       } catch (err: any) {
-        updated[i] = { ...updated[i], error: err.message || "Errore", loading: false };
+        console.error("Still life error:", err);
+        updated[i] = { ...updated[i], error: err.message || "Errore generazione", loading: false };
       }
       setSlItems([...updated]);
     }
@@ -151,7 +139,7 @@ Genera SOLO l'immagine, senza testo.`,
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
         <div>
           <h2 style={{ fontSize: 24, fontWeight: 700 }}>Still Life Piatto</h2>
-          <p style={{ color: "var(--muted)", fontSize: 13 }}>Genera immagini flat lay senza sfondo per l{"'"}e-commerce</p>
+          <p style={{ color: "var(--muted)", fontSize: 13 }}>Genera immagini flat lay su sfondo bianco per l{"'"}e-commerce</p>
         </div>
         <button className="btn btn-s" onClick={() => dispatch({ type: "SET_STEP", payload: 2 })}>← Export</button>
       </div>
@@ -161,10 +149,11 @@ Genera SOLO l'immagine, senza testo.`,
         <div>
           {/* Example section */}
           <div className="card" style={{ padding: 32, marginBottom: 24 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Cos{"'"}è uno Still Life Piatto?</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Come funziona?</h3>
             <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20, lineHeight: 1.6 }}>
-              Uno still life piatto è un{"'"}immagine del capo di abbigliamento disteso in piano, visto dall{"'"}alto, su sfondo trasparente (PNG).
-              È ideale per schede prodotto e-commerce, cataloghi e marketplace.
+              L{"'"}AI (Google Gemini) analizza la foto principale di ogni prodotto e genera
+              un{"'"}immagine flat lay: il capo disteso in piano su sfondo bianco, come una foto
+              professionale per e-commerce. L{"'"}elaborazione richiede circa 10-20 secondi per prodotto.
             </p>
 
             <div style={{ display: "flex", gap: 24, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
@@ -203,7 +192,7 @@ Genera SOLO l'immagine, senza testo.`,
               <strong>{done.length}</strong> prodotti pronti per la generazione still life
             </p>
             <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>
-              L{"'"}AI analizzerà la foto principale di ogni prodotto e genererà un{"'"}immagine flat lay senza sfondo.
+              Ogni immagine viene generata da Google Gemini (~10-20 sec per prodotto).
             </p>
             <button className="btn btn-p" style={{ padding: "14px 40px", fontSize: 15, borderRadius: 12 }}
               onClick={startGeneration} disabled={!done.length}>
@@ -237,7 +226,7 @@ Genera SOLO l'immagine, senza testo.`,
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={it.generated} alt={it.sku} style={{ width: 80, height: 80, objectFit: "contain", margin: "0 auto", borderRadius: 6 }} />
                 ) : it.error ? (
-                  <div style={{ width: 80, height: 80, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--err)", fontSize: 10 }}>Errore</div>
+                  <div title={it.error || "Errore"} style={{ width: 80, height: 80, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--err)", fontSize: 9, padding: 4, textAlign: "center" }}>{(it.error || "Errore").slice(0, 60)}</div>
                 ) : (
                   <div style={{ width: 80, height: 80, margin: "0 auto", background: "var(--border)", borderRadius: 6 }} />
                 )}

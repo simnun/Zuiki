@@ -89,7 +89,7 @@ export default function LoginPage() {
           )}
 
           <button className="btn btn-p" type="submit" disabled={loading}
-            style={{ width: '100%', padding: '14px', fontSize: 15 }}>
+            style={{ width: '100%', padding: '14px', fontSize: 15, color: '#fff' }}>
             {loading ? 'Accesso...' : 'Accedi'}
           </button>
         </form>

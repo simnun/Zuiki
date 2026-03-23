@@ -55,15 +55,17 @@ export default function StepStillLife() {
       body: JSON.stringify({
         imageBase64: b64,
         mimeType: mediaType,
-        prompt: `Genera un'immagine still life piatto (flat lay) di questo capo di abbigliamento.
+        prompt: `Genera un'immagine still life piatto (flat lay) professionale di questo capo di abbigliamento.
 
 ISTRUZIONI PRECISE:
-- Il capo deve essere disteso in piano come se fosse appoggiato su una superficie bianca, visto dall'alto
-- Lo sfondo deve essere BIANCO PURO
-- Il capo deve essere ben centrato nell'immagine
+- Il capo deve essere disteso in piano come in uno scatto fotografico still life professionale, visto dall'alto (flat lay)
+- Lo sfondo deve essere BIANCO ASSOLUTO PURO (#FFFFFF). Ogni singolo pixel dello sfondo deve essere bianco puro 255,255,255. Nessuna sfumatura, nessun grigio, nessuna ombra. Bianco piatto totale.
+- ZERO OMBRE: nessuna ombra del capo sullo sfondo, nessuna ombra portata, nessuna ombra diffusa. Come se il capo fosse illuminato da una lightbox fotografica uniforme.
+- NESSUNA ETICHETTA: il capo NON deve mostrare etichette, cartellini, tag, label di marca o di composizione, né nella zona del collo né altrove. Il capo deve apparire completamente pulito, senza alcuna etichetta visibile.
+- Il capo deve essere ben centrato nell'immagine con margine attorno
 - Nessuna modella, nessun manichino, solo il capo disteso piatto
 - Mantieni i colori e i dettagli originali del capo il più fedelmente possibile
-- L'immagine deve essere nitida e professionale, come una foto per e-commerce
+- L'immagine deve essere nitida e professionale, stile e-commerce premium
 - Formato: quadrato, alta risoluzione
 
 Genera SOLO l'immagine, senza testo.`,
@@ -139,6 +141,7 @@ Genera SOLO l'immagine, senza testo.`,
   };
 
   // Canvas-based white background removal using flood-fill from edges
+  // Works best with pure white (#FFFFFF) backgrounds without shadows
   const removeWhiteBg = (dataUrl: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -153,20 +156,27 @@ Genera SOLO l'immagine, senza testo.`,
         const w = c.width, h = c.height;
         const total = w * h;
 
-        // Threshold: pixels with R,G,B all above this are considered "white-ish"
-        const T = 240;
+        // Strict threshold: only pure white / near-white pixels
+        const T = 248;
 
-        // Visited array: 0=unvisited, 1=background, 2=foreground
-        const vis = new Uint8Array(total);
+        // "Whiteness" score: how close to pure white (0 = not white, 1 = pure white)
+        const whiteness = (idx: number) => {
+          const p = idx * 4;
+          const r = d[p], g = d[p + 1], b = d[p + 2];
+          const min = Math.min(r, g, b);
+          if (min < 230) return 0;
+          return (min - 230) / 25; // 0 at 230, 1 at 255
+        };
 
-        // BFS flood-fill from all edge pixels that are white
-        const queue: number[] = [];
         const isWhite = (idx: number) => {
           const p = idx * 4;
           return d[p] >= T && d[p + 1] >= T && d[p + 2] >= T;
         };
 
-        // Seed from all 4 edges
+        // BFS flood-fill from edges
+        const vis = new Uint8Array(total);
+        const queue: number[] = [];
+
         for (let x = 0; x < w; x++) {
           if (isWhite(x)) { vis[x] = 1; queue.push(x); }
           const bot = (h - 1) * w + x;
@@ -179,7 +189,6 @@ Genera SOLO l'immagine, senza testo.`,
           if (isWhite(right)) { vis[right] = 1; queue.push(right); }
         }
 
-        // BFS
         let head = 0;
         while (head < queue.length) {
           const idx = queue[head++];
@@ -198,29 +207,37 @@ Genera SOLO l'immagine, senza testo.`,
           }
         }
 
-        // Make background pixels transparent, with soft edges
+        // Make background transparent
         for (let i = 0; i < total; i++) {
           if (vis[i] === 1) {
-            d[i * 4 + 3] = 0; // fully transparent
+            d[i * 4 + 3] = 0;
           }
         }
 
-        // Soft edge pass: reduce alpha for pixels adjacent to transparent ones
-        const alpha2 = new Uint8Array(total);
-        for (let i = 0; i < total; i++) alpha2[i] = d[i * 4 + 3];
+        // Multi-pass soft edge: smooth alpha transition at boundaries
+        const alpha = new Uint8Array(total);
+        for (let i = 0; i < total; i++) alpha[i] = d[i * 4 + 3];
+
+        // Pass 1: semi-transparent edge pixels based on whiteness
         for (let y = 1; y < h - 1; y++) {
           for (let x = 1; x < w - 1; x++) {
             const i = y * w + x;
-            if (alpha2[i] > 0) {
-              // Count transparent neighbors
+            if (alpha[i] > 0) {
+              // Count transparent neighbors (including diagonals)
               let tn = 0;
-              if (alpha2[i - 1] === 0) tn++;
-              if (alpha2[i + 1] === 0) tn++;
-              if (alpha2[i - w] === 0) tn++;
-              if (alpha2[i + w] === 0) tn++;
+              if (alpha[i - 1] === 0) tn++;
+              if (alpha[i + 1] === 0) tn++;
+              if (alpha[i - w] === 0) tn++;
+              if (alpha[i + w] === 0) tn++;
+              if (alpha[i - w - 1] === 0) tn++;
+              if (alpha[i - w + 1] === 0) tn++;
+              if (alpha[i + w - 1] === 0) tn++;
+              if (alpha[i + w + 1] === 0) tn++;
               if (tn > 0) {
-                // Semi-transparent edge
-                d[i * 4 + 3] = Math.round(alpha2[i] * (1 - tn * 0.2));
+                const wh = whiteness(i);
+                // More white + more transparent neighbors = more transparent
+                const factor = Math.max(0, 1 - (tn / 8) * 0.5 - wh * 0.4);
+                d[i * 4 + 3] = Math.round(255 * factor);
               }
             }
           }
@@ -299,7 +316,7 @@ Genera SOLO l'immagine, senza testo.`,
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
         <div>
           <h2 style={{ fontSize: 24, fontWeight: 700 }}>Still Life Piatto</h2>
-          <p style={{ color: "var(--muted)", fontSize: 13 }}>Genera immagini flat lay su sfondo bianco per l{"'"}e-commerce</p>
+          <p style={{ color: "var(--muted)", fontSize: 13 }}>Genera immagini flat lay per l{"'"}e-commerce (sfondo bianco + scontornato)</p>
         </div>
         <button className="btn btn-s" onClick={() => dispatch({ type: "SET_STEP", payload: 2 })}>← Export</button>
       </div>
@@ -312,8 +329,8 @@ Genera SOLO l'immagine, senza testo.`,
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Come funziona?</h3>
             <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20, lineHeight: 1.6 }}>
               L{"'"}AI (Google Gemini) analizza la foto principale di ogni prodotto e genera
-              un{"'"}immagine flat lay: il capo disteso in piano su sfondo bianco, come una foto
-              professionale per e-commerce. L{"'"}elaborazione richiede circa 10-20 secondi per prodotto.
+              un{"'"}immagine flat lay professionale. Dopo la generazione puoi scaricare sia la versione
+              con sfondo bianco che quella scontornata (PNG trasparente). ~10-20 sec per prodotto.
             </p>
 
             <div style={{ display: "flex", gap: 24, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>

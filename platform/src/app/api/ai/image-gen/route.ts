@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/auth-helpers'
 
 export const maxDuration = 300
 
-const GEMINI_MODEL = 'gemini-2.0-flash-exp'
+const GEMINI_MODEL = 'gemini-2.0-flash'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 export async function POST(req: NextRequest) {

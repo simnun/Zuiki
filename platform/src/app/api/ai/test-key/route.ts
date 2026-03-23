@@ -12,22 +12,17 @@ export async function GET() {
     )
     if (!res.ok) {
       const text = await res.text()
-      return NextResponse.json({
-        ok: false,
-        status: res.status,
-        error: text.slice(0, 300),
-        keyPrefix: apiKey.slice(0, 10) + '...',
-      })
+      return NextResponse.json({ ok: false, status: res.status, error: text.slice(0, 300) })
     }
     const data = await res.json()
-    const models = (data.models || []).map((m: any) => m.name).filter((n: string) => n.includes('image') || n.includes('flash'))
-    return NextResponse.json({ ok: true, models: models.slice(0, 20), keyPrefix: apiKey.slice(0, 10) + '...' })
+    const models = (data.models || []).map((m: any) => m.name).filter((n: string) => n.includes('image') || n.includes('flash') || n.includes('imagen'))
+    return NextResponse.json({ ok: true, models: models.slice(0, 30) })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message })
   }
 }
 
-// POST: Test image generation with multiple models
+// POST: Test Imagen API (uses :predict endpoint, not :generateContent)
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GOOGLE_AI_API_KEY
   if (!apiKey) {
@@ -35,52 +30,39 @@ export async function POST(req: NextRequest) {
   }
 
   const models = [
-    'gemini-2.0-flash',
-    'gemini-2.5-flash',
-    'gemini-3.1-flash-image-preview',
-    'gemini-2.5-flash-image',
-    'gemini-3-pro-image-preview',
+    'imagen-4.0-fast-generate-001',
+    'imagen-4.0-generate-001',
   ]
 
   const results: any[] = []
 
   for (const model of models) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict?key=${apiKey}`
     try {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: 'Generate a simple image of a white t-shirt laid flat on a pure white background.' }] }],
-          generationConfig: {
-            responseModalities: ['TEXT', 'IMAGE'],
-            temperature: 0.4,
+          instances: [{ prompt: 'A white t-shirt laid flat on a white background, flat lay photography, e-commerce product photo, top-down view' }],
+          parameters: {
+            sampleCount: 1,
+            aspectRatio: '1:1',
           },
         }),
       })
 
       if (!res.ok) {
         const err = await res.text()
-        results.push({ model, ok: false, status: res.status, error: err.slice(0, 200) })
+        results.push({ model, ok: false, status: res.status, error: err.slice(0, 300) })
         continue
       }
 
       const data = await res.json()
-      const candidates = data.candidates || []
-      let hasImage = false
-      for (const candidate of candidates) {
-        for (const part of (candidate.content?.parts || [])) {
-          if (part.inlineData?.data) {
-            results.push({ model, ok: true, hasImage: true, mimeType: part.inlineData.mimeType, imageLen: part.inlineData.data.length })
-            hasImage = true
-            break
-          }
-        }
-        if (hasImage) break
-      }
-      if (!hasImage) {
-        const textParts = candidates[0]?.content?.parts?.filter((p: any) => p.text) || []
-        results.push({ model, ok: true, hasImage: false, text: textParts.map((p: any) => p.text).join(' ').slice(0, 100) })
+      const predictions = data.predictions || []
+      if (predictions.length > 0 && predictions[0].bytesBase64Encoded) {
+        results.push({ model, ok: true, imageLen: predictions[0].bytesBase64Encoded.length })
+      } else {
+        results.push({ model, ok: false, error: 'No image in response', response: JSON.stringify(data).slice(0, 300) })
       }
     } catch (e: any) {
       results.push({ model, ok: false, error: e.message })

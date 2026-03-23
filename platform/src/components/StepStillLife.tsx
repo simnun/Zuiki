@@ -22,11 +22,13 @@ export default function StepStillLife() {
   const { items, cfg } = state;
   const done = items.filter(i => i.st === "done");
 
-  const [phase, setPhase] = useState<"intro" | "generating" | "cleaning" | "removing-bg" | "preview">("intro");
+  const [phase, setPhase] = useState<"intro" | "generating" | "cleaning" | "preview">("intro");
   const [slItems, setSlItems] = useState<StillLifeItem[]>([]);
   const [progress, setProgress] = useState(0);
   const [zipProgress, setZipProgress] = useState<number | null>(null);
   const [billingError, setBillingError] = useState(false);
+  const [removingBg, setRemovingBg] = useState(false);
+  const [bgProgress, setBgProgress] = useState(0);
   const [bgZipProgress, setBgZipProgress] = useState<number | null>(null);
   const [stepLabel, setStepLabel] = useState("");
 
@@ -162,27 +164,36 @@ CRITICAL: Do NOT change the garment itself, its color, shape, position or the wh
       setSlItems([...updated]);
     }
 
-    // Step 3: Remove backgrounds with BRIA
-    setPhase("removing-bg");
-    setProgress(0);
-    setStepLabel("Rimozione sfondo...");
+    setProgress(100);
+    setPhase("preview");
+  };
 
-    let bgDone = 0;
+  const removeBackgrounds = async () => {
+    const generated = slItems.filter(it => it.generated);
+    if (!generated.length) return;
+
+    setRemovingBg(true);
+    setBgProgress(0);
+
+    const updated = [...slItems];
+    let processed = 0;
+
     for (let i = 0; i < updated.length; i++) {
       if (!updated[i].generated) continue;
+
       try {
         const noBgUrl = await removeBg(updated[i].generated!);
         updated[i] = { ...updated[i], noBg: noBgUrl };
       } catch (err: any) {
         console.error("BG removal error for", updated[i].sku, err);
       }
-      bgDone++;
-      setProgress(Math.round((bgDone / withImages.length) * 100));
+      processed++;
+      setBgProgress(Math.round((processed / generated.length) * 100));
       setSlItems([...updated]);
     }
 
-    setProgress(100);
-    setPhase("preview");
+    setBgProgress(100);
+    setRemovingBg(false);
   };
 
   const downloadZip = async () => {
@@ -322,8 +333,8 @@ CRITICAL: Do NOT change the garment itself, its color, shape, position or the wh
         </div>
       )}
 
-      {/* Processing phases: generating, cleaning labels, removing bg */}
-      {(phase === "generating" || phase === "cleaning" || phase === "removing-bg") && (
+      {/* Processing phases: generating, cleaning labels */}
+      {(phase === "generating" || phase === "cleaning") && (
         <div className="card" style={{ padding: 32 }}>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div className="spinner" style={{ marginBottom: 12 }} />
@@ -331,7 +342,6 @@ CRITICAL: Do NOT change the garment itself, its color, shape, position or the wh
             <div style={{ display: "flex", justifyContent: "center", gap: 16, fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
               <span style={{ fontWeight: phase === "generating" ? 700 : 400, color: phase === "generating" ? "var(--accent2)" : undefined }}>1. Generazione</span>
               <span style={{ fontWeight: phase === "cleaning" ? 700 : 400, color: phase === "cleaning" ? "var(--accent2)" : undefined }}>2. Pulizia etichette</span>
-              <span style={{ fontWeight: phase === "removing-bg" ? 700 : 400, color: phase === "removing-bg" ? "var(--accent2)" : undefined }}>3. Rimozione sfondo</span>
             </div>
             <p style={{ fontSize: 13, color: "var(--muted)" }}>{progress}%</p>
           </div>
@@ -400,6 +410,35 @@ CRITICAL: Do NOT change the garment itself, its color, shape, position or the wh
                 onClick={downloadZip}>
                 {zipProgress !== null ? `Creazione ZIP... ${zipProgress}%` : `Scarica con sfondo (${generatedCount})`}
               </button>
+            </div>
+          </div>
+
+          {/* Background removal section */}
+          <div className="card" style={{ padding: 20, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Rimuovi Sfondo</h4>
+              <p style={{ fontSize: 12, color: "var(--muted)" }}>
+                {noBgCount > 0
+                  ? `${noBgCount} immagini scontornate pronte`
+                  : "Ottieni PNG trasparenti senza sfondo (BRIA-RMBG-2.0)"}
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              {removingBg && (
+                <div style={{ textAlign: "center", minWidth: 140 }}>
+                  <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden", marginBottom: 4 }}>
+                    <div style={{ height: "100%", width: `${bgProgress}%`, background: "var(--accent2)", borderRadius: 2, transition: "width 0.3s" }} />
+                  </div>
+                  <p style={{ fontSize: 10, color: "var(--muted)" }}>Elaborazione... {bgProgress}%</p>
+                </div>
+              )}
+              {noBgCount === 0 && (
+                <button className="btn btn-s" disabled={!generatedCount || removingBg}
+                  style={{ padding: "10px 24px", fontSize: 13, borderRadius: 10, border: "2px solid var(--accent2)", color: "var(--accent2)", fontWeight: 600 }}
+                  onClick={removeBackgrounds}>
+                  {removingBg ? "Elaborazione..." : "Rimuovi Sfondo"}
+                </button>
+              )}
               {noBgCount > 0 && (
                 <>
                   {bgZipProgress !== null && (

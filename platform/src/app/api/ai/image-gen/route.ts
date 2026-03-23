@@ -3,10 +3,10 @@ import { getCurrentUser } from '@/lib/auth-helpers'
 
 export const maxDuration = 300
 
-// Try models in order: newest first, fallback to older
+// Image generation models - ordered by quality/recency
 const GEMINI_MODELS = [
-  'gemini-2.5-flash-preview-native-audio-dialog',
-  'gemini-2.0-flash-exp',
+  'gemini-2.5-flash-image',
+  'gemini-3.1-flash-image-preview',
   'gemini-2.0-flash',
 ]
 

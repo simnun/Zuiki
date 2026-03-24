@@ -14,9 +14,8 @@ export function mPr(br: string, tipo: string, n: number, modelNames: string[], e
 - Stagione: ${exInfo.stagione || "N/D"}
 - Tipo articolo: ${exInfo.tipoArticolo || "N/D"}
 - Brand: ${exInfo.brand || "N/D"}
-- Caratteristica modello: ${exInfo.caratteristica || "N/D"}
-- Composizione: ${exInfo.composizione || "N/D"}
-Integra queste informazioni nella descrizione dove opportuno (es: composizione, vestibilità, caratteristiche).`
+- Caratteristica modello: ${exInfo.caratteristica || "N/D"}${exInfo.composizione ? `\n- Composizione: ${exInfo.composizione}` : ""}
+Integra queste informazioni nella descrizione dove opportuno (es: vestibilità, caratteristiche).`
     : "";
 
   return `Sei un catalogatore moda per ${br === "zuiki" ? "Zuiki" : "Loveskin"}.
@@ -48,8 +47,7 @@ Scrivi una DESCRIZIONE LUNGA ottimizzata SEO per questo prodotto:
 - Tipo: ${tipo}
 - Nome: ${nome}
 - Licenza/Personaggio: ${licenza || "Nessuna"}
-- Composizione: ${comp || "Non specificata"}
-- Descrizione breve: ${descBreve}${exTxt}
+${comp ? `- Composizione: ${comp}\n` : ""}- Descrizione breve: ${descBreve}${exTxt}
 
 REGOLE:
 - Testo di 150-250 parole, fluido e naturale, NON a elenco puntato

@@ -116,15 +116,14 @@ NON usare virgolette. Rispondi SOLO con la frase descrittiva, nient'altro.`;
 
 export function classifyPhotosPrompt(it: CatalogItem, colori: string[], firstColor: string) {
   const hasMultipleKnownColors = colori.length > 1;
-  const manyPhotos = it.af.length > 3;
 
   let colorInstruction: string;
   if (hasMultipleKnownColors) {
     colorInstruction = `Colori disponibili: ${colori.join(", ")}. Identifica il colore di ogni foto usando ESATTAMENTE uno di questi nomi.`;
-  } else if (manyPhotos) {
-    colorInstruction = `Il colore principale noto è "${firstColor}", ma con ${it.af.length} foto potrebbero esserci VARIANTI DI COLORE DIVERSE. Osserva ATTENTAMENTE il colore REALE del prodotto in ogni foto. Se il prodotto in una foto è chiaramente di un colore DIVERSO da "${firstColor}" (es: nero vs beige vs bianco vs cuoio vs marrone), assegna il colore corretto che vedi (in italiano, con la prima lettera maiuscola). NON assegnare "${firstColor}" a tutte le foto se i colori sono visibilmente diversi.`;
+  } else if (it.af.length > 1) {
+    colorInstruction = `IGNORA qualsiasi colore suggerito dal nome file o dai dati. Per OGNI foto, guarda SOLO il prodotto nell'immagine e identifica il suo colore REALE tra questi: ${COL.join(", ")}. Queste ${it.af.length} foto molto probabilmente mostrano il prodotto in COLORI DIVERSI (es: alcune nero, alcune beige, alcune bianche, alcune marroni). Assegna a ciascuna foto il colore che VEDI, non quello che ti aspetti.`;
   } else {
-    colorInstruction = `Colore unico: ${firstColor}.`;
+    colorInstruction = `Colore: ${firstColor}.`;
   }
 
   return `Hai ${it.af.length} foto dello stesso articolo "${it.tp}" (codice ${it.sku}).

@@ -57,6 +57,7 @@ enum CampaignType {
 
 enum ShootType {
   model
+  model_no_size
   mannequin
   still
   mixed

@@ -112,7 +112,13 @@ export function fmtComp(raw: string) {
 export function mNm(tipo: string, ai: AIResponse | null) {
   const l = ai?.licenza && ai.licenza !== "null" && ai.licenza != null ? ai.licenza : "";
   const m = ai?.modello_dettaglio ? cap(ai.modello_dettaglio) : "";
-  return dedupWords([tipo, m, l].filter(Boolean).join(" "));
+  // Remove "Scarpe" prefix when modello_dettaglio already specifies a shoe subtype
+  let t = tipo;
+  if (t.toLowerCase() === "scarpe" && m) {
+    const shoeTypes = ["ciabatt", "sandal", "infradito", "sneaker", "stival", "ballerina", "mocassin", "decollet", "zeppa", "anfib", "polacchin", "sabot", "slip on", "slipon", "espadrill", "pantofol", "trainer", "loafer"];
+    if (shoeTypes.some(st => m.toLowerCase().includes(st))) t = "";
+  }
+  return dedupWords([t, m, l].filter(Boolean).join(" "));
 }
 
 export function mDs(
@@ -124,15 +130,21 @@ export function mDs(
   mod: ModellaInfo[]
 ) {
   const compFmt = fmtComp(comp);
+  const lic = ai?.licenza && ai.licenza !== "null" && ai.licenza != null ? `\u00A9${ai.licenza}\n\n` : "";
+
   if (cfg.shootType === "still")
-    return `${ai?.dettagli_descrizione || ""}\n\n${compFmt ? `Composizione:\u00A0${compFmt}` : "Composizione:"}`;
+    return `${lic}${ai?.dettagli_descrizione || ""}\n\n${compFmt ? `Composizione:\u00A0${compFmt}` : "Composizione:"}`;
 
   if (cfg.shootType === "mannequin") {
     const mn = cfg.mannequin || {};
     const tg = mn.taglia ? "IT " + mn.taglia : "";
     const misure = [mn.petto ? mn.petto + "cm petto" : "", mn.vita ? mn.vita + "cm vita" : "", mn.fianchi ? mn.fianchi + "cm fianchi" : ""].filter(Boolean).join(" \u2014 ");
     const mannInfo = (tg || misure) ? `\n\nIl manichino indossa la taglia ${tg}${misure ? "\nMisure manichino: " + misure : ""}` : "";
-    return `${ai?.dettagli_descrizione || ""}${mannInfo}\n\n${compFmt ? `Composizione:\u00A0${compFmt}` : "Composizione:"}`;
+    return `${lic}${ai?.dettagli_descrizione || ""}${mannInfo}\n\n${compFmt ? `Composizione:\u00A0${compFmt}` : "Composizione:"}`;
+  }
+
+  if (cfg.shootType === "model_no_size") {
+    return `${lic}${ai?.dettagli_descrizione || ""}\n\n${compFmt ? `Composizione:\u00A0${compFmt}` : "Composizione:"}`;
   }
 
   let ml = recModName ? mod.find(x => x.nome === recModName) : null;
@@ -145,7 +157,7 @@ export function mDs(
   const tgSotto = ml ? ml.tagliaSotto : "";
   const tg = SUP.some(s => (tipo || "").toLowerCase().includes(s)) ? tgSopra : tgSotto;
   const modInfo = ml ? `\n\nLa modella indossa la taglia IT ${tg}\nL'altezza della modella è ${alt} cm` : "";
-  return `${ai?.dettagli_descrizione || ""}${modInfo}\n\n${compFmt ? `Composizione:\u00A0${compFmt}` : "Composizione:"}`;
+  return `${lic}${ai?.dettagli_descrizione || ""}${modInfo}\n\n${compFmt ? `Composizione:\u00A0${compFmt}` : "Composizione:"}`;
 }
 
 export function mTags(o: { ds: string; cat: string; sub: string; nm: string; lic: string | null; tipo: string }, cfg: SessionConfig) {
@@ -210,7 +222,7 @@ export function fmtTime(ms: number) {
 
 export function wrapHtml(text: string) {
   if (!text) return "";
-  const pStyle = 'style="margin: 0px; font-variant-numeric: normal; font-variant-east-asian: normal; font-variant-alternates: normal; font-kerning: auto; font-optical-sizing: auto; font-feature-settings: normal; font-variation-settings: normal; font-stretch: normal; font-size: 12px; line-height: normal; font-family: &quot;Helvetica Neue&quot;; color: rgb(69, 69, 69);"';
+  const pStyle = 'style="margin: 0px; font-variant-numeric: normal; font-variant-east-asian: normal; font-variant-alternates: normal; font-kerning: auto; font-optical-sizing: auto; font-feature-settings: normal; font-variation-settings: normal; font-stretch: normal; line-height: normal; font-family: &quot;Helvetica Neue&quot;; color: rgb(69, 69, 69);"';
   const pOpen = `<p class="p1" ${pStyle}>`;
   const pBr = `${pOpen}<br></p>`;
   return text.split("\n").map(l => {
@@ -234,6 +246,29 @@ export function convertToPng(file: File): Promise<Blob> {
           if (blob) res(blob);
           else rej(new Error("toBlob failed"));
         }, "image/png");
+      };
+      img.onerror = rej;
+      img.src = r.result as string;
+    };
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+export function convertToJpg(file: File, quality = 0.92): Promise<Blob> {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        c.width = img.width;
+        c.height = img.height;
+        c.getContext("2d")!.drawImage(img, 0, 0);
+        c.toBlob(blob => {
+          if (blob) res(blob);
+          else rej(new Error("toBlob failed"));
+        }, "image/jpeg", quality);
       };
       img.onerror = rej;
       img.src = r.result as string;

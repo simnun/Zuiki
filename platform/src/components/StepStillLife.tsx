@@ -217,13 +217,21 @@ CRITICAL: Do NOT change the garment itself, its color, shape, position or the wh
     for (let i = 0; i < generated.length; i++) {
       const it = generated[i];
       const colorName = it.color.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ_]/g, "");
-      const fileName = `${it.sku}_${colorName}_SL_1.png`;
+      const fileName = `${it.sku}_${colorName}_SL_1.jpg`;
 
+      // Convert to JPEG
       const b64 = it.generated!.split(",")[1];
       const binary = atob(b64);
-      const bytes = new Uint8Array(binary.length);
-      for (let j = 0; j < binary.length; j++) bytes[j] = binary.charCodeAt(j);
-      zip.file(fileName, bytes);
+      const srcBytes = new Uint8Array(binary.length);
+      for (let j = 0; j < binary.length; j++) srcBytes[j] = binary.charCodeAt(j);
+      const imgBlob = new Blob([srcBytes], { type: "image/png" });
+      const bitmap = await createImageBitmap(imgBlob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
+      const jpgBlob = await new Promise<Blob>((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error("toBlob failed")), "image/jpeg", 0.92));
+      zip.file(fileName, jpgBlob);
 
       setZipProgress(Math.round(((i + 1) / generated.length) * 100));
     }
@@ -258,13 +266,24 @@ CRITICAL: Do NOT change the garment itself, its color, shape, position or the wh
     for (let i = 0; i < withNoBg.length; i++) {
       const it = withNoBg[i];
       const colorName = it.color.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ_]/g, "");
-      const fileName = `${it.sku}_${colorName}_SL_NOBG_1.png`;
+      const fileName = `${it.sku}_${colorName}_SL_NOBG_1.jpg`;
 
+      // Convert to JPEG
       const b64 = it.noBg!.split(",")[1];
       const binary = atob(b64);
-      const bytes = new Uint8Array(binary.length);
-      for (let j = 0; j < binary.length; j++) bytes[j] = binary.charCodeAt(j);
-      zip.file(fileName, bytes);
+      const srcBytes = new Uint8Array(binary.length);
+      for (let j = 0; j < binary.length; j++) srcBytes[j] = binary.charCodeAt(j);
+      const imgBlob = new Blob([srcBytes], { type: "image/png" });
+      const bitmap = await createImageBitmap(imgBlob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0);
+      const jpgBlob = await new Promise<Blob>((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error("toBlob failed")), "image/jpeg", 0.92));
+      zip.file(fileName, jpgBlob);
 
       setBgZipProgress(Math.round(((i + 1) / withNoBg.length) * 100));
     }
@@ -435,7 +454,7 @@ CRITICAL: Do NOT change the garment itself, its color, shape, position or the wh
                     ? `Elaborazione in corso... ${bgProgress}%`
                     : noBgCount > 0
                       ? `${noBgCount} immagini scontornate pronte`
-                      : "Ottieni PNG trasparenti senza sfondo (BRIA-RMBG-2.0)"}
+                      : "Ottieni immagini scontornate senza sfondo (BRIA-RMBG-2.0)"}
                 </p>
                 {bgError && <p style={{ fontSize: 11, color: "var(--err)", marginTop: 4 }}>{bgError}</p>}
               </div>

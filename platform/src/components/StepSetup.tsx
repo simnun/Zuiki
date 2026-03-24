@@ -41,7 +41,7 @@ export default function StepSetup() {
   const needsModel = cfg.shootType === "model" || cfg.shootType === "mixed";
   const rdyMann = cfg.shootType === "mannequin" && cfg.mannequin?.taglia;
   const rdy = cfg.br && cfg.st && cfg.an && cfg.ds && cfg.shootType &&
-    (cfg.shootType === "still" || rdyMann || (cfg.selMods.length > 0));
+    (cfg.shootType === "still" || cfg.shootType === "model_no_size" || rdyMann || (cfg.selMods.length > 0));
 
   const toggleMod = (nome: string) => {
     const selMods = cfg.selMods.includes(nome)
@@ -248,6 +248,7 @@ export default function StepSetup() {
           <div style={{ display: "flex", gap: 10 }}>
             {[
               { key: "model", label: "Con Modella" },
+              { key: "model_no_size", label: "Modella NO TAGLIE" },
               { key: "mannequin", label: "Con Manichino" },
               { key: "still", label: "Still Life" },
               { key: "mixed", label: "Misto" },
@@ -258,6 +259,10 @@ export default function StepSetup() {
                 onClick={() => {
                   const updates: any = { shootType: key };
                   if (key === "mannequin" || key === "still") {
+                    updates.noModel = true;
+                    updates.selMods = [];
+                  }
+                  if (key === "model_no_size") {
                     updates.noModel = true;
                     updates.selMods = [];
                   }

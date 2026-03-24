@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { useStore } from "@/lib/store";
-import { esc, wrapHtml, fmtComp, convertToPng, toB, mT, runPool, compressForAI } from "@/lib/utils";
+import { esc, wrapHtml, fmtComp, convertToJpg, toB, mT, runPool, compressForAI } from "@/lib/utils";
 import { SCMAP, SHOT_ORDER } from "@/lib/constants";
 import { genMetaTitle, genMetaKeys, classifyPhotosPrompt } from "@/lib/ai-prompts";
 import type { CatalogItem } from "@/lib/catalog-types";
@@ -245,13 +245,13 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       const firstColorKey = Object.keys(colorGroups)[0];
       const firstPhoto = firstColorKey && colorGroups[firstColorKey][0];
       if (firstPhoto) {
-        try { const blob = await convertToPng(firstPhoto.file); zip.file(`${it.sku}_1.png`, blob); } catch (e) { console.error("PNG convert error:", e); }
+        try { const blob = await convertToJpg(firstPhoto.file); zip.file(`${it.sku}_1.jpg`, blob); } catch (e) { console.error("JPG convert error:", e); }
       }
 
       for (const [color, photos] of Object.entries(colorGroups)) {
         const colorName = color.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ_]/g, "");
         for (let ci = 0; ci < (photos as any[]).length; ci++) {
-          try { const blob = await convertToPng((photos as any[])[ci].file); zip.file(`${it.sku}_${colorName}_${ci + 1}.png`, blob); } catch (e) { console.error("PNG convert error:", e); }
+          try { const blob = await convertToJpg((photos as any[])[ci].file); zip.file(`${it.sku}_${colorName}_${ci + 1}.jpg`, blob); } catch (e) { console.error("JPG convert error:", e); }
         }
       }
     }
@@ -414,7 +414,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       <div className="card" style={{ padding: 24, marginTop: 24, textAlign: "center", border: "2px dashed var(--accent2)" }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Genera Still Life Piatto</h3>
         <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
-          Crea immagini flat lay senza sfondo (PNG) dei tuoi prodotti, ideali per e-commerce e cataloghi.
+          Crea immagini flat lay senza sfondo (JPG) dei tuoi prodotti, ideali per e-commerce e cataloghi.
         </p>
         <button className="btn btn-p" style={{ padding: "12px 32px", fontSize: 14, borderRadius: 10, background: "var(--accent2)" }}
           onClick={() => dispatch({ type: "SET_STEP", payload: 3 })} disabled={!done.length}>

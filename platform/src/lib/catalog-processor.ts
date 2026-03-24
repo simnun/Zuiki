@@ -2,7 +2,7 @@
 
 import { SFX, SHOT_ORDER, SCMAP } from "./constants";
 import type { CatalogItem, ExcelInfo, SessionConfig, ModellaInfo } from "./catalog-types";
-import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool } from "./utils";
+import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI } from "./utils";
 import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt, classifyPhotosPrompt } from "./ai-prompts";
 
 type CaiFunc = (content: any, retries?: number) => Promise<string>;
@@ -38,7 +38,10 @@ export function createProcessor(deps: ProcessorDeps) {
     }
     if (modelNames.length) c.push({ type: "text", text: "--- FINE FOTO RIFERIMENTO VOLTI. Le foto seguenti sono del PRODOTTO da catalogare ---" });
 
-    for (const f of files) c.push({ type: "image", source: { type: "base64", media_type: mT(f), data: await toB(f) } });
+    for (const f of files) {
+      const { base64, mimeType } = await compressForAI(f);
+      c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
+    }
     c.push({ type: "text", text: mPr(cfg.br, tipo, files.length, modelNames, exInfo) });
 
     const raw = await cAI(c);
@@ -52,7 +55,10 @@ export function createProcessor(deps: ProcessorDeps) {
     const firstColor = colori[0] || it.cl || "Colore";
 
     const c: any[] = [];
-    for (const f of it.af) c.push({ type: "image", source: { type: "base64", media_type: mT(f), data: await toB(f) } });
+    for (const f of it.af) {
+      const { base64, mimeType } = await compressForAI(f);
+      c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
+    }
     c.push({ type: "text", text: classifyPhotosPrompt(it, colori, firstColor) });
 
     try {
@@ -91,7 +97,8 @@ export function createProcessor(deps: ProcessorDeps) {
 
   async function genAltImg(it: CatalogItem) {
     const c: any[] = [];
-    c.push({ type: "image", source: { type: "base64", media_type: mT(it.fl), data: await toB(it.fl) } });
+    const { base64, mimeType } = await compressForAI(it.fl);
+    c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
     c.push({ type: "text", text: genAltImgPrompt(it) });
     return await cAI(c);
   }

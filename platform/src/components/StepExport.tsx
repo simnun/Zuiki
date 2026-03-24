@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { useStore } from "@/lib/store";
-import { esc, wrapHtml, fmtComp, convertToPng, toB, mT, runPool } from "@/lib/utils";
+import { esc, wrapHtml, fmtComp, convertToPng, toB, mT, runPool, compressForAI } from "@/lib/utils";
 import { SCMAP, SHOT_ORDER } from "@/lib/constants";
 import { genMetaTitle, genMetaKeys, classifyPhotosPrompt } from "@/lib/ai-prompts";
 import type { CatalogItem } from "@/lib/catalog-types";
@@ -212,7 +212,10 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       let classified;
       try {
         const c: any[] = [];
-        for (const f of it.af) c.push({ type: "image", source: { type: "base64", media_type: mT(f), data: await toB(f) } });
+        for (const f of it.af) {
+          const { base64, mimeType } = await compressForAI(f);
+          c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
+        }
         c.push({ type: "text", text: classifyPhotosPrompt(it, colori, firstColor) });
         const raw = await cAI(c);
         const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());

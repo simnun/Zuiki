@@ -2,7 +2,7 @@
 
 import type { CatalogItem, SessionConfig, ModellaInfo } from "./catalog-types";
 import { SCMAP } from "./constants";
-import { mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool } from "./utils";
+import { mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI } from "./utils";
 import { mPrLong } from "./ai-prompts";
 
 type CaiFunc = (content: any, retries?: number) => Promise<string>;
@@ -90,7 +90,10 @@ Rispondi SOLO JSON valido: {"licenza":"nome breve","nome_prodotto":"nome complet
 
     try {
       const c: any[] = [];
-      for (const f of it.af) c.push({ type: "image", source: { type: "base64", media_type: mT(f), data: await toB(f) } });
+      for (const f of it.af) {
+        const { base64, mimeType } = await compressForAI(f);
+        c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
+      }
       c.push({
         type: "text",
         text: `Sei un catalogatore moda per ${cfg.br === "zuiki" ? "Zuiki" : "Loveskin"}.
@@ -169,7 +172,7 @@ Rispondi SOLO JSON: {"modello_dettaglio":"2-3 parole","dettagli_descrizione":"ma
       const batch = done.slice(b, b + BATCH);
       const c: any[] = [];
       for (const it of batch) {
-        try { c.push({ type: "image", source: { type: "base64", media_type: mT(it.fl), data: await toB(it.fl) } }); } catch {}
+        try { const { base64, mimeType } = await compressForAI(it.fl); c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } }); } catch {}
         c.push({ type: "text", text: `[SKU:${it.sku} — ${it.nm} (${it.tp})]` });
       }
       c.push({

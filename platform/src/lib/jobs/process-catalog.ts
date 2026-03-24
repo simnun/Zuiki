@@ -5,19 +5,20 @@ import { getSignedUrl } from '@/lib/storage'
 import { mNm, mDs, mTags, mTagsLoveskin } from '@/lib/utils'
 import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt } from '@/lib/ai-prompts'
 import type { SessionConfig, ModellaInfo, ExcelInfo, CatalogItem as ClientCatalogItem } from '@/lib/catalog-types'
+import sharp from 'sharp'
 
 const BUCKET = 'catalog-photos'
+const MAX_IMG_DIM = 1568
 
 async function photoToBase64(storageKey: string): Promise<{ base64: string; mimeType: string }> {
   const url = await getSignedUrl(BUCKET, storageKey, 600)
   const resp = await fetch(url)
-  const buf = Buffer.from(await resp.arrayBuffer())
-  const ext = storageKey.split('.').pop()?.toLowerCase() || 'jpg'
-  const mimeMap: Record<string, string> = {
-    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-    webp: 'image/webp', gif: 'image/gif', heic: 'image/heic',
-  }
-  return { base64: buf.toString('base64'), mimeType: mimeMap[ext] || 'image/jpeg' }
+  const rawBuf = Buffer.from(await resp.arrayBuffer())
+  const compressed = await sharp(rawBuf)
+    .resize(MAX_IMG_DIM, MAX_IMG_DIM, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 75 })
+    .toBuffer()
+  return { base64: compressed.toString('base64'), mimeType: 'image/jpeg' }
 }
 
 async function cAI(content: any[], retries = 2): Promise<string> {

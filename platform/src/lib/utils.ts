@@ -26,6 +26,31 @@ export const toB = (f: File): Promise<string> =>
     x.readAsDataURL(f);
   });
 
+/** Compress image for AI: max 1568px on longest side, JPEG quality 0.75 */
+export function compressForAI(f: File, maxDim = 1568): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const s = Math.min(maxDim / Math.max(img.width, img.height), 1);
+        const w = Math.round(img.width * s);
+        const h = Math.round(img.height * s);
+        const c = document.createElement("canvas");
+        c.width = w;
+        c.height = h;
+        c.getContext("2d")!.drawImage(img, 0, 0, w, h);
+        const dataUrl = c.toDataURL("image/jpeg", 0.75);
+        res({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
+      };
+      img.onerror = rej;
+      img.src = r.result as string;
+    };
+    r.onerror = rej;
+    r.readAsDataURL(f);
+  });
+}
+
 export const mT = (f: File) => {
   const ext = f.name.toLowerCase().split(".").pop() || "";
   const map: Record<string, string> = {

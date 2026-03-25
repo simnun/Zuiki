@@ -1,6 +1,6 @@
 "use client";
 
-import { SFX, SHOT_ORDER, SCMAP } from "./constants";
+import { SFX, SHOT_ORDER, SCMAP, COL } from "./constants";
 import type { CatalogItem, ExcelInfo, SessionConfig, ModellaInfo } from "./catalog-types";
 import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI } from "./utils";
 import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt, classifyPhotosPrompt } from "./ai-prompts";
@@ -49,24 +49,60 @@ export function createProcessor(deps: ProcessorDeps) {
     catch { throw new Error(`Risposta AI non valida (JSON parse): ${raw.slice(0, 150)}...`); }
   }
 
+  // Validate classified colors against allowed list
+  function validateClassifiedColors(classified: any[], allowedColors: string[], fallbackColor: string) {
+    const allowedLower = allowedColors.map(c => c.toLowerCase().trim());
+    for (const ph of classified) {
+      const colorLower = (ph.color || "").toLowerCase().trim();
+      const exactIdx = allowedLower.indexOf(colorLower);
+      if (exactIdx >= 0) {
+        ph.color = allowedColors[exactIdx];
+        continue;
+      }
+      // Fuzzy match
+      let bestMatch: string | null = null;
+      for (let i = 0; i < allowedColors.length; i++) {
+        if (colorLower.includes(allowedLower[i]) || allowedLower[i].includes(colorLower)) {
+          bestMatch = allowedColors[i];
+          break;
+        }
+      }
+      ph.color = bestMatch || fallbackColor;
+    }
+    return classified;
+  }
+
   async function classifyPhotos(it: CatalogItem) {
     const ex = getExcelInfo(it.sku);
-    const colori = (ex?.colori || it.cl || "").split(";").map(c => c.trim()).filter(Boolean);
-    const firstColor = colori[0] || it.cl || "Colore";
+    const colori = (ex?.colori || "").split(";").map(c => c.trim()).filter(Boolean);
+    const fallbackColor = colori[0] || it.cl || "Colore";
+    const allowedColors = colori.length > 0 ? colori : COL;
 
     const c: any[] = [];
     for (const f of it.af) {
       const { base64, mimeType } = await compressForAI(f);
       c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
     }
-    c.push({ type: "text", text: classifyPhotosPrompt(it, colori, firstColor) });
+    c.push({ type: "text", text: classifyPhotosPrompt(it, colori, fallbackColor) });
 
     try {
       const raw = await cAI(c);
       const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-      const result = parsed.map((x: any, i: number) => ({
-        color: (x.color || firstColor).trim(), shot: x.shot || "other", file: it.af[i], origIdx: i,
+
+      // Validate response count matches photo count
+      if (!Array.isArray(parsed) || parsed.length !== it.af.length) {
+        console.warn(`[${it.sku}] AI classify returned ${Array.isArray(parsed) ? parsed.length : 0} results for ${it.af.length} photos`);
+        throw new Error("Mismatch count");
+      }
+
+      let result = parsed.map((x: any, i: number) => ({
+        color: (x.color || fallbackColor).trim(), shot: x.shot || "other", file: it.af[i], origIdx: i,
       }));
+
+      // Validate colors against allowed list
+      result = validateClassifiedColors(result, allowedColors, fallbackColor);
+
+      // Deduplicate shot types per color
       const usedPerColor: Record<string, boolean> = {};
       for (const ph of result) {
         if (ph.shot === "other") continue;
@@ -74,10 +110,33 @@ export function createProcessor(deps: ProcessorDeps) {
         if (usedPerColor[key]) ph.shot = "other";
         else usedPerColor[key] = true;
       }
+
+      // Verification: check if any colors are still outside allowed list
+      const hasInvalid = result.some((ph: any) => !allowedColors.some(a => a.toLowerCase() === ph.color.toLowerCase()));
+      if (hasInvalid) {
+        console.warn(`[${it.sku}] Invalid colors after validation, re-classifying...`);
+        const c2: any[] = [];
+        for (const f of it.af) {
+          const { base64, mimeType } = await compressForAI(f);
+          c2.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
+        }
+        c2.push({ type: "text", text: `Hai ${it.af.length} foto dell'articolo ${it.sku}. Classifica il colore di OGNI foto usando SOLO questi colori: ${allowedColors.join(", ")}. NON usare altri nomi. Rispondi SOLO JSON array con ${it.af.length} elementi: [{"color":"...","shot":"..."},...]` });
+        try {
+          const raw2 = await cAI(c2);
+          const parsed2 = JSON.parse(raw2.replace(/```json|```/g, "").trim());
+          if (Array.isArray(parsed2) && parsed2.length === it.af.length) {
+            result = parsed2.map((x: any, i: number) => ({
+              color: (x.color || fallbackColor).trim(), shot: x.shot || "other", file: it.af[i], origIdx: i,
+            }));
+            result = validateClassifiedColors(result, allowedColors, fallbackColor);
+          }
+        } catch { /* keep corrected first result */ }
+      }
+
       return result;
     } catch (e) {
       console.error("Photo classify error:", e);
-      return it.af.map((f, i) => ({ color: firstColor, shot: i === 0 ? "front_34" : "other", file: f, origIdx: i }));
+      return it.af.map((f, i) => ({ color: fallbackColor, shot: i === 0 ? "front_34" : "other", file: f, origIdx: i }));
     }
   }
 

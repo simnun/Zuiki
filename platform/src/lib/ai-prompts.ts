@@ -115,27 +115,29 @@ NON usare virgolette. Rispondi SOLO con la frase descrittiva, nient'altro.`;
 }
 
 export function classifyPhotosPrompt(it: CatalogItem, colori: string[], firstColor: string) {
-  const hasMultipleKnownColors = colori.length > 1;
+  const hasExcelColors = colori.length > 0;
 
   let colorInstruction: string;
-  if (hasMultipleKnownColors) {
-    colorInstruction = `Colori disponibili: ${colori.join(", ")}. Identifica il colore di ogni foto usando ESATTAMENTE uno di questi nomi.`;
-  } else if (it.af.length > 1) {
-    colorInstruction = `IGNORA qualsiasi colore suggerito dal nome file o dai dati. Per OGNI foto, guarda SOLO il prodotto nell'immagine e identifica il suo colore REALE tra questi: ${COL.join(", ")}. Queste ${it.af.length} foto molto probabilmente mostrano il prodotto in COLORI DIVERSI (es: alcune nero, alcune beige, alcune bianche, alcune marroni). Assegna a ciascuna foto il colore che VEDI, non quello che ti aspetti.`;
+  if (hasExcelColors) {
+    colorInstruction = `COLORI CONSENTITI (dal file Excel): ${colori.join(", ")}.
+DEVI usare ESCLUSIVAMENTE questi nomi colore, ESATTAMENTE come scritti sopra. NON inventare colori diversi, NON usare sinonimi, NON usare varianti. Se una foto mostra un colore che non corrisponde a nessuno di quelli elencati, scegli il più simile tra quelli consentiti.`;
   } else {
-    colorInstruction = `Colore: ${firstColor}.`;
+    colorInstruction = `Colore di riferimento: ${firstColor}. Se le foto mostrano colori diversi, usa SOLO nomi dalla lista standard: ${COL.join(", ")}.`;
   }
 
   return `Hai ${it.af.length} foto dello stesso articolo "${it.tp}" (codice ${it.sku}).
 ${colorInstruction}
+
+ATTENZIONE: Devi restituire ESATTAMENTE ${it.af.length} elementi nell'array JSON, uno per OGNI foto, nello STESSO ordine delle foto fornite.
+
 Per OGNI foto (indice 0-based) classifica:
-- "color": il colore del prodotto che vedi nella foto (in italiano, prima lettera maiuscola)
+- "color": il colore del prodotto che vedi nella foto (DEVE essere uno dei colori consentiti sopra, scritto IDENTICO)
 - "shot": uno tra "front_34" (3/4 frontale, mezzo busto angolato, posa tre quarti con il corpo leggermente ruotato), "back" (retro/posteriore, si vede la schiena), "detail" (dettaglio/closeup di una parte del capo), "full_front" (frontale a figura intera, si vedono piedi e scarpe), "scontornata" (foto senza sfondo/ritagliata, sfondo bianco puro o trasparente), "other" (qualsiasi altra posa)
 
 REGOLA FONDAMENTALE COLORI: Guarda il colore EFFETTIVO del prodotto in ogni singola foto. Se le foto mostrano prodotti di colori diversi (es: alcune nero, alcune beige, alcune bianco), DEVI assegnarli correttamente. Non assegnare lo stesso colore a tutte se sono visibilmente diversi.
 
 REGOLA SHOT: Per ogni colore, ogni tipo di shot (front_34, back, detail, full_front, scontornata) può essere assegnato a MASSIMO UNA foto. Se ci sono più foto simili dello stesso colore (es. due pose frontali diverse), assegna il tipo specifico SOLO alla foto più rappresentativa e classifica le altre come "other".
 
-Rispondi SOLO JSON array: [{"color":"...","shot":"..."},...]
+Rispondi SOLO JSON array con ESATTAMENTE ${it.af.length} elementi: [{"color":"...","shot":"..."},...]
 Esempio per 6 foto con 2 colori: [{"color":"Nero","shot":"front_34"},{"color":"Nero","shot":"back"},{"color":"Nero","shot":"detail"},{"color":"Beige","shot":"front_34"},{"color":"Beige","shot":"back"},{"color":"Beige","shot":"other"}]`;
 }

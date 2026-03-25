@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { useStore } from "@/lib/store";
 import { esc, wrapHtml, fmtComp, convertToJpg, toB, mT, runPool, compressForAI } from "@/lib/utils";
-import { SCMAP, SHOT_ORDER } from "@/lib/constants";
+import { SCMAP, SHOT_ORDER, COL } from "@/lib/constants";
 import { genMetaTitle, genMetaKeys, classifyPhotosPrompt } from "@/lib/ai-prompts";
 import type { CatalogItem } from "@/lib/catalog-types";
 
@@ -183,6 +183,36 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
     XLSX.writeFile(wb, fname);
   };
 
+  // Validate and correct colors against allowed list (Excel colors or COL fallback)
+  const validateColors = (classified: any[], allowedColors: string[], fallbackColor: string) => {
+    const allowedLower = allowedColors.map(c => c.toLowerCase().trim());
+    for (const ph of classified) {
+      const colorLower = (ph.color || "").toLowerCase().trim();
+      // Check exact match (case-insensitive)
+      const exactIdx = allowedLower.indexOf(colorLower);
+      if (exactIdx >= 0) {
+        // Normalize to the exact spelling from allowed list
+        ph.color = allowedColors[exactIdx];
+        continue;
+      }
+      // Check partial/fuzzy match (color contains allowed or vice versa)
+      let bestMatch: string | null = null;
+      for (let i = 0; i < allowedColors.length; i++) {
+        if (colorLower.includes(allowedLower[i]) || allowedLower[i].includes(colorLower)) {
+          bestMatch = allowedColors[i];
+          break;
+        }
+      }
+      if (bestMatch) {
+        ph.color = bestMatch;
+      } else {
+        // Use fallback
+        ph.color = fallbackColor;
+      }
+    }
+    return classified;
+  };
+
   const downloadPhotos = async () => {
     if (!done.length) return;
     const zip = new JSZip();
@@ -193,6 +223,8 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
 
     for (let pi = 0; pi < done.length; pi++) {
       const it = done[pi];
+      const currentSku = it.sku; // Lock SKU for this item — never changes
+
       // Update progress
       const pct = Math.round((pi / total) * 100);
       setZipProgress(pct);
@@ -204,10 +236,13 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
         const secs = remaining % 60;
         setZipEta(mins > 0 ? `~${mins}m ${secs}s` : `~${secs}s`);
       }
-      // Classify photos
-      const ex = getExcelInfo(it.sku);
-      const colori = (ex?.colori || it.cl || "").split(";").map((c: string) => c.trim()).filter(Boolean);
-      const firstColor = colori[0] || it.cl || "Colore";
+
+      // Get allowed colors from Excel (primary source)
+      const ex = getExcelInfo(currentSku);
+      const colori = (ex?.colori || "").split(";").map((c: string) => c.trim()).filter(Boolean);
+      const fallbackColor = colori[0] || it.cl || "Colore";
+      // Allowed colors: Excel colors if available, otherwise COL standard list
+      const allowedColors = colori.length > 0 ? colori : COL;
 
       let classified;
       try {
@@ -216,12 +251,27 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           const { base64, mimeType } = await compressForAI(f);
           c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
         }
-        c.push({ type: "text", text: classifyPhotosPrompt(it, colori, firstColor) });
+        c.push({ type: "text", text: classifyPhotosPrompt(it, colori, fallbackColor) });
         const raw = await cAI(c);
         const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+
+        // VALIDATION: ensure response count matches photo count
+        if (!Array.isArray(parsed) || parsed.length !== it.af.length) {
+          console.warn(`[${currentSku}] AI returned ${Array.isArray(parsed) ? parsed.length : 0} results for ${it.af.length} photos — using fallback`);
+          throw new Error("Mismatch count");
+        }
+
         classified = parsed.map((x: any, i: number) => ({
-          color: (x.color || firstColor).trim(), shot: x.shot || "other", file: it.af[i], origIdx: i,
+          color: (x.color || fallbackColor).trim(),
+          shot: x.shot || "other",
+          file: it.af[i],
+          origIdx: i,
         }));
+
+        // STEP 1: Validate colors against allowed list
+        classified = validateColors(classified, allowedColors, fallbackColor);
+
+        // STEP 2: Deduplicate shot types per color
         const usedPerColor: Record<string, boolean> = {};
         for (const ph of classified) {
           if (ph.shot === "other") continue;
@@ -229,10 +279,47 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           if (usedPerColor[key]) ph.shot = "other";
           else usedPerColor[key] = true;
         }
+
+        // STEP 3: Verification — re-check colors with a second quick AI call
+        const colorCounts: Record<string, number> = {};
+        for (const ph of classified) colorCounts[ph.color] = (colorCounts[ph.color] || 0) + 1;
+        const usedColors = Object.keys(colorCounts);
+        const hasInvalidColors = usedColors.some(c => !allowedColors.some(a => a.toLowerCase() === c.toLowerCase()));
+
+        if (hasInvalidColors) {
+          // Re-classify with stricter prompt
+          console.warn(`[${currentSku}] Invalid colors detected after first pass, re-classifying...`);
+          const c2: any[] = [];
+          for (const f of it.af) {
+            const { base64, mimeType } = await compressForAI(f);
+            c2.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
+          }
+          c2.push({ type: "text", text: `Hai ${it.af.length} foto dell'articolo ${currentSku}. Devi classificare il colore di OGNI foto usando SOLO questi colori: ${allowedColors.join(", ")}. NON usare altri nomi colore. Rispondi SOLO JSON array con ${it.af.length} elementi: [{"color":"...","shot":"..."},...]` });
+          try {
+            const raw2 = await cAI(c2);
+            const parsed2 = JSON.parse(raw2.replace(/```json|```/g, "").trim());
+            if (Array.isArray(parsed2) && parsed2.length === it.af.length) {
+              classified = parsed2.map((x: any, i: number) => ({
+                color: (x.color || fallbackColor).trim(),
+                shot: x.shot || "other",
+                file: it.af[i],
+                origIdx: i,
+              }));
+              classified = validateColors(classified, allowedColors, fallbackColor);
+            }
+          } catch { /* keep first classification with corrections applied */ }
+        }
       } catch {
-        classified = it.af.map((f: File, i: number) => ({ color: firstColor, shot: i === 0 ? "front_34" : "other", file: f, origIdx: i }));
+        // Fallback: no AI classification, use first Excel color or item color
+        classified = it.af.map((f: File, i: number) => ({
+          color: fallbackColor,
+          shot: i === 0 ? "front_34" : "other",
+          file: f,
+          origIdx: i,
+        }));
       }
 
+      // Group by color and sort by shot priority
       const colorGroups: Record<string, any[]> = {};
       for (const ph of classified) {
         if (!colorGroups[ph.color]) colorGroups[ph.color] = [];
@@ -242,16 +329,18 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
         colorGroups[col].sort((a: any, b: any) => (SHOT_ORDER[a.shot] ?? 5) - (SHOT_ORDER[b.shot] ?? 5));
       }
 
+      // Generate filenames: always codicearticolo_colore_N.jpg
+      // First photo also saved as codicearticolo_1.jpg (main photo)
       const firstColorKey = Object.keys(colorGroups)[0];
       const firstPhoto = firstColorKey && colorGroups[firstColorKey][0];
       if (firstPhoto) {
-        try { const blob = await convertToJpg(firstPhoto.file); zip.file(`${it.sku}_1.jpg`, blob); } catch (e) { console.error("JPG convert error:", e); }
+        try { const blob = await convertToJpg(firstPhoto.file); zip.file(`${currentSku}_1.jpg`, blob); } catch (e) { console.error("JPG convert error:", e); }
       }
 
       for (const [color, photos] of Object.entries(colorGroups)) {
         const colorName = color.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ_]/g, "");
         for (let ci = 0; ci < (photos as any[]).length; ci++) {
-          try { const blob = await convertToJpg((photos as any[])[ci].file); zip.file(`${it.sku}_${colorName}_${ci + 1}.jpg`, blob); } catch (e) { console.error("JPG convert error:", e); }
+          try { const blob = await convertToJpg((photos as any[])[ci].file); zip.file(`${currentSku}_${colorName}_${ci + 1}.jpg`, blob); } catch (e) { console.error("JPG convert error:", e); }
         }
       }
     }

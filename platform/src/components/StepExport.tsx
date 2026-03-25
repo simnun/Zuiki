@@ -338,7 +338,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       }
 
       for (const [color, photos] of Object.entries(colorGroups)) {
-        const colorName = color.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ_]/g, "");
+        const colorName = color.replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ ]/g, "").trim();
         for (let ci = 0; ci < (photos as any[]).length; ci++) {
           try { const blob = await convertToJpg((photos as any[])[ci].file); zip.file(`${currentSku}_${colorName}_${ci + 1}.jpg`, blob); } catch (e) { console.error("JPG convert error:", e); }
         }

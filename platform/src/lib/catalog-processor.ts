@@ -3,7 +3,7 @@
 import { SFX, SHOT_ORDER, SCMAP, COL } from "./constants";
 import type { CatalogItem, ExcelInfo, SessionConfig, ModellaInfo } from "./catalog-types";
 import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI } from "./utils";
-import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt, classifyPhotosPrompt } from "./ai-prompts";
+import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt, classifyPhotosPrompt, classifyPhotosStrictPrompt } from "./ai-prompts";
 
 type CaiFunc = (content: any, retries?: number) => Promise<string>;
 type DispatchFunc = (action: any) => void;
@@ -120,7 +120,7 @@ export function createProcessor(deps: ProcessorDeps) {
           const { base64, mimeType } = await compressForAI(f);
           c2.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
         }
-        c2.push({ type: "text", text: `Hai ${it.af.length} foto dell'articolo ${it.sku}. Classifica il colore di OGNI foto usando SOLO questi colori: ${allowedColors.join(", ")}. NON usare altri nomi. Rispondi SOLO JSON array con ${it.af.length} elementi: [{"color":"...","shot":"..."},...]` });
+        c2.push({ type: "text", text: classifyPhotosStrictPrompt(it, allowedColors) });
         try {
           const raw2 = await cAI(c2);
           const parsed2 = JSON.parse(raw2.replace(/```json|```/g, "").trim());

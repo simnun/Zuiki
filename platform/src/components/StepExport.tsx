@@ -6,7 +6,7 @@ import JSZip from "jszip";
 import { useStore } from "@/lib/store";
 import { esc, wrapHtml, fmtComp, convertToJpg, toB, mT, runPool, compressForAI } from "@/lib/utils";
 import { SCMAP, SHOT_ORDER, COL } from "@/lib/constants";
-import { genMetaTitle, genMetaKeys, classifyPhotosPrompt } from "@/lib/ai-prompts";
+import { genMetaTitle, genMetaKeys, classifyPhotosPrompt, classifyPhotosStrictPrompt } from "@/lib/ai-prompts";
 import type { CatalogItem } from "@/lib/catalog-types";
 
 interface StepExportProps {
@@ -294,7 +294,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
             const { base64, mimeType } = await compressForAI(f);
             c2.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
           }
-          c2.push({ type: "text", text: `Hai ${it.af.length} foto dell'articolo ${currentSku}. Devi classificare il colore di OGNI foto usando SOLO questi colori: ${allowedColors.join(", ")}. NON usare altri nomi colore. Rispondi SOLO JSON array con ${it.af.length} elementi: [{"color":"...","shot":"..."},...]` });
+          c2.push({ type: "text", text: classifyPhotosStrictPrompt(it, allowedColors) });
           try {
             const raw2 = await cAI(c2);
             const parsed2 = JSON.parse(raw2.replace(/```json|```/g, "").trim());

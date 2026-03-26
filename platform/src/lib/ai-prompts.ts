@@ -125,6 +125,18 @@ DEVI usare ESCLUSIVAMENTE questi nomi colore, ESATTAMENTE come scritti sopra. NO
     colorInstruction = `Colore di riferimento: ${firstColor}. Se le foto mostrano colori diversi, usa SOLO nomi dalla lista standard: ${COL.join(", ")}.`;
   }
 
+  const isFootwear = /scarpe|sandal|ciabatt|stival|sneaker|calzin/i.test(it.tp);
+
+  const orderingHint = `
+ORDINE FOTO: Le foto sono tipicamente raggruppate per colore nell'ordine del fotografo. Se vedi una sequenza di foto con lo stesso colore prodotto, rispetta questo raggruppamento naturale. Non assegnare un colore diverso a una singola foto nel mezzo di un gruppo omogeneo a meno che il prodotto sia CHIARAMENTE di un colore diverso.`;
+
+  const footwearHint = isFootwear ? `
+ATTENZIONE CALZATURE: Questo articolo è una calzatura. Alcune foto mostrano le scarpe INDOSSATE (solo piedi/gambe visibili). In queste foto:
+- Il prodotto occupa una PICCOLA porzione dell'immagine. Ignora i colori di sfondo, pelle e vestiti della modella.
+- Strass, glitter e decorazioni riflettono la luce e possono sembrare di colore diverso dalla base — concentrati sul colore del CORPO della scarpa, non dei riflessi.
+- Usa le foto prodotto isolato (scontornata/still life) come RIFERIMENTO COLORE per le foto indossato adiacenti nello stesso gruppo.
+- Se una foto indossato è tra foto di prodotto chiaramente di un certo colore, quasi certamente è dello STESSO colore.` : "";
+
   return `Hai ${it.af.length} foto dello stesso articolo "${it.tp}" (codice ${it.sku}).
 ${colorInstruction}
 
@@ -135,9 +147,22 @@ Per OGNI foto (indice 0-based) classifica:
 - "shot": uno tra "front_34" (3/4 frontale, mezzo busto angolato, posa tre quarti con il corpo leggermente ruotato), "back" (retro/posteriore, si vede la schiena), "detail" (dettaglio/closeup di una parte del capo), "full_front" (frontale a figura intera, si vedono piedi e scarpe), "scontornata" (foto senza sfondo/ritagliata, sfondo bianco puro o trasparente), "other" (qualsiasi altra posa)
 
 REGOLA FONDAMENTALE COLORI: Guarda il colore EFFETTIVO del prodotto in ogni singola foto. Se le foto mostrano prodotti di colori diversi (es: alcune nero, alcune beige, alcune bianco), DEVI assegnarli correttamente. Non assegnare lo stesso colore a tutte se sono visibilmente diversi.
+${orderingHint}${footwearHint}
 
 REGOLA SHOT: Per ogni colore, ogni tipo di shot (front_34, back, detail, full_front, scontornata) può essere assegnato a MASSIMO UNA foto. Se ci sono più foto simili dello stesso colore (es. due pose frontali diverse), assegna il tipo specifico SOLO alla foto più rappresentativa e classifica le altre come "other".
 
 Rispondi SOLO JSON array con ESATTAMENTE ${it.af.length} elementi: [{"color":"...","shot":"..."},...]
 Esempio per 6 foto con 2 colori: [{"color":"Nero","shot":"front_34"},{"color":"Nero","shot":"back"},{"color":"Nero","shot":"detail"},{"color":"Beige","shot":"front_34"},{"color":"Beige","shot":"back"},{"color":"Beige","shot":"other"}]`;
+}
+
+export function classifyPhotosStrictPrompt(it: { af: File[]; sku: string; tp: string }, allowedColors: string[]) {
+  const isFootwear = /scarpe|sandal|ciabatt|stival|sneaker|calzin/i.test(it.tp);
+
+  const orderingHint = `\nORDINE FOTO: Le foto sono raggruppate per colore dal fotografo. Rispetta il raggruppamento naturale. Non assegnare un colore diverso a una foto isolata nel mezzo di un gruppo omogeneo.`;
+
+  const footwearHint = isFootwear ? `\nATTENZIONE CALZATURE: Alcune foto mostrano scarpe INDOSSATE (solo piedi/gambe). Ignora sfondo, pelle e vestiti. Concentrati sul CORPO della scarpa. Usa le foto prodotto isolato come riferimento colore per le indossato adiacenti.` : "";
+
+  return `Hai ${it.af.length} foto dell'articolo ${it.sku}. Classifica il colore di OGNI foto usando SOLO questi colori: ${allowedColors.join(", ")}. NON usare altri nomi colore.
+${orderingHint}${footwearHint}
+Rispondi SOLO JSON array con ${it.af.length} elementi: [{"color":"...","shot":"..."},...]`;
 }

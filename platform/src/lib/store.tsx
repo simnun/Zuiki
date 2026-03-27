@@ -40,6 +40,8 @@ export interface AppState {
   tmpAl: string;
   tmpTs: string;
   tmpTi: string;
+  tmpTr: string;
+  tmpNs: string;
   sessionId: string;
   sessionSaved: boolean;
 }
@@ -81,6 +83,8 @@ function getInitialState(): AppState {
     tmpAl: "",
     tmpTs: "",
     tmpTi: "",
+    tmpTr: "",
+    tmpNs: "",
     sessionId: "",
     sessionSaved: false,
   };

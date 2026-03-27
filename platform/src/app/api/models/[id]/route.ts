@@ -50,6 +50,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         heightCm: body.heightCm,
         sizeTop: body.sizeTop,
         sizeBottom: body.sizeBottom,
+        sizeBra: body.sizeBra,
+        sizeShoe: body.sizeShoe,
       },
       include: { facePhotos: true },
     })

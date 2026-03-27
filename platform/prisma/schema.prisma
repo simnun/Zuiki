@@ -202,6 +202,8 @@ model Model {
   heightCm   Int?
   sizeTop    String?
   sizeBottom String?
+  sizeBra    String?
+  sizeShoe   String?
   createdAt  DateTime @default(now())
 
   company    Company          @relation(fields: [companyId], references: [id])

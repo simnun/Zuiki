@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { useStore } from "@/lib/store";
-import { TS_SIZES, TL_SIZES } from "@/lib/constants";
+import { TS_SIZES, TL_SIZES, BRA_SIZES, SHOE_SIZES } from "@/lib/constants";
 import { fD, resizeImg } from "@/lib/utils";
 import type { ExcelInfo } from "@/lib/catalog-types";
 
 export default function StepSetup() {
   const { state, dispatch } = useStore();
-  const { cfg, mod, facePh, nM, tmpFaces, tmpNm, tmpAl, tmpTs, tmpTi, excelWb, excelRows, excelMap, excelFileName } = state;
+  const { cfg, mod, facePh, nM, tmpFaces, tmpNm, tmpAl, tmpTs, tmpTi, tmpTr, tmpNs, excelWb, excelRows, excelMap, excelFileName } = state;
   const [modelsLoaded, setModelsLoaded] = useState(false);
 
   // Load models from database API on mount (single source of truth)
@@ -24,6 +24,8 @@ export default function StepSetup() {
           altezza: m.heightCm?.toString() || '',
           tagliaSopra: m.sizeTop || '',
           tagliaSotto: m.sizeBottom || '',
+          tagliaReggiseno: m.sizeBra || '',
+          numeroScarpe: m.sizeShoe || '',
           dbId: m.id,
         }));
         const newFacePh: Record<string, string[]> = {};
@@ -127,7 +129,7 @@ export default function StepSetup() {
       const res = await fetch('/api/models', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: tmpNm, heightCm: parseInt(tmpAl), sizeTop: tmpTs, sizeBottom: tmpTi }),
+        body: JSON.stringify({ name: tmpNm, heightCm: parseInt(tmpAl), sizeTop: tmpTs, sizeBottom: tmpTi, sizeBra: tmpTr || null, sizeShoe: tmpNs || null }),
       });
       if (res.ok) {
         const savedModel = await res.json();
@@ -146,7 +148,7 @@ export default function StepSetup() {
     } catch { /* ignore API errors, state updated below */ }
 
     // Update local state
-    const newMod = [...mod.filter(x => x.nome !== tmpNm), { nome: tmpNm, altezza: tmpAl, tagliaSopra: tmpTs, tagliaSotto: tmpTi }];
+    const newMod = [...mod.filter(x => x.nome !== tmpNm), { nome: tmpNm, altezza: tmpAl, tagliaSopra: tmpTs, tagliaSotto: tmpTi, tagliaReggiseno: tmpTr, numeroScarpe: tmpNs }];
     const newFacePh = { ...facePh };
     if (tmpFaces.length) {
       newFacePh[tmpNm] = [...tmpFaces];
@@ -154,7 +156,7 @@ export default function StepSetup() {
     const selMods = cfg.selMods.includes(tmpNm) ? cfg.selMods : [...cfg.selMods, tmpNm];
     dispatch({
       type: "SET_STATE",
-      payload: { mod: newMod, facePh: newFacePh, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "", nM: false },
+      payload: { mod: newMod, facePh: newFacePh, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "", tmpTr: "", tmpNs: "", nM: false },
     });
     dispatch({ type: "SET_CFG", payload: { selMods } });
   };
@@ -289,7 +291,7 @@ export default function StepSetup() {
             </h3>
             {!nM && mod.length > 0 && (
               <button className="btn btn-s" style={{ padding: "5px 14px", fontSize: 11 }}
-                onClick={() => dispatch({ type: "SET_STATE", payload: { nM: true, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "" } })}>
+                onClick={() => dispatch({ type: "SET_STATE", payload: { nM: true, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "", tmpTr: "", tmpNs: "" } })}>
                 + Nuova modella
               </button>
             )}
@@ -309,7 +311,7 @@ export default function StepSetup() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={fp[0]} className="face-thumb-sm" style={{ marginRight: 6 }} alt="" />
                     )}
-                    {ml.nome} <span style={{ fontSize: 10, opacity: .7, marginLeft: 6 }}>{ml.altezza}cm · {ml.tagliaSopra}/{ml.tagliaSotto}</span>
+                    {ml.nome} <span style={{ fontSize: 10, opacity: .7, marginLeft: 6 }}>{ml.altezza}cm · {ml.tagliaSopra}/{ml.tagliaSotto}{ml.tagliaReggiseno ? ` · Reg.${ml.tagliaReggiseno}` : ''}{ml.numeroScarpe ? ` · Sc.${ml.numeroScarpe}` : ''}</span>
                   </button>
                   <button className="md" onClick={() => removeMod(ml.nome)}>✕</button>
                 </div>
@@ -326,7 +328,7 @@ export default function StepSetup() {
               <div key={nm} style={{ marginTop: 10, padding: 12, background: "var(--card)", borderRadius: 8, border: "1px solid var(--border)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <strong style={{ fontSize: 13 }}>{ml.nome}</strong>
-                  <span style={{ fontSize: 11, color: "var(--muted)" }}>{ml.altezza}cm · {ml.tagliaSopra}/{ml.tagliaSotto}</span>
+                  <span style={{ fontSize: 11, color: "var(--muted)" }}>{ml.altezza}cm · {ml.tagliaSopra}/{ml.tagliaSotto}{ml.tagliaReggiseno ? ` · Reg.${ml.tagliaReggiseno}` : ''}{ml.numeroScarpe ? ` · Sc.${ml.numeroScarpe}` : ''}</span>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                   {fp.map((f: string, fi: number) => (
@@ -371,6 +373,20 @@ export default function StepSetup() {
                     {TS_SIZES.map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label>Taglia reggiseno</label>
+                  <select className="inp" value={tmpTr} onChange={(e) => dispatch({ type: "SET_STATE", payload: { tmpTr: e.target.value } })}>
+                    <option value="">Seleziona...</option>
+                    {BRA_SIZES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label>Numero scarpe</label>
+                  <select className="inp" value={tmpNs} onChange={(e) => dispatch({ type: "SET_STATE", payload: { tmpNs: e.target.value } })}>
+                    <option value="">Seleziona...</option>
+                    {SHOE_SIZES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
               </div>
               <div style={{ marginTop: 14 }}>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "1.2px", color: "var(--muted)", marginBottom: 8 }}>Foto Volto (per riconoscimento)</label>
@@ -389,7 +405,7 @@ export default function StepSetup() {
               <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
                 <button className="btn btn-p" style={{ padding: "8px 18px", fontSize: 12 }} onClick={saveNewModella}>💾 Salva modella</button>
                 <button className="btn btn-s" style={{ padding: "8px 18px", fontSize: 12 }}
-                  onClick={() => dispatch({ type: "SET_STATE", payload: { nM: false, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "" } })}>
+                  onClick={() => dispatch({ type: "SET_STATE", payload: { nM: false, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "", tmpTr: "", tmpNs: "" } })}>
                   Annulla
                 </button>
               </div>

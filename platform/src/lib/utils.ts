@@ -156,7 +156,9 @@ export function mDs(
   const tgSopra = ml ? ml.tagliaSopra : "";
   const tgSotto = ml ? ml.tagliaSotto : "";
   const tg = SUP.some(s => (tipo || "").toLowerCase().includes(s)) ? tgSopra : tgSotto;
-  const modInfo = ml ? `\n\nLa modella indossa la taglia IT ${tg}\nL'altezza della modella è ${alt} cm` : "";
+  const tgRegg = ml ? ml.tagliaReggiseno : "";
+  const braInfo = cfg.br === "loveskin" && tgRegg ? `\nTaglia reggiseno: ${tgRegg}` : "";
+  const modInfo = ml ? `\n\nLa modella indossa la taglia IT ${tg}${braInfo}\nL'altezza della modella è ${alt} cm` : "";
   return `${lic}${ai?.dettagli_descrizione || ""}${modInfo}\n\n${compFmt ? `Composizione:\u00A0${compFmt}` : "Composizione:"}`;
 }
 

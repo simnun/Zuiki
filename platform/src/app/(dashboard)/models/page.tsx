@@ -2,10 +2,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
 type FacePhoto = { id: string; photoUrl: string }
-type Model = { id: string; name: string; heightCm: number | null; sizeTop: string | null; sizeBottom: string | null; facePhotos: FacePhoto[] }
+type Model = { id: string; name: string; heightCm: number | null; sizeTop: string | null; sizeBottom: string | null; sizeBra: string | null; sizeShoe: string | null; facePhotos: FacePhoto[] }
 
 const TL_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 const TS_SIZES = ['38', '40', '42', '44', '46', '48', '50', '52']
+const BRA_SIZES = ['2B', '2C', '3B', '3C', '4B', '4C']
+const SHOE_SIZES = ['35', '36', '37', '38', '39', '40', '41']
 
 function resizeImg(file: File): Promise<string> {
   return new Promise(r => {
@@ -41,6 +43,8 @@ export default function ModelsPage() {
   const [altezza, setAltezza] = useState('')
   const [tagliaSopra, setTagliaSopra] = useState('')
   const [tagliaSotto, setTagliaSotto] = useState('')
+  const [tagliaReggiseno, setTagliaReggiseno] = useState('')
+  const [numeroScarpe, setNumeroScarpe] = useState('')
   const [tmpFaces, setTmpFaces] = useState<string[]>([])
   const fileRef = useRef<HTMLInputElement | null>(null)
   const addFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
@@ -58,6 +62,7 @@ export default function ModelsPage() {
 
   const resetForm = () => {
     setNome(''); setAltezza(''); setTagliaSopra(''); setTagliaSotto('')
+    setTagliaReggiseno(''); setNumeroScarpe('')
     setTmpFaces([]); setEditId(null); setShowForm(false)
   }
 
@@ -72,6 +77,8 @@ export default function ModelsPage() {
     setAltezza(m.heightCm?.toString() || '')
     setTagliaSopra(m.sizeTop || '')
     setTagliaSotto(m.sizeBottom || '')
+    setTagliaReggiseno(m.sizeBra || '')
+    setNumeroScarpe(m.sizeShoe || '')
     setTmpFaces(m.facePhotos.map(p => p.photoUrl))
     setEditId(m.id)
     setShowForm(true)
@@ -84,7 +91,7 @@ export default function ModelsPage() {
       return
     }
 
-    const body = { name: nome, heightCm: parseInt(altezza), sizeTop: tagliaSopra, sizeBottom: tagliaSotto }
+    const body = { name: nome, heightCm: parseInt(altezza), sizeTop: tagliaSopra, sizeBottom: tagliaSotto, sizeBra: tagliaReggiseno || null, sizeShoe: numeroScarpe || null }
 
     try {
       let savedModel: Model
@@ -238,6 +245,22 @@ export default function ModelsPage() {
                 </select>
               </div>
             </div>
+            <div className="grid2">
+              <div className="field">
+                <label>Taglia reggiseno</label>
+                <select className="inp" value={tagliaReggiseno} onChange={e => setTagliaReggiseno(e.target.value)}>
+                  <option value="">Seleziona...</option>
+                  {BRA_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label>Numero scarpe</label>
+                <select className="inp" value={numeroScarpe} onChange={e => setNumeroScarpe(e.target.value)}>
+                  <option value="">Seleziona...</option>
+                  {SHOE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
 
             <div className="field">
               <label>Foto volto (per riconoscimento)</label>
@@ -285,7 +308,7 @@ export default function ModelsPage() {
                   <div>
                     <div style={{ fontSize: 20, fontWeight: 700 }}>{m.name}</div>
                     <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                      {m.heightCm} cm · {m.sizeTop} / {m.sizeBottom}
+                      {m.heightCm} cm · {m.sizeTop} / {m.sizeBottom}{m.sizeBra ? ` · Reggiseno ${m.sizeBra}` : ''}{m.sizeShoe ? ` · Scarpe ${m.sizeShoe}` : ''}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>

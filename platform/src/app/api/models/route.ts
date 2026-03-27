@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
         heightCm: body.heightCm ? parseInt(body.heightCm) : null,
         sizeTop: body.sizeTop || null,
         sizeBottom: body.sizeBottom || null,
+        sizeBra: body.sizeBra || null,
+        sizeShoe: body.sizeShoe || null,
       },
       include: { facePhotos: true },
     })

@@ -3,6 +3,8 @@ export interface ModellaInfo {
   altezza: string;
   tagliaSopra: string;
   tagliaSotto: string;
+  tagliaReggiseno: string;
+  numeroScarpe: string;
   dbId?: string;
 }
 

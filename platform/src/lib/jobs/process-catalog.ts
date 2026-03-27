@@ -86,6 +86,8 @@ export const processSession = inngest.createFunction(
       altezza: sm.model.heightCm?.toString() || '',
       tagliaSopra: sm.model.sizeTop || '',
       tagliaSotto: sm.model.sizeBottom || '',
+      tagliaReggiseno: sm.model.sizeBra || '',
+      numeroScarpe: sm.model.sizeShoe || '',
     }))
 
     const modelFaces: Record<string, Array<{ base64: string; mimeType: string }>> = {}

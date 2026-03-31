@@ -332,6 +332,7 @@ model ExcelSkuData {
   sku            String
   rowIndex       Int
   colors         String?
+  sizes          String?
   year           String?
   season         String?
   articleType    String?

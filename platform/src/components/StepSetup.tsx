@@ -172,12 +172,18 @@ export default function StepSetup() {
         for (let i = 2; i < json.length; i++) {
           const row = json[i];
           const sku = (row[0] || "").toString().trim().toUpperCase();
-          if (sku) newMap[sku] = {
-            row: i, codice: sku, colori: (row[2] || "").toString(),
-            anno: (row[16] || "").toString(), stagione: (row[17] || "").toString(),
-            tipoArticolo: (row[19] || "").toString(), brand: (row[20] || "").toString(),
-            caratteristica: (row[21] || "").toString(), composizione: (row[27] || "").toString(),
-          };
+          if (sku) {
+            const comp1 = (row[28] || "").toString().trim();
+            const comp2 = (row[29] || "").toString().trim();
+            const composizione = comp2 ? (comp1 + " " + comp2).trim() : comp1;
+            newMap[sku] = {
+              row: i, codice: sku, colori: (row[2] || "").toString(),
+              taglie: (row[3] || "").toString(),
+              anno: (row[17] || "").toString(), stagione: (row[18] || "").toString(),
+              tipoArticolo: (row[20] || "").toString(), brand: (row[21] || "").toString(),
+              caratteristica: (row[22] || "").toString(), composizione,
+            };
+          }
         }
         dispatch({
           type: "SET_STATE",
@@ -452,7 +458,7 @@ export default function StepSetup() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div>
             <h3 style={{ fontSize: 13, fontWeight: 600 }}>File Excel Dati Tecnici</h3>
-            <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Carica il file Excel con i dati tecnici degli articoli (colonne A, C, Q, R, T, U, V, AB)</p>
+            <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Carica il file Excel con i dati tecnici degli articoli (colonne A, C, D, H, R, S, U, V, W, AC, AD)</p>
           </div>
         </div>
         {excelWb ? (

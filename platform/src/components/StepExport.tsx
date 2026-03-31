@@ -123,26 +123,23 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
         if (orig) { orig.v = v; orig.t = "s"; delete orig.w; }
         else { srcWs[addr] = { v, t: "s" }; }
       };
-      setCell(ri, 3, it.nm || "");
-      setCell(ri, 4, wrapHtml(it.ds));
-      setCell(ri, 5, wrapHtml(it.dl));
-      setCell(ri, 8, it.metaTitle || genMetaTitle(it, cfg));
-      setCell(ri, 9, it.metaDesc || "");
-      setCell(ri, 10, it.metaKeys || genMetaKeys(it, cfg));
-      setCell(ri, 12, it.tg || "");
-      setCell(ri, 13, it.altImg || "");
-      setCell(ri, 14, corrMap[it.sku] || "");
-      // G default 1, H default 0
-      const gAddr = XLSX.utils.encode_cell({ r: ri, c: 6 });
+      const altImg = it.altImg || "";
+      setCell(ri, 4, it.nm || "");                              // E - Titolo Prodotto
+      setCell(ri, 5, wrapHtml(it.ds));                          // F - Descrizione Breve
+      setCell(ri, 6, wrapHtml(it.dl));                          // G - Descrizione Estesa
+      setCell(ri, 9, it.metaTitle || genMetaTitle(it, cfg));    // J - meta_titolo
+      setCell(ri, 10, it.metaDesc || "");                       // K - meta_descrizione
+      setCell(ri, 11, it.metaKeys || genMetaKeys(it, cfg));     // L - meta-keys
+      // M - Rewrite_url: codicearticolo_titoloprodotto_defaultaltimage
+      const rewriteUrl = [it.sku, it.nm || "", altImg].filter(Boolean).join("_").toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+      setCell(ri, 12, rewriteUrl);                              // M - Rewrite_url
+      setCell(ri, 13, it.tg || "");                             // N - tags
+      setCell(ri, 14, altImg);                                  // O - Default Alt Image
+      setCell(ri, 15, corrMap[it.sku] || "");                   // P - Correlati
+      // H - Abilitato: always 1 (if 0 write 1, if 1 leave 1)
       const hAddr = XLSX.utils.encode_cell({ r: ri, c: 7 });
-      if (!srcWs[gAddr] || srcWs[gAddr].v === "" || srcWs[gAddr].v == null) {
-        if (srcWs[gAddr]) { srcWs[gAddr].v = 1; srcWs[gAddr].t = "n"; delete srcWs[gAddr].w; }
-        else srcWs[gAddr] = { v: 1, t: "n" };
-      }
-      if (!srcWs[hAddr] || srcWs[hAddr].v === "" || srcWs[hAddr].v == null) {
-        if (srcWs[hAddr]) { srcWs[hAddr].v = 0; srcWs[hAddr].t = "n"; delete srcWs[hAddr].w; }
-        else srcWs[hAddr] = { v: 0, t: "n" };
-      }
+      if (srcWs[hAddr]) { srcWs[hAddr].v = 1; srcWs[hAddr].t = "n"; delete srcWs[hAddr].w; }
+      else srcWs[hAddr] = { v: 1, t: "n" };
     }
 
     const keepRows = [0, 1, ...Array.from(processedRows).sort((a, b) => a - b)];

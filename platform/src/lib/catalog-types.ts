@@ -30,6 +30,7 @@ export interface ExcelInfo {
   row: number;
   codice: string;
   colori: string;
+  taglie: string;
   anno: string;
   stagione: string;
   tipoArticolo: string;

@@ -108,7 +108,8 @@ export const processSession = inngest.createFunction(
       for (const row of ef.skuData) {
         excelLookup[row.sku.toUpperCase()] = {
           row: row.rowIndex, codice: row.sku,
-          colori: row.colors || '', anno: row.year || '',
+          colori: row.colors || '', taglie: (row as any).sizes || '',
+          anno: row.year || '',
           stagione: row.season || '', tipoArticolo: row.articleType || '',
           brand: row.brand || '', caratteristica: row.characteristic || '',
           composizione: row.composition || '',

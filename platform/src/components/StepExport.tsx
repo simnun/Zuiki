@@ -123,18 +123,23 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
         if (orig) { orig.v = v; orig.t = "s"; delete orig.w; }
         else { srcWs[addr] = { v, t: "s" }; }
       };
-      const altImg = it.altImg || "";
+      const altImg = (it.altImg || "").slice(0, 300);             // max 300 chars
+      const metaTitle = (it.metaTitle || genMetaTitle(it, cfg)).slice(0, 100);
+      const metaDesc = (it.metaDesc || "").slice(0, 200);
+      const metaKeys = (it.metaKeys || genMetaKeys(it, cfg)).slice(0, 200);
+      const tags = (it.tg || "").slice(0, 200);
       setCell(ri, 4, it.nm || "");                              // E - Titolo Prodotto
       setCell(ri, 5, wrapHtml(it.ds));                          // F - Descrizione Breve
       setCell(ri, 6, wrapHtml(it.dl));                          // G - Descrizione Estesa
-      setCell(ri, 9, it.metaTitle || genMetaTitle(it, cfg));    // J - meta_titolo
-      setCell(ri, 10, it.metaDesc || "");                       // K - meta_descrizione
-      setCell(ri, 11, it.metaKeys || genMetaKeys(it, cfg));     // L - meta-keys
-      // M - Rewrite_url: codicearticolo_titoloprodotto_defaultaltimage
-      const rewriteUrl = [it.sku, it.nm || "", altImg].filter(Boolean).join("_").toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-      setCell(ri, 12, rewriteUrl);                              // M - Rewrite_url
-      setCell(ri, 13, it.tg || "");                             // N - tags
-      setCell(ri, 14, altImg);                                  // O - Default Alt Image
+      setCell(ri, 9, metaTitle);                                // J - meta_titolo (max 100)
+      setCell(ri, 10, metaDesc);                                // K - meta_descrizione (max 200)
+      setCell(ri, 11, metaKeys);                                // L - meta-keys (max 200)
+      // M - Rewrite_url: codicearticolo_titoloprodotto_defaultaltimage (max 100)
+      let rewriteUrl = [it.sku, it.nm || "", altImg].filter(Boolean).join("_").toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+      rewriteUrl = rewriteUrl.slice(0, 100);
+      setCell(ri, 12, rewriteUrl);                              // M - Rewrite_url (max 100)
+      setCell(ri, 13, tags);                                    // N - tags (max 200)
+      setCell(ri, 14, altImg);                                  // O - Default Alt Image (max 300)
       setCell(ri, 15, corrMap[it.sku] || "");                   // P - Correlati
       // H - Abilitato: always 1 (if 0 write 1, if 1 leave 1)
       const hAddr = XLSX.utils.encode_cell({ r: ri, c: 7 });
@@ -446,6 +451,17 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
         {corrSection}
       </div>
 
+      {/* Missing composition warning */}
+      {done.filter(i => !i.cp).length > 0 && (
+        <div style={{ background: "#fff8e1", borderRadius: 10, border: "1px solid #ffe082", padding: "12px 20px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 18 }}>⚠</span>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "#f57f17" }}>Composizione mancante</p>
+            <p style={{ fontSize: 12, color: "#795548" }}>{done.filter(i => !i.cp).length} prodott{done.filter(i => !i.cp).length === 1 ? "o" : "i"} senza composizione nel file caricato: {done.filter(i => !i.cp).map(i => i.sku).join(", ")}</p>
+          </div>
+        </div>
+      )}
+
       {/* Preview table */}
       <div style={{ background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden", marginBottom: 20 }}>
         <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)", fontSize: 14, fontWeight: 600 }}>Anteprima</div>
@@ -463,15 +479,14 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
 
       {/* Export buttons */}
       <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
-        {excelWb ? (
+        {excelWb && (
           <button className="btn btn-g" disabled={!done.length} style={{ padding: "14px 40px", fontSize: 15, borderRadius: 12 }} onClick={exportExcel}>
             📊 Scarica Excel ({done.length} prodotti)
           </button>
-        ) : (
-          <button className="btn btn-g" disabled={!done.length} style={{ padding: "14px 40px", fontSize: 15, borderRadius: 12 }} onClick={expCSV}>
-            ⬇ Scarica CSV ({done.length} prodotti)
-          </button>
         )}
+        <button className="btn btn-s" disabled={!done.length} style={{ padding: "14px 40px", fontSize: 15, borderRadius: 12 }} onClick={expCSV}>
+          ⬇ Scarica CSV ({done.length} prodotti)
+        </button>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
           <button className="btn btn-p" disabled={!done.length || zipProgress !== null} style={{ padding: "14px 40px", fontSize: 15, borderRadius: 12 }}
             onClick={async () => {

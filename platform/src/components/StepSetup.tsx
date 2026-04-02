@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { useStore } from "@/lib/store";
-import { TS_SIZES, TL_SIZES, BRA_SIZES, SHOE_SIZES } from "@/lib/constants";
+import { TS_SIZES, TL_SIZES, TL_SIZES_EXT, BRA_SIZES, SHOE_SIZES } from "@/lib/constants";
 import { fD, resizeImg } from "@/lib/utils";
 import type { ExcelInfo } from "@/lib/catalog-types";
 
 export default function StepSetup() {
   const { state, dispatch } = useStore();
-  const { cfg, mod, facePh, nM, tmpFaces, tmpNm, tmpAl, tmpTs, tmpTi, tmpTr, tmpNs, excelWb, excelRows, excelMap, excelFileName } = state;
+  const { cfg, mod, facePh, nM, tmpFaces, tmpNm, tmpAl, tmpTs, tmpTi, tmpTiLetter, tmpTr, tmpNs, excelWb, excelRows, excelMap, excelFileName } = state;
   const [modelsLoaded, setModelsLoaded] = useState(false);
 
   // Load models from database API on mount (single source of truth)
@@ -119,17 +119,20 @@ export default function StepSetup() {
   };
 
   const saveNewModella = async () => {
-    if (!tmpNm || !tmpAl || !tmpTs || !tmpTi) {
-      alert("Compila tutti i campi: nome, altezza, taglia sopra e taglia sotto");
+    if (!tmpNm || !tmpAl || !tmpTs || (!tmpTi && !tmpTiLetter)) {
+      alert("Compila tutti i campi: nome, altezza, taglia sopra e almeno una taglia sotto (numerica o lettera)");
       return;
     }
+
+    // Combine bottom sizes: "42/M" or "42" or "M"
+    const sizeBottom = [tmpTi, tmpTiLetter].filter(Boolean).join("/");
 
     // Save to database API
     try {
       const res = await fetch('/api/models', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: tmpNm, heightCm: parseInt(tmpAl), sizeTop: tmpTs, sizeBottom: tmpTi, sizeBra: tmpTr || null, sizeShoe: tmpNs || null }),
+        body: JSON.stringify({ name: tmpNm, heightCm: parseInt(tmpAl), sizeTop: tmpTs, sizeBottom, sizeBra: tmpTr || null, sizeShoe: tmpNs || null }),
       });
       if (res.ok) {
         const savedModel = await res.json();
@@ -148,7 +151,7 @@ export default function StepSetup() {
     } catch { /* ignore API errors, state updated below */ }
 
     // Update local state
-    const newMod = [...mod.filter(x => x.nome !== tmpNm), { nome: tmpNm, altezza: tmpAl, tagliaSopra: tmpTs, tagliaSotto: tmpTi, tagliaReggiseno: tmpTr, numeroScarpe: tmpNs }];
+    const newMod = [...mod.filter(x => x.nome !== tmpNm), { nome: tmpNm, altezza: tmpAl, tagliaSopra: tmpTs, tagliaSotto: sizeBottom, tagliaReggiseno: tmpTr, numeroScarpe: tmpNs }];
     const newFacePh = { ...facePh };
     if (tmpFaces.length) {
       newFacePh[tmpNm] = [...tmpFaces];
@@ -156,7 +159,7 @@ export default function StepSetup() {
     const selMods = cfg.selMods.includes(tmpNm) ? cfg.selMods : [...cfg.selMods, tmpNm];
     dispatch({
       type: "SET_STATE",
-      payload: { mod: newMod, facePh: newFacePh, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "", tmpTr: "", tmpNs: "", nM: false },
+      payload: { mod: newMod, facePh: newFacePh, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "", tmpTiLetter: "", tmpTr: "", tmpNs: "", nM: false },
     });
     dispatch({ type: "SET_CFG", payload: { selMods } });
   };
@@ -297,7 +300,7 @@ export default function StepSetup() {
             </h3>
             {!nM && mod.length > 0 && (
               <button className="btn btn-s" style={{ padding: "5px 14px", fontSize: 11 }}
-                onClick={() => dispatch({ type: "SET_STATE", payload: { nM: true, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "", tmpTr: "", tmpNs: "" } })}>
+                onClick={() => dispatch({ type: "SET_STATE", payload: { nM: true, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "", tmpTiLetter: "", tmpTr: "", tmpNs: "" } })}>
                 + Nuova modella
               </button>
             )}
@@ -373,10 +376,17 @@ export default function StepSetup() {
                   </select>
                 </div>
                 <div className="field" style={{ marginBottom: 0 }}>
-                  <label>Taglia parte inferiore</label>
+                  <label>Taglia parte inferiore (numerica)</label>
                   <select className="inp" value={tmpTi} onChange={(e) => dispatch({ type: "SET_STATE", payload: { tmpTi: e.target.value } })}>
                     <option value="">Seleziona...</option>
                     {TS_SIZES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label>Taglia parte inferiore (lettera)</label>
+                  <select className="inp" value={tmpTiLetter} onChange={(e) => dispatch({ type: "SET_STATE", payload: { tmpTiLetter: e.target.value } })}>
+                    <option value="">Seleziona...</option>
+                    {TL_SIZES_EXT.map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
                 <div className="field" style={{ marginBottom: 0 }}>
@@ -411,7 +421,7 @@ export default function StepSetup() {
               <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
                 <button className="btn btn-p" style={{ padding: "8px 18px", fontSize: 12 }} onClick={saveNewModella}>💾 Salva modella</button>
                 <button className="btn btn-s" style={{ padding: "8px 18px", fontSize: 12 }}
-                  onClick={() => dispatch({ type: "SET_STATE", payload: { nM: false, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "", tmpTr: "", tmpNs: "" } })}>
+                  onClick={() => dispatch({ type: "SET_STATE", payload: { nM: false, tmpFaces: [], tmpNm: "", tmpAl: "", tmpTs: "", tmpTi: "", tmpTiLetter: "", tmpTr: "", tmpNs: "" } })}>
                   Annulla
                 </button>
               </div>

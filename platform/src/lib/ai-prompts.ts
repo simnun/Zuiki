@@ -41,7 +41,7 @@ Rispondi SOLO JSON valido (no markdown, no backtick, no testo extra):
 }
 
 export function mPrLong(br: string, tipo: string, nome: string, descBreve: string, colore: string, licenza: string | null, comp: string, exInfo: any) {
-  const exTxt = exInfo ? `\n- Colori disponibili: ${exInfo.colori || "N/D"}\n- Anno: ${exInfo.anno || "N/D"}\n- Stagione: ${exInfo.stagione || "N/D"}\n- Caratteristica modello: ${exInfo.caratteristica || "N/D"}` : "";
+  const exTxt = exInfo ? `\n- Colori disponibili: ${exInfo.colori || "N/D"}\n- Stagione: ${exInfo.stagione || "N/D"}\n- Caratteristica modello: ${exInfo.caratteristica || "N/D"}` : "";
   return `Sei un copywriter SEO esperto di moda per ${br === "zuiki" ? "Zuiki" : "Loveskin"}.
 Scrivi una DESCRIZIONE LUNGA ottimizzata SEO per questo prodotto:
 - Tipo: ${tipo}
@@ -54,6 +54,7 @@ REGOLE:
 - NON MENZIONARE MAI IL COLORE del prodotto. La descrizione va sull'articolo genitore e i figli hanno colori diversi. Evita qualsiasi riferimento a colori specifici.
 - Se il tipo è "Jeans" o contiene "Jeans", chiamali SEMPRE "Jeans", MAI "pantaloni" o "pantaloni di jeans". Se è un pantalone (non jeans), usa SEMPRE il plurale "Pantaloni".
 - Includi keywords rilevanti per la ricerca (tipo articolo, stagione, brand, licenza se presente)
+- NON menzionare MAI l'anno della stagione (es: non scrivere "2026", "2025", "Primavera/Estate 2026" ecc.). Puoi indicare la stagione (Primavera/Estate, Autunno/Inverno) ma SENZA l'anno.
 - Includi consigli di stile e abbinamenti
 - Includi occasioni d'uso
 - Usa un tono coinvolgente e aspirazionale ma REALISTICO: NON usare aggettivi come "pregiato", "lussuoso", "esclusivo", "premium", "raffinato" se i materiali sono comuni (poliestere, acrilico, elastan, viscosa, nylon, poliammide). In questo caso punta su design, vestibilità, versatilità, praticità senza fare riferimenti alla composizione.

@@ -174,7 +174,7 @@ export const processSession = inngest.createFunction(
             ? mTags({ ds: cfg.ds, cat: ai.categoria_seo || '', sub: ai.sottocategoria_seo || '', nm, lic: ai.licenza && ai.licenza !== 'null' ? ai.licenza : null, tipo }, cfg)
             : mTagsLoveskin({ tipo, sfx: item.suffix || '', lic: ai.licenza && ai.licenza !== 'null' ? ai.licenza : null, vestibilita: ai.vestibilita || null, sporty: !!ai.is_sporty }, cfg)
 
-          const ds = mDs(ai, item.composition || '', tipo, recognizedModel, cfg, models)
+          const ds = mDs(ai, item.composition || '', tipo, recognizedModel, cfg, models, exInfo)
 
           let dl = ''
           try {

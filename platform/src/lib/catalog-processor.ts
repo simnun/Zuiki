@@ -222,7 +222,7 @@ export function createProcessor(deps: ProcessorDeps) {
         : mTagsLoveskin({ tipo: it.tp, sfx: it.sf, lic: ai.licenza && ai.licenza !== "null" ? ai.licenza : null, vestibilita: ai.vestibilita || null, sporty: !!ai.is_sporty }, cfg);
 
       // Description
-      const ds = mDs(ai, it.cp, it.tp, recMod, cfg, mod);
+      const ds = mDs(ai, it.cp, it.tp, recMod, cfg, mod, exInfo);
 
       // Doubt handling
       let doubt = false, doubtDesc = "", doubtResolved = false;

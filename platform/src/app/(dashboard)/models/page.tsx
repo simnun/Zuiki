@@ -5,6 +5,7 @@ type FacePhoto = { id: string; photoUrl: string }
 type Model = { id: string; name: string; heightCm: number | null; sizeTop: string | null; sizeBottom: string | null; sizeBra: string | null; sizeShoe: string | null; facePhotos: FacePhoto[] }
 
 const TL_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
+const TL_SIZES_EXT = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL']
 const TS_SIZES = ['38', '40', '42', '44', '46', '48', '50', '52']
 const BRA_SIZES = ['2B', '2C', '3B', '3C', '4B', '4C']
 const SHOE_SIZES = ['35', '36', '37', '38', '39', '40', '41']
@@ -43,6 +44,7 @@ export default function ModelsPage() {
   const [altezza, setAltezza] = useState('')
   const [tagliaSopra, setTagliaSopra] = useState('')
   const [tagliaSotto, setTagliaSotto] = useState('')
+  const [tagliaSottoLetter, setTagliaSottoLetter] = useState('')
   const [tagliaReggiseno, setTagliaReggiseno] = useState('')
   const [numeroScarpe, setNumeroScarpe] = useState('')
   const [tmpFaces, setTmpFaces] = useState<string[]>([])
@@ -62,7 +64,7 @@ export default function ModelsPage() {
 
   const resetForm = () => {
     setNome(''); setAltezza(''); setTagliaSopra(''); setTagliaSotto('')
-    setTagliaReggiseno(''); setNumeroScarpe('')
+    setTagliaSottoLetter(''); setTagliaReggiseno(''); setNumeroScarpe('')
     setTmpFaces([]); setEditId(null); setShowForm(false)
   }
 
@@ -76,7 +78,12 @@ export default function ModelsPage() {
     setNome(m.name)
     setAltezza(m.heightCm?.toString() || '')
     setTagliaSopra(m.sizeTop || '')
-    setTagliaSotto(m.sizeBottom || '')
+    // Split combined sizeBottom (e.g., "42/M") into numeric and letter parts
+    const bottomParts = (m.sizeBottom || '').split('/')
+    const numPart = bottomParts.find(p => /^\d+$/.test(p.trim())) || ''
+    const letterPart = bottomParts.find(p => /^[A-Z]+$/i.test(p.trim())) || ''
+    setTagliaSotto(numPart.trim())
+    setTagliaSottoLetter(letterPart.trim())
     setTagliaReggiseno(m.sizeBra || '')
     setNumeroScarpe(m.sizeShoe || '')
     setTmpFaces(m.facePhotos.map(p => p.photoUrl))
@@ -86,12 +93,13 @@ export default function ModelsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!nome || !altezza || !tagliaSopra || !tagliaSotto) {
-      flash('Compila tutti i campi: nome, altezza, taglia sopra e taglia sotto')
+    if (!nome || !altezza || !tagliaSopra || (!tagliaSotto && !tagliaSottoLetter)) {
+      flash('Compila tutti i campi: nome, altezza, taglia sopra e almeno una taglia sotto (numerica o lettera)')
       return
     }
 
-    const body = { name: nome, heightCm: parseInt(altezza), sizeTop: tagliaSopra, sizeBottom: tagliaSotto, sizeBra: tagliaReggiseno || null, sizeShoe: numeroScarpe || null }
+    const sizeBottom = [tagliaSotto, tagliaSottoLetter].filter(Boolean).join('/')
+    const body = { name: nome, heightCm: parseInt(altezza), sizeTop: tagliaSopra, sizeBottom, sizeBra: tagliaReggiseno || null, sizeShoe: numeroScarpe || null }
 
     try {
       let savedModel: Model
@@ -238,10 +246,19 @@ export default function ModelsPage() {
                 </select>
               </div>
               <div className="field">
-                <label>Taglia parte inferiore</label>
-                <select className="inp" value={tagliaSotto} onChange={e => setTagliaSotto(e.target.value)} required>
+                <label>Taglia parte inferiore (numerica)</label>
+                <select className="inp" value={tagliaSotto} onChange={e => setTagliaSotto(e.target.value)}>
                   <option value="">Seleziona...</option>
                   {TS_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid2">
+              <div className="field">
+                <label>Taglia parte inferiore (lettera)</label>
+                <select className="inp" value={tagliaSottoLetter} onChange={e => setTagliaSottoLetter(e.target.value)}>
+                  <option value="">Seleziona...</option>
+                  {TL_SIZES_EXT.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
             </div>

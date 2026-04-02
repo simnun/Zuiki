@@ -11,6 +11,7 @@ export const SFX: Record<string, string> = {
 
 export const TS_SIZES = ["38", "40", "42", "44", "46", "48", "50", "52"];
 export const TL_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
+export const TL_SIZES_EXT = ["XXS", "XS", "S", "M", "L", "XL", "XXL"];
 export const BRA_SIZES = ["2B", "2C", "3B", "3C", "4B", "4C"];
 export const SHOE_SIZES = ["35", "36", "37", "38", "39", "40", "41"];
 export const STG = ["Primavera/Estate", "Autunno/Inverno"] as const;

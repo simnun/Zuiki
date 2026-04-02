@@ -119,12 +119,12 @@ Rispondi SOLO JSON: {"modello_dettaglio":"2-3 parole","dettagli_descrizione":"ma
       const tg = cfg.br === "zuiki"
         ? mTags({ ds: cfg.ds, cat: ai.categoria_seo || "", sub: ai.sottocategoria_seo || "", nm, lic: ai.licenza && ai.licenza !== "null" ? ai.licenza : null, tipo: it.tp }, cfg)
         : mTagsLoveskin({ tipo: it.tp, sfx: it.sf, lic: ai.licenza && ai.licenza !== "null" ? ai.licenza : null, vestibilita: ai.vestibilita || null, sporty: !!ai.is_sporty }, cfg);
-      const ds = mDs(mergedAi, it.cp, it.tp, it.recMod, cfg, mod);
+      const exInfo = it.excelInfo || getExcelInfo(it.sku);
+      const ds = mDs(mergedAi, it.cp, it.tp, it.recMod, cfg, mod, exInfo);
 
       dispatch({ type: "SET_ITEM", idx, payload: { ai: mergedAi, nm, cl, tg, ds, corrHint: "" } });
 
       // Regen long desc
-      const exInfo = it.excelInfo || getExcelInfo(it.sku);
       const dl = await cAI([{ type: "text", text: mPrLong(cfg.br, it.tp, nm, ds, cl, mergedAi.licenza || null, it.cp, exInfo) }]);
 
       dispatch({ type: "SET_ITEM", idx, payload: { dl, reworking: false } });

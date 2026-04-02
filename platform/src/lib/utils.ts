@@ -121,13 +121,34 @@ export function mNm(tipo: string, ai: AIResponse | null) {
   return dedupWords([t, m, l].filter(Boolean).join(" "));
 }
 
+/**
+ * Match a model's size against the available sizes from Excel column D.
+ * E.g., model size "S", taglie "S/M, L/XL" → "S/M"
+ * If taglie is "UN" → "Unica"
+ */
+export function matchSizeFromTaglie(modelSize: string, taglie: string): string | null {
+  if (!modelSize || !taglie) return null;
+  const t = taglie.trim().toUpperCase();
+  if (t === "UN" || t === "UNICA" || t === "TU") return "Unica";
+  // Split by comma or space to get size groups
+  const groups = taglie.split(/[,\s]+/).map(g => g.trim()).filter(Boolean);
+  const ms = modelSize.trim().toUpperCase();
+  for (const group of groups) {
+    // Split group by "/" to check individual sizes within a group
+    const sizes = group.split("/").map(s => s.trim().toUpperCase());
+    if (sizes.includes(ms)) return group;
+  }
+  return null;
+}
+
 export function mDs(
   ai: AIResponse | null,
   comp: string,
   tipo: string,
   recModName: string | null | undefined,
   cfg: SessionConfig,
-  mod: ModellaInfo[]
+  mod: ModellaInfo[],
+  excelInfo?: ExcelInfo | null
 ) {
   const compFmt = fmtComp(comp);
   const lic = ai?.licenza && ai.licenza !== "null" && ai.licenza != null ? `\u00A9${ai.licenza}\n\n` : "";
@@ -150,15 +171,35 @@ export function mDs(
   let ml = recModName ? mod.find(x => x.nome === recModName) : null;
   if (!ml && cfg.selMods.length === 1) {
     const singleMl = mod.find(x => x.nome === cfg.selMods[0]);
-    if (singleMl) return mDs(ai, comp, tipo, singleMl.nome, cfg, mod);
+    if (singleMl) return mDs(ai, comp, tipo, singleMl.nome, cfg, mod, excelInfo);
   }
   const alt = ml ? ml.altezza : "";
   const tgSopra = ml ? ml.tagliaSopra : "";
   const tgSotto = ml ? ml.tagliaSotto : "";
-  const tg = SUP.some(s => (tipo || "").toLowerCase().includes(s)) ? tgSopra : tgSotto;
+  const isTop = SUP.some(s => (tipo || "").toLowerCase().includes(s));
+  const modelSize = isTop ? tgSopra : tgSotto;
   const tgRegg = ml ? ml.tagliaReggiseno : "";
   const braInfo = cfg.br === "loveskin" && tgRegg ? `\nTaglia reggiseno: ${tgRegg}` : "";
-  const modInfo = ml ? `\n\nLa modella indossa la taglia IT ${tg}${braInfo}\nL'altezza della modella è ${alt} cm` : "";
+
+  // Match model size against Excel taglie (column D)
+  let displaySize = modelSize;
+  if (ml && excelInfo?.taglie) {
+    const taglie = excelInfo.taglie.trim().toUpperCase();
+    if (taglie === "UN" || taglie === "UNICA" || taglie === "TU") {
+      displaySize = "Unica";
+    } else {
+      // Try matching each part of the model's size (e.g., "42/M" → try "42" then "M")
+      const modelSizeParts = modelSize.split("/").map(s => s.trim()).filter(Boolean);
+      let matched: string | null = null;
+      for (const part of modelSizeParts) {
+        matched = matchSizeFromTaglie(part, excelInfo.taglie);
+        if (matched) break;
+      }
+      if (matched) displaySize = matched;
+    }
+  }
+
+  const modInfo = ml ? `\n\nLa modella indossa la taglia ${displaySize === "Unica" ? "Unica" : "IT " + displaySize}${braInfo}\nL'altezza della modella è ${alt} cm` : "";
   return `${lic}${ai?.dettagli_descrizione || ""}${modInfo}\n\n${compFmt ? `Composizione:\u00A0${compFmt}` : "Composizione:"}`;
 }
 

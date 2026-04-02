@@ -87,14 +87,14 @@ export default function CatalogItemCard({ it, idx, onRetryOne, onSuggestCorr, on
             <>
               <div style={{ display: "grid", gridTemplateColumns: showModCol ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8, fontSize: 12 }}>
                 <div><span style={{ color: "var(--muted)" }}>Nome: </span><strong>{it.nm}</strong></div>
-                <div><span style={{ color: "var(--muted)" }}>Comp: </span>{fmtComp(it.cp) || "—"}</div>
+                <div><span style={{ color: "var(--muted)" }}>Comp: </span>{fmtComp(it.cp) || <span style={{ color: "var(--warn)", fontWeight: 600, fontSize: 11 }}>⚠ Composizione assente</span>}</div>
                 {it.recMod && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ color: "var(--muted)" }}>Modella: </span><strong>{it.recMod}</strong>
                     <select className="inp" style={{ display: "inline", width: "auto", padding: "2px 6px", fontSize: 10, borderRadius: 6, cursor: "pointer", background: "var(--subtle)", borderColor: "var(--border)" }}
                       onChange={(e) => {
                         if (e.target.value) {
-                          const newDs = mDs(it.ai, it.cp, it.tp, e.target.value, cfg, mod);
+                          const newDs = mDs(it.ai, it.cp, it.tp, e.target.value, cfg, mod, it.excelInfo);
                           dispatch({ type: "SET_ITEM", idx, payload: { recMod: e.target.value, ds: newDs } });
                         }
                       }}>
@@ -110,7 +110,7 @@ export default function CatalogItemCard({ it, idx, onRetryOne, onSuggestCorr, on
                     <select className="inp" style={{ display: "inline", width: "auto", padding: "2px 8px", fontSize: 11, borderRadius: 6, cursor: "pointer", borderColor: "var(--err)", background: "#fff5f5" }}
                       onChange={(e) => {
                         if (e.target.value) {
-                          const newDs = mDs(it.ai, it.cp, it.tp, e.target.value, cfg, mod);
+                          const newDs = mDs(it.ai, it.cp, it.tp, e.target.value, cfg, mod, it.excelInfo);
                           dispatch({ type: "SET_ITEM", idx, payload: { recMod: e.target.value, modelUnknown: false, ds: newDs } });
                         }
                       }}>

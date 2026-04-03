@@ -93,14 +93,78 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
   };
 
   const expCSV = () => {
-    if (!done.length) return;
-    let csv = "\uFEFF" + "SKU;Nome Prodotto;Tipo Articolo;Colore;Composizione;Descrizione Breve;Descrizione Lunga;Tag SEO;Prodotti Correlati\n";
-    done.forEach(i => {
-      csv += [esc(i.sku), esc(i.nm), esc(i.tp), esc(i.cl), esc(i.cp), esc(i.ds), esc(i.dl), esc(i.tg), esc(corrMap[i.sku] || "")].join(";") + "\n";
-    });
+    if (!done.length || !excelWb) return;
+    const srcWs = excelWb.Sheets[excelWb.SheetNames[0]];
+    const ref = XLSX.utils.decode_range(srcWs["!ref"]);
+    const maxCol = ref.e.c;
+
+    // Clone the worksheet so we don't mutate the original
+    const ws: Record<string, any> = {};
+    for (const key of Object.keys(srcWs)) {
+      if (key.startsWith("!")) continue;
+      ws[key] = JSON.parse(JSON.stringify(srcWs[key]));
+    }
+
+    const processedRows = new Set<number>();
+    for (const it of done) { const ex = getExcelInfo(it.sku); if (ex) processedRows.add(ex.row); }
+
+    // Apply the same modifications as Excel export
+    const setCell = (r: number, c: number, v: string) => {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (ws[addr]) { ws[addr].v = v; ws[addr].t = "s"; delete ws[addr].w; }
+      else { ws[addr] = { v, t: "s" }; }
+    };
+
+    for (const it of done) {
+      const ex = getExcelInfo(it.sku);
+      if (!ex) continue;
+      const ri = ex.row;
+      const altImg = (it.altImg || "").slice(0, 300);
+      const metaTitle = (it.metaTitle || genMetaTitle(it, cfg)).slice(0, 100);
+      const metaDesc = (it.metaDesc || "").slice(0, 200);
+      const metaKeys = (it.metaKeys || genMetaKeys(it, cfg)).slice(0, 200);
+      const tags = (it.tg || "").slice(0, 200);
+      setCell(ri, 4, it.nm || "");                              // E - Titolo Prodotto
+      setCell(ri, 5, wrapHtml(it.ds));                          // F - Descrizione Breve
+      setCell(ri, 6, wrapHtml(it.dl));                          // G - Descrizione Estesa
+      setCell(ri, 9, metaTitle);                                // J - meta_titolo
+      setCell(ri, 10, metaDesc);                                // K - meta_descrizione
+      setCell(ri, 11, metaKeys);                                // L - meta-keys
+      let rewriteUrl = [it.sku, it.nm || "", altImg].filter(Boolean).join("_").toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+      rewriteUrl = rewriteUrl.slice(0, 100);
+      setCell(ri, 12, rewriteUrl);                              // M - Rewrite_url
+      setCell(ri, 13, tags);                                    // N - tags
+      setCell(ri, 14, altImg);                                  // O - Default Alt Image
+      setCell(ri, 15, corrMap[it.sku] || "");                   // P - Correlati
+      // H - Abilitato: always 1
+      const hAddr = XLSX.utils.encode_cell({ r: ri, c: 7 });
+      if (ws[hAddr]) { ws[hAddr].v = 1; ws[hAddr].t = "n"; delete ws[hAddr].w; }
+      else { ws[hAddr] = { v: 1, t: "n" }; }
+    }
+
+    // Keep header rows (0, 1) + processed rows — same as Excel
+    const keepRows = [0, 1, ...Array.from(processedRows).sort((a, b) => a - b)];
+
+    // Build CSV from kept rows
+    const csvEsc = (v: any): string => {
+      const s = v == null ? "" : String(v);
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
+    const lines: string[] = [];
+    for (const ri of keepRows) {
+      const cells: string[] = [];
+      for (let c = 0; c <= maxCol; c++) {
+        const addr = XLSX.utils.encode_cell({ r: ri, c });
+        const cell = ws[addr];
+        cells.push(csvEsc(cell ? (cell.w != null ? cell.w : cell.v) : ""));
+      }
+      lines.push(cells.join(";"));
+    }
+    const csv = "\uFEFF" + lines.join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
-    a.download = `catalogo_${cfg.br}_${SCMAP[cfg.st] || ""}${cfg.an}_${new Date().toISOString().slice(0, 10)}.csv`;
+    const fname = excelFileName ? excelFileName.replace(/\.[^.]+$/, "") + "_compilato.csv" : `catalogo_${cfg.br}_${SCMAP[cfg.st] || ""}${cfg.an}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = fname;
     a.click();
   };
 
@@ -484,9 +548,11 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
             📊 Scarica Excel ({done.length} prodotti)
           </button>
         )}
-        <button className="btn btn-s" disabled={!done.length} style={{ padding: "14px 40px", fontSize: 15, borderRadius: 12 }} onClick={expCSV}>
-          ⬇ Scarica CSV ({done.length} prodotti)
-        </button>
+        {excelWb && (
+          <button className="btn btn-s" disabled={!done.length} style={{ padding: "14px 40px", fontSize: 15, borderRadius: 12 }} onClick={expCSV}>
+            ⬇ Scarica CSV ({done.length} prodotti)
+          </button>
+        )}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
           <button className="btn btn-p" disabled={!done.length || zipProgress !== null} style={{ padding: "14px 40px", fontSize: 15, borderRadius: 12 }}
             onClick={async () => {

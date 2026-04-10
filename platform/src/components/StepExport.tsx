@@ -15,7 +15,7 @@ interface StepExportProps {
 
 export default function StepExport({ onFindCorrelations }: StepExportProps) {
   const { state, dispatch, cAI, getExcelInfo } = useStore();
-  const { items, corr, cL, cD, cfg, excelWb, excelRows, excelMap, excelFileName, sessionId, sessionSaved } = state;
+  const { items, corr, cL, cD, cfg, excelWb, excelRows, excelMap, excelFileName, sessionId, sessionSaved, sessErr } = state;
   const done = items.filter(i => i.st === "done");
   const [zipProgress, setZipProgress] = useState<number | null>(null);
   const [zipEta, setZipEta] = useState("");
@@ -542,7 +542,10 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           {saveError && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: "#fff5f5", color: "var(--err)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={saveError}>{saveError}</span>}
           {sessionSaved && !saveError && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: "#e8f5e9", color: "var(--ok)" }}>Salvata</span>}
           {saving && <span style={{ fontSize: 11, color: "var(--muted)" }}>Salvataggio...</span>}
-          <button className="btn btn-s" style={{ padding: "6px 14px", fontSize: 12 }} disabled={saving || !sessionId} onClick={saveSessionToDB}>
+          {!sessionId && !saving && sessErr && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: "#fff5f5", color: "var(--err)", maxWidth: 340, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={sessErr}>{sessErr}</span>}
+          {!sessionId && !saving && !sessErr && <span style={{ fontSize: 11, color: "var(--muted)" }}>Sessione non creata</span>}
+          <button className="btn btn-s" style={{ padding: "6px 14px", fontSize: 12 }} disabled={saving || !sessionId} onClick={saveSessionToDB}
+            title={!sessionId ? (sessErr || "Impossibile salvare: la sessione non è stata creata correttamente.") : ""}>
             {saving ? "Salvataggio..." : saveError ? "Riprova" : "Salva sessione"}
           </button>
           <button className="btn btn-s" onClick={() => dispatch({ type: "SET_STEP", payload: 1 })}>← Catalogo</button>

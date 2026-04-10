@@ -529,9 +529,18 @@ export default function StepSetup() {
               });
               if (res.ok) {
                 const sess = await res.json();
-                dispatch({ type: "SET_STATE", payload: { sessionId: sess.id } });
+                dispatch({ type: "SET_STATE", payload: { sessionId: sess.id, sessErr: "" } });
+              } else {
+                const errBody = await res.json().catch(() => ({ error: "" }));
+                const reason = res.status === 401 ? "Utente non autenticato. Effettua il login e riprova."
+                  : res.status === 403 && errBody.error === "No company" ? "Il tuo account non è associato a nessuna azienda. Contatta l'amministratore."
+                  : res.status === 403 ? "Il tuo ruolo non ha i permessi per creare sessioni. Contatta l'amministratore."
+                  : `Errore server (${res.status}). Riprova più tardi.`;
+                dispatch({ type: "SET_STATE", payload: { sessErr: reason } });
               }
-            } catch { /* session creation failure is non-blocking */ }
+            } catch {
+              dispatch({ type: "SET_STATE", payload: { sessErr: "Errore di rete durante la creazione della sessione. Verifica la connessione e riprova." } });
+            }
             dispatch({ type: "SET_STEP", payload: 1 });
           }}>
           Inizia Catalogazione →

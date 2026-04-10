@@ -20,13 +20,54 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
   const [zipProgress, setZipProgress] = useState<number | null>(null);
   const [zipEta, setZipEta] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const saveTriggered = useRef(false);
+  const savingRef = useRef(false);
+
+  // Generate a tiny thumbnail data URL from a File object
+  const fileToThumb = (file: File): Promise<string> =>
+    new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 120;
+          const s = Math.min(maxDim / Math.max(img.width, img.height), 1);
+          const c = document.createElement("canvas");
+          c.width = Math.round(img.width * s);
+          c.height = Math.round(img.height * s);
+          c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+          res(c.toDataURL("image/jpeg", 0.5));
+        };
+        img.onerror = () => rej(new Error("Image load failed"));
+        img.src = r.result as string;
+      };
+      r.onerror = () => rej(new Error("FileReader failed"));
+      r.readAsDataURL(file);
+    });
 
   // Save session data to DB on mount
   const saveSessionToDB = useCallback(async () => {
-    if (!sessionId || saving) return;
+    if (!sessionId || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
+    setSaveError(null);
     try {
+      // Generate tiny thumbnails from actual File objects (not blob URLs)
+      const thumbs: Record<string, string[]> = {};
+      for (const it of items) {
+        if (it.fl) {
+          try {
+            const thumb = await fileToThumb(it.fl);
+            thumbs[it.sku] = [thumb];
+          } catch {
+            thumbs[it.sku] = [];
+          }
+        } else {
+          thumbs[it.sku] = [];
+        }
+      }
+
       const payload = {
         items: items.map(it => ({
           sku: it.sku,
@@ -46,7 +87,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           license: it.ai?.licenza || "",
           recognizedModel: it.ai?.modella_riconosciuta || "",
           status: it.st === "done" ? "done" : it.st === "err" ? "error" : "pending",
-          photoDataUrls: it.ap?.slice(0, 1) || [],
+          photoDataUrls: thumbs[it.sku] || [],
         })),
         correlations: corr,
       };
@@ -57,10 +98,16 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       });
       if (res.ok) {
         dispatch({ type: "SET_STATE", payload: { sessionSaved: true } });
+      } else {
+        const errText = await res.text().catch(() => "");
+        setSaveError(`Errore salvataggio (${res.status}): ${errText.slice(0, 100) || "Riprova"}`);
       }
-    } catch { /* non-blocking */ }
+    } catch (err: any) {
+      setSaveError(`Errore di rete: ${err?.message || "Connessione fallita. Riprova."}`);
+    }
+    savingRef.current = false;
     setSaving(false);
-  }, [sessionId, items, corr, saving, dispatch]);
+  }, [sessionId, items, corr, dispatch]);
 
   // Auto-save on first mount of export step
   useEffect(() => {
@@ -492,10 +539,11 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           <p style={{ color: "var(--muted)", fontSize: 13 }}>{done.length} prodotti pronti</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {sessionSaved && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: "#e8f5e9", color: "var(--ok)" }}>Salvata</span>}
+          {saveError && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: "#fff5f5", color: "var(--err)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={saveError}>{saveError}</span>}
+          {sessionSaved && !saveError && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: "#e8f5e9", color: "var(--ok)" }}>Salvata</span>}
           {saving && <span style={{ fontSize: 11, color: "var(--muted)" }}>Salvataggio...</span>}
-          <button className="btn btn-s" style={{ padding: "6px 14px", fontSize: 12 }} disabled={saving} onClick={saveSessionToDB}>
-            Salva sessione
+          <button className="btn btn-s" style={{ padding: "6px 14px", fontSize: 12 }} disabled={saving || !sessionId} onClick={saveSessionToDB}>
+            {saving ? "Salvataggio..." : saveError ? "Riprova" : "Salva sessione"}
           </button>
           <button className="btn btn-s" onClick={() => dispatch({ type: "SET_STEP", payload: 1 })}>← Catalogo</button>
         </div>

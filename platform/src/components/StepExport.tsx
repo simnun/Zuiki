@@ -23,6 +23,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const saveTriggered = useRef(false);
   const savingRef = useRef(false);
+  const [creatingSession, setCreatingSession] = useState(false);
 
   // Generate a tiny thumbnail data URL from a File object
   const fileToThumb = (file: File): Promise<string> =>
@@ -46,7 +47,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       r.readAsDataURL(file);
     });
 
-  // Save session data to DB on mount
+  // Save session data to DB with retry logic
   const saveSessionToDB = useCallback(async () => {
     if (!sessionId || savingRef.current) return;
     savingRef.current = true;
@@ -91,23 +92,78 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
         })),
         correlations: corr,
       };
-      const res = await fetch(`/api/sessions/${sessionId}/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        dispatch({ type: "SET_STATE", payload: { sessionSaved: true } });
-      } else {
-        const errText = await res.text().catch(() => "");
-        setSaveError(`Errore salvataggio (${res.status}): ${errText.slice(0, 100) || "Riprova"}`);
+
+      // Retry up to 3 times with exponential backoff
+      let lastErr = "";
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * Math.pow(2, attempt)));
+        try {
+          const res = await fetch(`/api/sessions/${sessionId}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (res.ok) {
+            dispatch({ type: "SET_STATE", payload: { sessionSaved: true } });
+            savingRef.current = false;
+            setSaving(false);
+            return; // Success
+          }
+          // Auth/permission errors: don't retry
+          if (res.status === 401 || res.status === 403 || res.status === 404) {
+            const errText = await res.text().catch(() => "");
+            setSaveError(`Errore (${res.status}): ${errText.slice(0, 100) || "Riprova"}`);
+            savingRef.current = false;
+            setSaving(false);
+            return;
+          }
+          // Server/DB errors: retry
+          const errText = await res.text().catch(() => "");
+          lastErr = `Errore salvataggio (${res.status}): ${errText.slice(0, 100) || "Database non raggiungibile"}`;
+        } catch (err: any) {
+          lastErr = `Errore di rete: ${err?.message || "Connessione fallita"}`;
+        }
       }
+      // All retries exhausted
+      setSaveError(lastErr + " — Premi 'Riprova' per riprovare.");
     } catch (err: any) {
-      setSaveError(`Errore di rete: ${err?.message || "Connessione fallita. Riprova."}`);
+      setSaveError(`Errore: ${err?.message || "Errore imprevisto. Riprova."}`);
     }
     savingRef.current = false;
     setSaving(false);
   }, [sessionId, items, corr, dispatch]);
+
+  // Retry session creation from Export step (if initial creation failed)
+  const retryCreateSession = useCallback(async () => {
+    if (sessionId || creatingSession) return;
+    setCreatingSession(true);
+    const ds = cfg.ds || "";
+    const shootingDate = ds.length === 8
+      ? `${ds.slice(4, 8)}-${ds.slice(2, 4)}-${ds.slice(0, 2)}`
+      : new Date().toISOString().slice(0, 10);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * Math.pow(2, attempt)));
+      try {
+        const res = await fetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            brand: cfg.br, season: cfg.st, year: cfg.an,
+            shootingDate, shootType: cfg.shootType,
+          }),
+        });
+        if (res.ok) {
+          const sess = await res.json();
+          dispatch({ type: "SET_STATE", payload: { sessionId: sess.id, sessErr: "" } });
+          setCreatingSession(false);
+          return;
+        }
+        if (res.status === 401 || res.status === 403) break; // Don't retry auth errors
+      } catch { /* retry */ }
+    }
+    dispatch({ type: "SET_STATE", payload: { sessErr: "Impossibile creare la sessione. Il database potrebbe non essere raggiungibile." } });
+    setCreatingSession(false);
+  }, [sessionId, creatingSession, cfg, dispatch]);
 
   // Auto-save on first mount of export step
   useEffect(() => {
@@ -542,12 +598,18 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           {saveError && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: "#fff5f5", color: "var(--err)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={saveError}>{saveError}</span>}
           {sessionSaved && !saveError && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: "#e8f5e9", color: "var(--ok)" }}>Salvata</span>}
           {saving && <span style={{ fontSize: 11, color: "var(--muted)" }}>Salvataggio...</span>}
-          {!sessionId && !saving && sessErr && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: "#fff5f5", color: "var(--err)", maxWidth: 340, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={sessErr}>{sessErr}</span>}
-          {!sessionId && !saving && !sessErr && <span style={{ fontSize: 11, color: "var(--muted)" }}>Sessione non creata</span>}
-          <button className="btn btn-s" style={{ padding: "6px 14px", fontSize: 12 }} disabled={saving || !sessionId} onClick={saveSessionToDB}
-            title={!sessionId ? (sessErr || "Impossibile salvare: la sessione non è stata creata correttamente.") : ""}>
-            {saving ? "Salvataggio..." : saveError ? "Riprova" : "Salva sessione"}
-          </button>
+          {creatingSession && <span style={{ fontSize: 11, color: "var(--muted)" }}>Creazione sessione...</span>}
+          {!sessionId && !saving && !creatingSession && sessErr && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: "#fff5f5", color: "var(--err)", maxWidth: 340, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={sessErr}>{sessErr}</span>}
+          {!sessionId && !saving && !creatingSession && (
+            <button className="btn btn-s" style={{ padding: "6px 14px", fontSize: 12, background: "#fff3e0", borderColor: "#ff9800" }} disabled={creatingSession} onClick={retryCreateSession}>
+              {creatingSession ? "Creazione..." : "Crea sessione"}
+            </button>
+          )}
+          {sessionId && (
+            <button className="btn btn-s" style={{ padding: "6px 14px", fontSize: 12 }} disabled={saving} onClick={saveSessionToDB}>
+              {saving ? "Salvataggio..." : saveError ? "Riprova salvataggio" : "Salva sessione"}
+            </button>
+          )}
           <button className="btn btn-s" onClick={() => dispatch({ type: "SET_STEP", payload: 1 })}>← Catalogo</button>
         </div>
       </div>

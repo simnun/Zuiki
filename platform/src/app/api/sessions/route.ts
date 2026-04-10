@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma, ensureUserExists } from '@/lib/db'
+import { prisma, ensureUserExists, withRetry } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
 
 export async function GET() {
@@ -10,14 +10,14 @@ export async function GET() {
 
   try {
     const where = user.role === 'super_admin' ? {} : { companyId: user.companyId! }
-    const sessions = await prisma.shootingSession.findMany({
+    const sessions = await withRetry(() => prisma.shootingSession.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       include: {
         _count: { select: { catalogItems: true, correlations: true } },
         createdBy: { select: { firstName: true, lastName: true } },
       },
-    })
+    }))
     return NextResponse.json(sessions)
   } catch {
     return NextResponse.json([])
@@ -34,11 +34,12 @@ export async function POST(req: NextRequest) {
   const { brand, season, year, shootingDate, shootType, modelIds, mannequin } = body
 
   try {
-    await ensureUserExists(user)
+    // Ensure user and company exist in DB (with retry for transient connection issues)
+    await withRetry(() => ensureUserExists(user))
 
-    const session = await prisma.shootingSession.create({
+    const session = await withRetry(() => prisma.shootingSession.create({
       data: {
-        companyId: user.companyId,
+        companyId: user.companyId!,
         createdById: user.id,
         brand,
         season,
@@ -56,11 +57,17 @@ export async function POST(req: NextRequest) {
         sessionModels: { include: { model: true } },
         mannequinConfig: true,
       },
-    })
+    }))
 
     return NextResponse.json(session, { status: 201 })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error('[Sessions POST] Error creating session:', message)
+    // Return a more specific status for connection issues
+    const isConnectionError = message.includes('connect') || message.includes('timeout') || message.includes('ECONNREFUSED') || message.includes('P1001')
+    return NextResponse.json(
+      { error: isConnectionError ? 'Database non raggiungibile. Riprova tra qualche secondo.' : message },
+      { status: isConnectionError ? 503 : 500 },
+    )
   }
 }

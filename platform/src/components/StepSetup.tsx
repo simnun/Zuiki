@@ -502,44 +502,58 @@ export default function StepSetup() {
         <button className="btn btn-p" disabled={!rdy}
           onClick={async () => {
             dispatch({ type: "SET_CFG", payload: { noModel: cfg.shootType === "still" || cfg.shootType === "mixed" } });
-            // Create session in DB
-            try {
-              const ds = cfg.ds;
-              const shootingDate = ds.length === 8
-                ? `${ds.slice(4, 8)}-${ds.slice(2, 4)}-${ds.slice(0, 2)}`
-                : new Date().toISOString().slice(0, 10);
-              const modelDbIds = mod.filter(m => cfg.selMods.includes(m.nome) && m.dbId).map(m => m.dbId);
-              const res = await fetch('/api/sessions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  brand: cfg.br,
-                  season: cfg.st,
-                  year: cfg.an,
-                  shootingDate,
-                  shootType: cfg.shootType,
-                  modelIds: modelDbIds.length ? modelDbIds : undefined,
-                  mannequin: cfg.shootType === 'mannequin' && cfg.mannequin?.taglia ? {
-                    size: cfg.mannequin.taglia,
-                    bustCm: cfg.mannequin.petto ? parseInt(cfg.mannequin.petto) : undefined,
-                    waistCm: cfg.mannequin.vita ? parseInt(cfg.mannequin.vita) : undefined,
-                    hipsCm: cfg.mannequin.fianchi ? parseInt(cfg.mannequin.fianchi) : undefined,
-                  } : undefined,
-                }),
-              });
-              if (res.ok) {
-                const sess = await res.json();
-                dispatch({ type: "SET_STATE", payload: { sessionId: sess.id, sessErr: "" } });
-              } else {
-                const errBody = await res.json().catch(() => ({ error: "" }));
-                const reason = res.status === 401 ? "Utente non autenticato. Effettua il login e riprova."
-                  : res.status === 403 && errBody.error === "No company" ? "Il tuo account non è associato a nessuna azienda. Contatta l'amministratore."
-                  : res.status === 403 ? "Il tuo ruolo non ha i permessi per creare sessioni. Contatta l'amministratore."
-                  : `Errore server (${res.status}). Riprova più tardi.`;
-                dispatch({ type: "SET_STATE", payload: { sessErr: reason } });
+            // Create session in DB with retry (3 attempts with exponential backoff)
+            const ds = cfg.ds;
+            const shootingDate = ds.length === 8
+              ? `${ds.slice(4, 8)}-${ds.slice(2, 4)}-${ds.slice(0, 2)}`
+              : new Date().toISOString().slice(0, 10);
+            const modelDbIds = mod.filter(m => cfg.selMods.includes(m.nome) && m.dbId).map(m => m.dbId);
+            const payload = {
+              brand: cfg.br,
+              season: cfg.st,
+              year: cfg.an,
+              shootingDate,
+              shootType: cfg.shootType,
+              modelIds: modelDbIds.length ? modelDbIds : undefined,
+              mannequin: cfg.shootType === 'mannequin' && cfg.mannequin?.taglia ? {
+                size: cfg.mannequin.taglia,
+                bustCm: cfg.mannequin.petto ? parseInt(cfg.mannequin.petto) : undefined,
+                waistCm: cfg.mannequin.vita ? parseInt(cfg.mannequin.vita) : undefined,
+                hipsCm: cfg.mannequin.fianchi ? parseInt(cfg.mannequin.fianchi) : undefined,
+              } : undefined,
+            };
+
+            let created = false;
+            for (let attempt = 0; attempt < 3 && !created; attempt++) {
+              if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+              try {
+                const res = await fetch('/api/sessions', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload),
+                });
+                if (res.ok) {
+                  const sess = await res.json();
+                  dispatch({ type: "SET_STATE", payload: { sessionId: sess.id, sessErr: "" } });
+                  created = true;
+                } else if (res.status === 401 || res.status === 403) {
+                  // Auth/permission errors: don't retry
+                  const errBody = await res.json().catch(() => ({ error: "" }));
+                  const reason = res.status === 401 ? "Utente non autenticato. Effettua il login e riprova."
+                    : res.status === 403 && errBody.error === "No company" ? "Il tuo account non è associato a nessuna azienda. Contatta l'amministratore."
+                    : "Il tuo ruolo non ha i permessi per creare sessioni. Contatta l'amministratore.";
+                  dispatch({ type: "SET_STATE", payload: { sessErr: reason } });
+                  break;
+                } else if (attempt === 2) {
+                  // Last attempt failed with server error
+                  dispatch({ type: "SET_STATE", payload: { sessErr: `Errore server (${res.status}). Il database potrebbe essere temporaneamente non raggiungibile.` } });
+                }
+                // On 500/503, retry on next iteration
+              } catch {
+                if (attempt === 2) {
+                  dispatch({ type: "SET_STATE", payload: { sessErr: "Errore di rete durante la creazione della sessione. Verifica la connessione e riprova." } });
+                }
               }
-            } catch {
-              dispatch({ type: "SET_STATE", payload: { sessErr: "Errore di rete durante la creazione della sessione. Verifica la connessione e riprova." } });
             }
             dispatch({ type: "SET_STEP", payload: 1 });
           }}>

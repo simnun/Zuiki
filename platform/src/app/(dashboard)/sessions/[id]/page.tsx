@@ -152,7 +152,7 @@ export default function SessionDetailPage() {
             {session.catalogItems.map(item => (
               <div key={item.id} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8 }}>
                 <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--subtle)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {item.photos.length > 0 && item.photos[0].storageKey.startsWith('data:') ? (
+                  {item.photos.length > 0 && (item.photos[0].storageKey.startsWith('data:') || item.photos[0].storageKey.startsWith('http')) ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={item.photos[0].storageKey} alt="" style={{ width: 48, height: 48, objectFit: 'cover' }} />
                   ) : (
@@ -198,7 +198,7 @@ export default function SessionDetailPage() {
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
                   {corr.items.map(ci => (
                     <div key={ci.item.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: 8, background: 'var(--subtle)', borderRadius: 8, border: '1px solid var(--border)', minWidth: 90 }}>
-                      {ci.item.photos?.[0]?.storageKey?.startsWith('data:') ? (
+                      {ci.item.photos?.[0]?.storageKey && (ci.item.photos[0].storageKey.startsWith('data:') || ci.item.photos[0].storageKey.startsWith('http')) ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={ci.item.photos[0].storageKey} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6 }} />
                       ) : (

@@ -11,7 +11,14 @@ function createPrismaClient() {
   if (!connectionString) {
     throw new Error('DATABASE_URL is not set')
   }
-  const adapter = new PrismaPg({ connectionString })
+  // Pass PoolConfig with connection pooling settings
+  const adapter = new PrismaPg({
+    connectionString,
+    max: 5,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    ssl: { rejectUnauthorized: false },
+  } as any)
   return new PrismaClient({ adapter })
 }
 
@@ -23,6 +30,40 @@ export const prisma = new Proxy({} as PrismaClient, {
     return (globalForPrisma.prisma as any)[prop]
   },
 })
+
+/**
+ * Retry a database operation with exponential backoff.
+ * Useful for transient connection failures on serverless.
+ */
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelay = 500,
+): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (err: unknown) {
+      lastError = err
+      const msg = err instanceof Error ? err.message : ''
+      // Only retry on connection/timeout errors, not on validation/constraint errors
+      const isRetryable =
+        msg.includes('connect') ||
+        msg.includes('timeout') ||
+        msg.includes('ECONNREFUSED') ||
+        msg.includes('ECONNRESET') ||
+        msg.includes('ETIMEDOUT') ||
+        msg.includes('Connection terminated') ||
+        msg.includes('P1001') ||
+        msg.includes('P1002') ||
+        msg.includes('socket')
+      if (!isRetryable || attempt === maxRetries) throw lastError
+      await new Promise(r => setTimeout(r, baseDelay * Math.pow(2, attempt)))
+    }
+  }
+  throw lastError
+}
 
 /**
  * Applies pending schema changes directly via SQL.
@@ -72,7 +113,6 @@ export async function ensureSchema() {
 
 /**
  * Ensures a company exists in the DB before creating related records.
- * Also ensures the schema has billing columns applied.
  */
 export async function ensureCompanyExists(companyId: string) {
   await ensureSchema()

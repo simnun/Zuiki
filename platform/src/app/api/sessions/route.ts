@@ -33,29 +33,35 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { brand, season, year, shootingDate, shootType, modelIds, mannequin } = body
 
-  await ensureUserExists(user)
+  try {
+    await ensureUserExists(user)
 
-  const session = await prisma.shootingSession.create({
-    data: {
-      companyId: user.companyId,
-      createdById: user.id,
-      brand,
-      season,
-      year,
-      shootingDate: new Date(shootingDate),
-      shootType,
-      sessionModels: modelIds?.length
-        ? { create: modelIds.map((modelId: string) => ({ modelId })) }
-        : undefined,
-      mannequinConfig: mannequin
-        ? { create: { size: mannequin.size, bustCm: mannequin.bustCm, waistCm: mannequin.waistCm, hipsCm: mannequin.hipsCm } }
-        : undefined,
-    },
-    include: {
-      sessionModels: { include: { model: true } },
-      mannequinConfig: true,
-    },
-  })
+    const session = await prisma.shootingSession.create({
+      data: {
+        companyId: user.companyId,
+        createdById: user.id,
+        brand,
+        season,
+        year,
+        shootingDate: new Date(shootingDate),
+        shootType,
+        sessionModels: modelIds?.length
+          ? { create: modelIds.map((modelId: string) => ({ modelId })) }
+          : undefined,
+        mannequinConfig: mannequin
+          ? { create: { size: mannequin.size, bustCm: mannequin.bustCm, waistCm: mannequin.waistCm, hipsCm: mannequin.hipsCm } }
+          : undefined,
+      },
+      include: {
+        sessionModels: { include: { model: true } },
+        mannequinConfig: true,
+      },
+    })
 
-  return NextResponse.json(session, { status: 201 })
+    return NextResponse.json(session, { status: 201 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[sessions POST]', message)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }

@@ -527,11 +527,17 @@ export default function StepSetup() {
                   } : undefined,
                 }),
               });
-              if (res.ok) {
-                const sess = await res.json();
-                dispatch({ type: "SET_STATE", payload: { sessionId: sess.id } });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({ error: 'Errore server' }));
+                alert(`Errore creazione sessione: ${err.error || res.statusText}`);
+                return;
               }
-            } catch { /* session creation failure is non-blocking */ }
+              const sess = await res.json();
+              dispatch({ type: "SET_STATE", payload: { sessionId: sess.id } });
+            } catch (err: any) {
+              alert(`Errore di rete: ${err.message || 'Impossibile creare la sessione'}`);
+              return;
+            }
             dispatch({ type: "SET_STEP", payload: 1 });
           }}>
           Inizia Catalogazione →

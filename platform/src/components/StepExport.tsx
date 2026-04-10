@@ -20,12 +20,14 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
   const [zipProgress, setZipProgress] = useState<number | null>(null);
   const [zipEta, setZipEta] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const saveTriggered = useRef(false);
 
   // Save session data to DB on mount
   const saveSessionToDB = useCallback(async () => {
     if (!sessionId || saving) return;
     setSaving(true);
+    setSaveError("");
     try {
       const payload = {
         items: items.map(it => ({
@@ -46,7 +48,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           license: it.ai?.licenza || "",
           recognizedModel: it.ai?.modella_riconosciuta || "",
           status: it.st === "done" ? "done" : it.st === "err" ? "error" : "pending",
-          photoDataUrls: it.ap?.slice(0, 1) || [],
+          photoDataUrls: [],
         })),
         correlations: corr,
       };
@@ -57,8 +59,13 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       });
       if (res.ok) {
         dispatch({ type: "SET_STATE", payload: { sessionSaved: true } });
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Errore server' }));
+        setSaveError(err.error || `Errore ${res.status}`);
       }
-    } catch { /* non-blocking */ }
+    } catch (err: any) {
+      setSaveError(err.message || "Errore di rete");
+    }
     setSaving(false);
   }, [sessionId, items, corr, saving, dispatch]);
 
@@ -493,6 +500,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {sessionSaved && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: "#e8f5e9", color: "var(--ok)" }}>Salvata</span>}
+          {saveError && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: "#fbe9e7", color: "var(--err)" }}>{saveError}</span>}
           {saving && <span style={{ fontSize: 11, color: "var(--muted)" }}>Salvataggio...</span>}
           <button className="btn btn-s" style={{ padding: "6px 14px", fontSize: 12 }} disabled={saving} onClick={saveSessionToDB}>
             Salva sessione

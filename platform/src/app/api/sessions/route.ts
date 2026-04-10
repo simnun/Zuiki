@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma, ensureCompanyExists } from '@/lib/db'
+import { prisma, ensureCompanyExists, ensureUserExists } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
 
 export async function GET() {
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { brand, season, year, shootingDate, shootType, modelIds, mannequin } = body
 
-  await ensureCompanyExists(user.companyId)
+  await ensureUserExists(user)
 
   const session = await prisma.shootingSession.create({
     data: {

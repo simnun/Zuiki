@@ -11,13 +11,12 @@ function createPrismaClient() {
   if (!connectionString) {
     throw new Error('DATABASE_URL is not set')
   }
-  // Pass PoolConfig with connection pooling settings
+  // max:1 for serverless — pgbouncer manages the real pool
+  // No ssl override — let pg use default SSL (Supabase requires SSL)
   const adapter = new PrismaPg({
     connectionString,
-    max: 5,
-    idleTimeoutMillis: 30000,
+    max: 1,
     connectionTimeoutMillis: 10000,
-    ssl: { rejectUnauthorized: false },
   } as any)
   return new PrismaClient({ adapter })
 }

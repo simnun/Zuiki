@@ -9,7 +9,7 @@ CREATE TYPE "PaymentStatus" AS ENUM ('unpaid', 'paid', 'overdue');
 CREATE TYPE "TicketStatus" AS ENUM ('open', 'in_progress', 'resolved', 'closed');
 CREATE TYPE "ExportType" AS ENUM ('csv', 'excel', 'photos_zip');
 CREATE TYPE "CampaignType" AS ENUM ('payment_reminder', 'newsletter', 'announcement');
-CREATE TYPE "ShootType" AS ENUM ('model', 'mannequin', 'still', 'mixed');
+CREATE TYPE "ShootType" AS ENUM ('model', 'model_no_size', 'mannequin', 'still', 'mixed');
 
 -- COMPANIES
 CREATE TABLE "companies" (

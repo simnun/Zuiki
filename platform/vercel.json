@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx prisma generate && (npx prisma migrate deploy || echo 'Migration skipped') && next build",
+  "buildCommand": "npx prisma generate && (timeout 20 npx prisma migrate deploy || echo 'Migration skipped') && next build",
   "framework": "nextjs",
   "installCommand": "npm install"
 }

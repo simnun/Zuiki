@@ -500,9 +500,12 @@ export default function StepSetup() {
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 28, gap: 10 }}>
         <button className="btn btn-s" onClick={() => dispatch({ type: "SET_STEP", payload: -1 })}>⚙ API Key</button>
         <button className="btn btn-p" disabled={!rdy}
-          onClick={async () => {
+          onClick={() => {
             dispatch({ type: "SET_CFG", payload: { noModel: cfg.shootType === "still" || cfg.shootType === "mixed" } });
-            // Create session in DB with retry (3 attempts with exponential backoff)
+            // Navigate immediately — don't block on session creation
+            dispatch({ type: "SET_STEP", payload: 1 });
+
+            // Create session in background (non-blocking)
             const ds = cfg.ds;
             const shootingDate = ds.length === 8
               ? `${ds.slice(4, 8)}-${ds.slice(2, 4)}-${ds.slice(0, 2)}`
@@ -523,41 +526,39 @@ export default function StepSetup() {
               } : undefined,
             };
 
-            let created = false;
-            for (let attempt = 0; attempt < 3 && !created; attempt++) {
-              if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
-              try {
-                const res = await fetch('/api/sessions', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(payload),
-                });
-                if (res.ok) {
-                  const sess = await res.json();
-                  dispatch({ type: "SET_STATE", payload: { sessionId: sess.id, sessErr: "" } });
-                  created = true;
-                } else if (res.status === 401 || res.status === 403) {
-                  // Auth/permission errors: don't retry
-                  const errBody = await res.json().catch(() => ({ error: "" }));
-                  const reason = res.status === 401 ? "Utente non autenticato. Effettua il login e riprova."
-                    : res.status === 403 && errBody.error === "No company" ? "Il tuo account non è associato a nessuna azienda. Contatta l'amministratore."
-                    : "Il tuo ruolo non ha i permessi per creare sessioni. Contatta l'amministratore.";
-                  dispatch({ type: "SET_STATE", payload: { sessErr: reason } });
-                  break;
-                } else if (attempt === 2) {
-                  // Last attempt failed with server error — show exact server error for debugging
-                  const errBody = await res.json().catch(() => ({ error: "" }));
-                  const detail = errBody.error || errBody.message || `status ${res.status}`;
-                  dispatch({ type: "SET_STATE", payload: { sessErr: `[${res.status}] ${detail}` } });
-                }
-                // On 500/503, retry on next iteration
-              } catch {
-                if (attempt === 2) {
-                  dispatch({ type: "SET_STATE", payload: { sessErr: "Errore di rete durante la creazione della sessione. Verifica la connessione e riprova." } });
+            (async () => {
+              let created = false;
+              for (let attempt = 0; attempt < 3 && !created; attempt++) {
+                if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+                try {
+                  const res = await fetch('/api/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                  });
+                  if (res.ok) {
+                    const sess = await res.json();
+                    dispatch({ type: "SET_STATE", payload: { sessionId: sess.id, sessErr: "" } });
+                    created = true;
+                  } else if (res.status === 401 || res.status === 403) {
+                    const errBody = await res.json().catch(() => ({ error: "" }));
+                    const reason = res.status === 401 ? "Utente non autenticato. Effettua il login e riprova."
+                      : res.status === 403 && errBody.error === "No company" ? "Il tuo account non è associato a nessuna azienda. Contatta l'amministratore."
+                      : "Il tuo ruolo non ha i permessi per creare sessioni. Contatta l'amministratore.";
+                    dispatch({ type: "SET_STATE", payload: { sessErr: reason } });
+                    break;
+                  } else if (attempt === 2) {
+                    const errBody = await res.json().catch(() => ({ error: "" }));
+                    const detail = errBody.error || errBody.message || `status ${res.status}`;
+                    dispatch({ type: "SET_STATE", payload: { sessErr: `[${res.status}] ${detail}` } });
+                  }
+                } catch {
+                  if (attempt === 2) {
+                    dispatch({ type: "SET_STATE", payload: { sessErr: "Errore di rete durante la creazione della sessione." } });
+                  }
                 }
               }
-            }
-            dispatch({ type: "SET_STEP", payload: 1 });
+            })();
           }}>
           Inizia Catalogazione →
         </button>

@@ -81,6 +81,7 @@ export async function ensureSchema() {
       await Promise.race([
         (async () => {
           const statements = [
+            // Migration: 20260321000000_add_company_billing_apikey
             `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "apiKey" TEXT`,
             `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "vatNumber" TEXT`,
             `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "billingEmail" TEXT`,
@@ -89,6 +90,15 @@ export async function ensureSchema() {
             `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "walletCredits" DECIMAL(10,2) NOT NULL DEFAULT 0`,
             `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "usedCredits" DECIMAL(10,2) NOT NULL DEFAULT 0`,
             `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "creditRenewalDate" TIMESTAMP(3)`,
+            // Migration: 20260322000000_add_ticket_features_and_notifications
+            `ALTER TABLE "ticket_messages" ADD COLUMN IF NOT EXISTS "replyToId" TEXT`,
+            `ALTER TABLE "ticket_attachments" ADD COLUMN IF NOT EXISTS "messageId" TEXT`,
+            `ALTER TABLE "ticket_attachments" ADD COLUMN IF NOT EXISTS "mimeType" TEXT`,
+            // Migration: 20260323000000_add_photos_expires_at
+            `ALTER TABLE "shooting_sessions" ADD COLUMN IF NOT EXISTS "photosExpiresAt" TIMESTAMP(3)`,
+            // Migration: 20260327000000_add_bra_shoe_sizes
+            `ALTER TABLE "models" ADD COLUMN IF NOT EXISTS "sizeBra" TEXT`,
+            `ALTER TABLE "models" ADD COLUMN IF NOT EXISTS "sizeShoe" TEXT`,
           ]
           for (const sql of statements) {
             try { await prisma.$executeRawUnsafe(sql) } catch { /* column may exist */ }
@@ -99,7 +109,7 @@ export async function ensureSchema() {
         new Promise<void>((resolve) => setTimeout(() => {
           console.log('[DB] Schema migration skipped (timeout)')
           resolve()
-        }, 5000)),
+        }, 10000)),
       ])
     } catch {
       // DB unreachable — skip silently, will retry on next request

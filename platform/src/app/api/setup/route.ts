@@ -216,6 +216,9 @@ export async function GET() {
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "suffix_mappings_pkey" PRIMARY KEY ("id")
   )`)
+  await run('col suffix_mappings.suffix', `ALTER TABLE "suffix_mappings" ADD COLUMN IF NOT EXISTS "suffix" TEXT NOT NULL DEFAULT ''`)
+  await run('col suffix_mappings.label', `ALTER TABLE "suffix_mappings" ADD COLUMN IF NOT EXISTS "label" TEXT NOT NULL DEFAULT ''`)
+  await run('col suffix_mappings.companyId', `ALTER TABLE "suffix_mappings" ADD COLUMN IF NOT EXISTS "companyId" TEXT NOT NULL DEFAULT ''`)
   await run('index suffix_mappings_unique', `CREATE UNIQUE INDEX IF NOT EXISTS "suffix_mappings_companyId_suffix_key" ON "suffix_mappings"("companyId", "suffix")`)
 
   await run('table license_memory', `CREATE TABLE IF NOT EXISTS "license_memory" (
@@ -226,6 +229,9 @@ export async function GET() {
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "license_memory_pkey" PRIMARY KEY ("id")
   )`)
+  await run('col license_memory.license', `ALTER TABLE "license_memory" ADD COLUMN IF NOT EXISTS "license" TEXT NOT NULL DEFAULT ''`)
+  await run('col license_memory.label', `ALTER TABLE "license_memory" ADD COLUMN IF NOT EXISTS "label" TEXT NOT NULL DEFAULT ''`)
+  await run('col license_memory.companyId', `ALTER TABLE "license_memory" ADD COLUMN IF NOT EXISTS "companyId" TEXT NOT NULL DEFAULT ''`)
   await run('index license_memory_unique', `CREATE UNIQUE INDEX IF NOT EXISTS "license_memory_companyId_license_key" ON "license_memory"("companyId", "license")`)
 
   await run('table usage_records', `CREATE TABLE IF NOT EXISTS "usage_records" (

@@ -97,7 +97,8 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           metaDesc: it.metaDesc || "",
           metaKeywords: it.metaKeys || "",
           altImage: it.altImg || "",
-          aiResponse: it.ai || null,
+          // Merge AI response with original Excel row data so dashboard export can reconstruct the full file
+          aiResponse: { ...(it.ai || {}), _excel: getExcelInfo(it.sku) || undefined },
           license: it.ai?.licenza || "",
           recognizedModel: it.ai?.modella_riconosciuta || "",
           status: it.st === "done" ? "done" : it.st === "err" ? "error" : "pending",

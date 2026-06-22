@@ -15,6 +15,31 @@ const triggerDownload = (blob: Blob, filename: string) => {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
+const COLUMN_LABELS: Record<string, string> = {
+  sku:                 'SKU',
+  colori:              'Colori',
+  taglie:              'Taglie',
+  productName:         'Titolo Prodotto',
+  shortDesc:           'Descrizione Breve',
+  longDesc:            'Descrizione Estesa',
+  isActive:            'Abilitato',
+  metaTitle:           'Meta Titolo',
+  metaDesc:            'Meta Descrizione',
+  metaKeywords:        'Meta Keywords',
+  rewriteUrl:          'Rewrite URL',
+  seoTags:             'SEO Tags',
+  altImage:            'Alt Image',
+  correlati:           'Correlati',
+  anno:                'Anno',
+  stagione:            'Stagione',
+  tipoArticolo:        'Tipo Articolo',
+  brand:               'Brand',
+  caratteristica:      'Caratteristica',
+  composizione:        'Composizione',
+  licenza:             'Licenza',
+  modellaRiconosciuta: 'Modella Riconosciuta',
+}
+
 export default function ExportPage() {
   const { id } = useParams()
   const router = useRouter()
@@ -23,43 +48,27 @@ export default function ExportPage() {
   const handleExport = async (type: 'csv' | 'excel') => {
     setDownloading(type)
     try {
+      const res = await fetch(`/api/sessions/${id}/export/${type}`)
+      if (!res.ok) throw new Error(`Errore ${res.status}`)
+
       if (type === 'csv') {
-        const res = await fetch(`/api/sessions/${id}/export/csv`)
-        if (!res.ok) throw new Error(`Errore ${res.status}`)
         const blob = await res.blob()
         triggerDownload(blob, `catalogo_${id}.csv`)
       } else {
-        // Fetch catalog data then generate xlsx client-side
-        const res = await fetch(`/api/sessions/${id}/export/excel`)
-        if (!res.ok) throw new Error(`Errore ${res.status}`)
-        const { items } = await res.json() as {
-          items: Array<{
-            sku: string; productName: string | null; productType: string | null
-            color: string | null; composition: string | null; shortDesc: string | null
-            longDesc: string | null; seoTags: string | null; metaTitle: string | null
-            metaDesc: string | null; metaKeywords: string | null; altImage: string | null
-            license: string | null; recognizedModel: string | null
-          }>
-        }
+        const { rows } = await res.json() as { rows: Record<string, string>[] }
 
-        const rows = items.map(it => ({
-          'SKU': it.sku,
-          'Titolo Prodotto': it.productName || '',
-          'Tipo Prodotto': it.productType || '',
-          'Colore': it.color || '',
-          'Composizione': it.composition || '',
-          'Descrizione Breve': it.shortDesc || '',
-          'Descrizione Estesa': it.longDesc || '',
-          'SEO Tags': it.seoTags || '',
-          'Meta Titolo': it.metaTitle || '',
-          'Meta Descrizione': it.metaDesc || '',
-          'Meta Keywords': it.metaKeywords || '',
-          'Alt Image': it.altImage || '',
-          'Licenza': it.license || '',
-          'Modella Riconosciuta': it.recognizedModel || '',
-        }))
+        // Rename columns to Italian labels
+        const labelledRows = rows.map(row =>
+          Object.fromEntries(
+            Object.entries(row).map(([k, v]) => [COLUMN_LABELS[k] ?? k, v])
+          )
+        )
 
-        const ws = XLSX.utils.json_to_sheet(rows)
+        const ws = XLSX.utils.json_to_sheet(labelledRows)
+        // Auto-width columns
+        const colWidths = Object.keys(labelledRows[0] ?? {}).map(h => ({ wch: Math.max(h.length, 18) }))
+        ws['!cols'] = colWidths
+
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, 'Catalogo')
         const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
@@ -80,12 +89,12 @@ export default function ExportPage() {
         ← Indietro
       </button>
       <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Esporta Catalogo</h1>
-      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 32 }}>Scarica i dati della sessione nel formato preferito</p>
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 32 }}>Scarica i dati completi della sessione (colonne originali + dati elaborati dall&apos;AI)</p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {([
-          { type: 'csv' as const, label: 'CSV', desc: 'Tabella con tutti i dati catalogati, separatore punto e virgola' },
-          { type: 'excel' as const, label: 'Excel', desc: 'Foglio .xlsx con tutti i dati catalogati, apribile in Excel' },
+          { type: 'csv' as const,   label: 'CSV',   desc: 'Tutti i dati (separatore ;) — importabile in Excel' },
+          { type: 'excel' as const, label: 'Excel', desc: 'File .xlsx con colonne originali + dati AI' },
         ]).map(exp => (
           <div key={exp.type} className="card" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>

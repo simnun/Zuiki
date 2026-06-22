@@ -545,8 +545,10 @@ export default function StepSetup() {
                   dispatch({ type: "SET_STATE", payload: { sessErr: reason } });
                   break;
                 } else if (attempt === 2) {
-                  // Last attempt failed with server error
-                  dispatch({ type: "SET_STATE", payload: { sessErr: `Errore server (${res.status}). Il database potrebbe essere temporaneamente non raggiungibile.` } });
+                  // Last attempt failed with server error — show exact server error for debugging
+                  const errBody = await res.json().catch(() => ({ error: "" }));
+                  const detail = errBody.error || errBody.message || `status ${res.status}`;
+                  dispatch({ type: "SET_STATE", payload: { sessErr: `[${res.status}] ${detail}` } });
                 }
                 // On 500/503, retry on next iteration
               } catch {

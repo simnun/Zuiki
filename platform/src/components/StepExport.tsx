@@ -119,7 +119,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           }
           // Server/DB errors: retry
           const errText = await res.text().catch(() => "");
-          lastErr = `Errore salvataggio (${res.status}): ${errText.slice(0, 100) || "Database non raggiungibile"}`;
+          lastErr = `Errore salvataggio (${res.status}): ${errText.slice(0, 300) || "Database non raggiungibile"}`;
         } catch (err: any) {
           lastErr = `Errore di rete: ${err?.message || "Connessione fallita"}`;
         }
@@ -141,6 +141,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
     const shootingDate = ds.length === 8
       ? `${ds.slice(4, 8)}-${ds.slice(2, 4)}-${ds.slice(0, 2)}`
       : new Date().toISOString().slice(0, 10);
+    let lastSessErr = "";
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * Math.pow(2, attempt)));
       try {
@@ -159,9 +160,13 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           return;
         }
         if (res.status === 401 || res.status === 403) break; // Don't retry auth errors
-      } catch { /* retry */ }
+        const errBody = await res.json().catch(() => ({ error: "" }));
+        lastSessErr = `[${res.status}] ${errBody.error || errBody.message || "Errore server"}`;
+      } catch (e: any) {
+        lastSessErr = `Rete: ${e?.message || "Connessione fallita"}`;
+      }
     }
-    dispatch({ type: "SET_STATE", payload: { sessErr: "Impossibile creare la sessione. Il database potrebbe non essere raggiungibile." } });
+    dispatch({ type: "SET_STATE", payload: { sessErr: lastSessErr || "Impossibile creare la sessione." } });
     setCreatingSession(false);
   }, [sessionId, creatingSession, cfg, dispatch]);
 

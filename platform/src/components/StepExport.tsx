@@ -83,27 +83,39 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       }
 
       const payload = {
-        items: items.map(it => ({
-          sku: it.sku,
-          productName: it.nm || "",
-          productType: it.tp || "",
-          suffix: it.sf || "",
-          color: it.cl || "",
-          composition: it.cp || "",
-          shortDesc: it.ds || "",
-          longDesc: it.dl || "",
-          seoTags: it.tg || "",
-          metaTitle: it.metaTitle || "",
-          metaDesc: it.metaDesc || "",
-          metaKeywords: it.metaKeys || "",
-          altImage: it.altImg || "",
-          // Merge AI response with original Excel row data so dashboard export can reconstruct the full file
-          aiResponse: { ...(it.ai || {}), _excel: getExcelInfo(it.sku) || undefined },
-          license: it.ai?.licenza || "",
-          recognizedModel: it.ai?.modella_riconosciuta || "",
-          status: it.st === "done" ? "done" : it.st === "err" ? "error" : "pending",
-          photoDataUrls: thumbs[it.sku] || [],
-        })),
+        items: items.map(it => {
+          const exInfo = getExcelInfo(it.sku);
+          // Store full original row + both header rows so dashboard export can reproduce the exact same file
+          const rowData = (exInfo?.row != null && excelRows[exInfo.row]) ? excelRows[exInfo.row] : null;
+          return {
+            sku: it.sku,
+            productName: it.nm || "",
+            productType: it.tp || "",
+            suffix: it.sf || "",
+            color: it.cl || "",
+            composition: it.cp || "",
+            shortDesc: it.ds || "",
+            longDesc: it.dl || "",
+            seoTags: it.tg || "",
+            metaTitle: it.metaTitle || "",
+            metaDesc: it.metaDesc || "",
+            metaKeywords: it.metaKeys || "",
+            altImage: it.altImg || "",
+            aiResponse: {
+              ...(it.ai || {}),
+              _excel: {
+                ...(exInfo || {}),
+                rowData,            // full original row (all columns)
+                h0: excelRows[0] || null,  // header row 1
+                h1: excelRows[1] || null,  // header row 2
+              },
+            },
+            license: it.ai?.licenza || "",
+            recognizedModel: it.ai?.modella_riconosciuta || "",
+            status: it.st === "done" ? "done" : it.st === "err" ? "error" : "pending",
+            photoDataUrls: thumbs[it.sku] || [],
+          };
+        }),
         correlations: corr,
       };
 

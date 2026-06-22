@@ -53,7 +53,8 @@ REGOLE:
 - Testo di 150-250 parole, fluido e naturale, NON a elenco puntato
 - NON MENZIONARE MAI IL COLORE del prodotto. La descrizione va sull'articolo genitore e i figli hanno colori diversi. Evita qualsiasi riferimento a colori specifici.
 - Se il tipo è "Jeans" o contiene "Jeans", chiamali SEMPRE "Jeans", MAI "pantaloni" o "pantaloni di jeans". Se è un pantalone (non jeans), usa SEMPRE il plurale "Pantaloni".
-- Includi keywords rilevanti per la ricerca (tipo articolo, stagione, brand, licenza se presente)
+- Includi keywords rilevanti per la ricerca (tipo articolo, stagione, licenza se presente)
+- NON menzionare MAI il nome del brand nella descrizione lunga
 - NON menzionare MAI l'anno della stagione (es: non scrivere "2026", "2025", "Primavera/Estate 2026" ecc.). Puoi indicare la stagione (Primavera/Estate, Autunno/Inverno) ma SENZA l'anno.
 - Includi consigli di stile e abbinamenti
 - Includi occasioni d'uso

@@ -25,6 +25,19 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
   const savingRef = useRef(false);
   const [creatingSession, setCreatingSession] = useState(false);
 
+  // Reliable download trigger: works across browsers (some block .click() on detached anchors)
+  const triggerDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   // Generate a tiny thumbnail data URL from a File object
   const fileToThumb = (file: File): Promise<string> =>
     new Promise((res, rej) => {
@@ -269,11 +282,8 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       lines.push(cells.join(";"));
     }
     const csv = "\uFEFF" + lines.join("\n");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     const fname = excelFileName ? excelFileName.replace(/\.[^.]+$/, "") + "_compilato.csv" : `catalogo_${cfg.br}_${SCMAP[cfg.st] || ""}${cfg.an}_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.download = fname;
-    a.click();
+    triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8;" }), fname);
   };
 
   const exportExcel = () => {
@@ -353,8 +363,9 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
     for (let i = 1; i < excelWb.SheetNames.length; i++) {
       XLSX.utils.book_append_sheet(wb, excelWb.Sheets[excelWb.SheetNames[i]], excelWb.SheetNames[i]);
     }
-    const fname = excelFileName.replace(/\.[^.]+$/, "") + "_compilato.xlsx";
-    XLSX.writeFile(wb, fname);
+    const fname = (excelFileName || `catalogo_${cfg.br}`).replace(/\.[^.]+$/, "") + "_compilato.xlsx";
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    triggerDownload(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), fname);
   };
 
   // Validate and correct colors against allowed list (Excel colors or COL fallback)
@@ -524,10 +535,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
     const content = await zip.generateAsync({ type: "blob" });
     setZipProgress(100);
     setZipEta("");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(content);
-    a.download = `foto_${cfg.br}_${SCMAP[cfg.st] || ""}${cfg.an}_${new Date().toISOString().slice(0, 10)}.zip`;
-    a.click();
+    triggerDownload(content, `foto_${cfg.br}_${SCMAP[cfg.st] || ""}${cfg.an}_${new Date().toISOString().slice(0, 10)}.zip`);
     setTimeout(() => setZipProgress(null), 1500);
   };
 

@@ -31,7 +31,6 @@ export default function ExportPage() {
         triggerDownload(blob, `catalogo_${id}.csv`)
       } else {
         const { rows } = await res.json() as { rows: any[][] }
-        // Build worksheet from array-of-arrays — preserves exact column layout
         const ws = XLSX.utils.aoa_to_sheet(rows)
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')

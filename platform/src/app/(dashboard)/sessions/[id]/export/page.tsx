@@ -1,36 +1,75 @@
 'use client'
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import * as XLSX from 'xlsx'
+
+const triggerDownload = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
 
 export default function ExportPage() {
   const { id } = useParams()
   const router = useRouter()
   const [downloading, setDownloading] = useState('')
 
-  const handleExport = async (type: string) => {
+  const handleExport = async (type: 'csv' | 'excel') => {
     setDownloading(type)
     try {
-      const res = await fetch(`/api/sessions/${id}/export/${type}`)
       if (type === 'csv') {
+        const res = await fetch(`/api/sessions/${id}/export/csv`)
+        if (!res.ok) throw new Error(`Errore ${res.status}`)
         const blob = await res.blob()
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `catalogo_${id}.csv`
-        a.click()
-        URL.revokeObjectURL(url)
+        triggerDownload(blob, `catalogo_${id}.csv`)
       } else {
-        const data = await res.json()
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `catalogo_${id}.json`
-        a.click()
-        URL.revokeObjectURL(url)
+        // Fetch catalog data then generate xlsx client-side
+        const res = await fetch(`/api/sessions/${id}/export/excel`)
+        if (!res.ok) throw new Error(`Errore ${res.status}`)
+        const { items } = await res.json() as {
+          items: Array<{
+            sku: string; productName: string | null; productType: string | null
+            color: string | null; composition: string | null; shortDesc: string | null
+            longDesc: string | null; seoTags: string | null; metaTitle: string | null
+            metaDesc: string | null; metaKeywords: string | null; altImage: string | null
+            license: string | null; recognizedModel: string | null
+          }>
+        }
+
+        const rows = items.map(it => ({
+          'SKU': it.sku,
+          'Titolo Prodotto': it.productName || '',
+          'Tipo Prodotto': it.productType || '',
+          'Colore': it.color || '',
+          'Composizione': it.composition || '',
+          'Descrizione Breve': it.shortDesc || '',
+          'Descrizione Estesa': it.longDesc || '',
+          'SEO Tags': it.seoTags || '',
+          'Meta Titolo': it.metaTitle || '',
+          'Meta Descrizione': it.metaDesc || '',
+          'Meta Keywords': it.metaKeywords || '',
+          'Alt Image': it.altImage || '',
+          'Licenza': it.license || '',
+          'Modella Riconosciuta': it.recognizedModel || '',
+        }))
+
+        const ws = XLSX.utils.json_to_sheet(rows)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, 'Catalogo')
+        const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+        triggerDownload(
+          new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+          `catalogo_${id}.xlsx`
+        )
       }
-    } catch {
-      alert('Errore durante l\'export')
+    } catch (err: any) {
+      alert('Errore durante l\'export: ' + (err?.message || ''))
     }
     setDownloading('')
   }
@@ -44,10 +83,10 @@ export default function ExportPage() {
       <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 32 }}>Scarica i dati della sessione nel formato preferito</p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {[
-          { type: 'csv', label: 'CSV', desc: 'Tabella con tutti i dati catalogati, importabile in Excel' },
-          { type: 'json', label: 'JSON', desc: 'Dati strutturati con correlazioni outfit' },
-        ].map(exp => (
+        {([
+          { type: 'csv' as const, label: 'CSV', desc: 'Tabella con tutti i dati catalogati, separatore punto e virgola' },
+          { type: 'excel' as const, label: 'Excel', desc: 'Foglio .xlsx con tutti i dati catalogati, apribile in Excel' },
+        ]).map(exp => (
           <div key={exp.type} className="card" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{exp.label}</div>

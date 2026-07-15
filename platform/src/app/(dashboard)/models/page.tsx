@@ -36,6 +36,7 @@ function resizeImg(file: File): Promise<string> {
 export default function ModelsPage() {
   const [models, setModels] = useState<Model[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
@@ -53,11 +54,30 @@ export default function ModelsPage() {
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
-  const loadModels = useCallback(() => {
-    fetch('/api/models').then(r => r.json()).then(d => {
-      setModels(Array.isArray(d) ? d : [])
-      setLoading(false)
-    }).catch(() => setLoading(false))
+  const loadModels = useCallback(async () => {
+    setLoading(true)
+    setLoadError(false)
+    // Retry a few times: right after a fresh deploy the DB connection can be
+    // cold and the first request may fail. The models are still in the DB —
+    // never fall back to showing an empty list on a transient failure.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt))
+      try {
+        const res = await fetch('/api/models')
+        if (res.ok) {
+          const d = await res.json()
+          setModels(Array.isArray(d) ? d : [])
+          setLoading(false)
+          return
+        }
+        // 5xx = transient DB issue → keep retrying. Other statuses → stop.
+        if (res.status < 500) break
+      } catch {
+        // network error → retry
+      }
+    }
+    setLoadError(true)
+    setLoading(false)
   }, [])
 
   useEffect(() => { loadModels() }, [loadModels])
@@ -311,7 +331,13 @@ export default function ModelsPage() {
         </div>
       )}
 
-      {loading ? <div className="spinner" /> : models.length === 0 ? (
+      {loading ? <div className="spinner" /> : loadError ? (
+        <div className="card" style={{ padding: '48px 24px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--err)', fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Impossibile caricare le modelle</p>
+          <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>Le modelle sono al sicuro nel database, ma la connessione non ha risposto. Riprova.</p>
+          <button className="btn btn-p" onClick={() => loadModels()}>Riprova</button>
+        </div>
+      ) : models.length === 0 ? (
         <div className="card" style={{ padding: '48px 24px', textAlign: 'center' }}>
           <p style={{ color: 'var(--muted)', fontSize: 14 }}>Nessuna modella registrata</p>
         </div>

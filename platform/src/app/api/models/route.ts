@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma, ensureCompanyExists } from '@/lib/db'
+import { prisma, ensureCompanyExists, withRetry } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
 
 export async function GET() {
@@ -11,14 +11,19 @@ export async function GET() {
   if (!companyId) return NextResponse.json([])
 
   try {
-    const models = await prisma.model.findMany({
+    // Retry on transient/cold-start connection failures so models never
+    // "disappear" after a fresh build just because the first query timed out.
+    const models = await withRetry(() => prisma.model.findMany({
       where: { companyId },
       include: { facePhotos: true },
       orderBy: { name: 'asc' },
-    })
+    }))
     return NextResponse.json(models)
-  } catch {
-    return NextResponse.json([])
+  } catch (e: any) {
+    // The data is still in the DB — signal a transient failure (503) instead of
+    // returning an empty list, which the UI would show as "no models".
+    console.error('[API] Models GET error:', e)
+    return NextResponse.json({ error: 'Impossibile caricare le modelle (connessione al database). Riprova.' }, { status: 503 })
   }
 }
 

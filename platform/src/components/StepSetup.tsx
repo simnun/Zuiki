@@ -12,32 +12,49 @@ export default function StepSetup() {
   const { cfg, mod, facePh, nM, tmpFaces, tmpNm, tmpAl, tmpTs, tmpTi, tmpTiLetter, tmpTr, tmpNs, excelWb, excelRows, excelMap, excelFileName } = state;
   const [modelsLoaded, setModelsLoaded] = useState(false);
 
-  // Load models from database API on mount (single source of truth)
+  // Load models from database API on mount (single source of truth).
+  // Retry on transient/cold-start failures and NEVER overwrite the model list
+  // with an empty set just because the request failed after a fresh deploy.
   useEffect(() => {
     if (modelsLoaded) return;
-    fetch('/api/models')
-      .then(r => r.ok ? r.json() : [])
-      .then((dbModels: any[]) => {
-        if (!Array.isArray(dbModels)) return;
-        const newMod = dbModels.map(m => ({
-          nome: m.name,
-          altezza: m.heightCm?.toString() || '',
-          tagliaSopra: m.sizeTop || '',
-          tagliaSotto: m.sizeBottom || '',
-          tagliaReggiseno: m.sizeBra || '',
-          numeroScarpe: m.sizeShoe || '',
-          dbId: m.id,
-        }));
-        const newFacePh: Record<string, string[]> = {};
-        for (const m of dbModels) {
-          if (m.facePhotos?.length) {
-            newFacePh[m.name] = m.facePhotos.map((p: any) => p.photoUrl);
+    let cancelled = false;
+    (async () => {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt));
+        try {
+          const res = await fetch('/api/models');
+          if (res.ok) {
+            const dbModels = await res.json();
+            if (cancelled || !Array.isArray(dbModels)) { if (!cancelled) setModelsLoaded(true); return; }
+            const newMod = dbModels.map((m: any) => ({
+              nome: m.name,
+              altezza: m.heightCm?.toString() || '',
+              tagliaSopra: m.sizeTop || '',
+              tagliaSotto: m.sizeBottom || '',
+              tagliaReggiseno: m.sizeBra || '',
+              numeroScarpe: m.sizeShoe || '',
+              dbId: m.id,
+            }));
+            const newFacePh: Record<string, string[]> = {};
+            for (const m of dbModels) {
+              if (m.facePhotos?.length) {
+                newFacePh[m.name] = m.facePhotos.map((p: any) => p.photoUrl);
+              }
+            }
+            dispatch({ type: "SET_STATE", payload: { mod: newMod, facePh: newFacePh } });
+            setModelsLoaded(true);
+            return;
           }
+          // 4xx (auth/permission) → stop; 5xx → keep retrying
+          if (res.status < 500) break;
+        } catch {
+          // network error → retry
         }
-        dispatch({ type: "SET_STATE", payload: { mod: newMod, facePh: newFacePh } });
-        setModelsLoaded(true);
-      })
-      .catch(() => setModelsLoaded(true));
+      }
+      // All attempts failed: do NOT overwrite existing models with empty.
+      if (!cancelled) setModelsLoaded(true);
+    })();
+    return () => { cancelled = true; };
   }, [modelsLoaded, dispatch]);
 
   const needsModel = cfg.shootType === "model" || cfg.shootType === "mixed";

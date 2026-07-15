@@ -3,7 +3,7 @@
 import { SFX, SHOT_ORDER, SCMAP, COL } from "./constants";
 import type { CatalogItem, ExcelInfo, SessionConfig, ModellaInfo } from "./catalog-types";
 import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI } from "./utils";
-import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt, classifyPhotosPrompt, classifyPhotosStrictPrompt } from "./ai-prompts";
+import { mPr, mPrLong, withHrPrefix, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt, classifyPhotosPrompt, classifyPhotosStrictPrompt } from "./ai-prompts";
 
 type CaiFunc = (content: any, retries?: number) => Promise<string>;
 type DispatchFunc = (action: any) => void;
@@ -144,7 +144,7 @@ export function createProcessor(deps: ProcessorDeps) {
     const state = getState();
     const exInfo = it.excelInfo || getExcelInfo(it.sku);
     const prompt = mPrLong(state.cfg.br, it.tp, it.nm, it.ds, it.cl, it.ai?.licenza || null, it.cp, exInfo);
-    return await cAI([{ type: "text", text: prompt }]);
+    return withHrPrefix(await cAI([{ type: "text", text: prompt }]));
   }
 
   async function genMetaDesc(it: CatalogItem) {

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db'
 import { callAI } from '@/lib/ai/client'
 import { getSignedUrl } from '@/lib/storage'
 import { mNm, mDs, mTags, mTagsLoveskin } from '@/lib/utils'
-import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt } from '@/lib/ai-prompts'
+import { mPr, mPrLong, withHrPrefix, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt } from '@/lib/ai-prompts'
 import type { SessionConfig, ModellaInfo, ExcelInfo, CatalogItem as ClientCatalogItem } from '@/lib/catalog-types'
 import sharp from 'sharp'
 
@@ -179,7 +179,7 @@ export const processSession = inngest.createFunction(
           let dl = ''
           try {
             const promptLong = mPrLong(cfg.br, tipo, nm, ds, cl, ai.licenza || null, item.composition || '', exInfo)
-            dl = await cAI([{ type: 'text', text: promptLong }])
+            dl = withHrPrefix(await cAI([{ type: 'text', text: promptLong }]))
           } catch (e: any) {
             dl = `[Errore: ${e.message}]`
           }

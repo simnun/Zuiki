@@ -68,6 +68,16 @@ REGOLE:
 - Rispondi SOLO con il testo della descrizione, nient'altro`;
 }
 
+/**
+ * Prepends an <hr> horizontal divider to the extended (long) description.
+ * Idempotent: won't add a second <hr> if one is already present.
+ */
+export function withHrPrefix(text: string): string {
+  const t = (text || "").trimStart();
+  if (/^<hr\b[^>]*>/i.test(t)) return t;
+  return `<hr>\n\n${t}`;
+}
+
 export function genMetaTitle(it: CatalogItem, cfg: SessionConfig) {
   const br = cfg.br === "zuiki" ? "Zuiki" : "Loveskin";
   const nm = it.nm || it.tp;

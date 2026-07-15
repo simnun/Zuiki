@@ -3,7 +3,7 @@
 import type { CatalogItem, SessionConfig, ModellaInfo } from "./catalog-types";
 import { SCMAP } from "./constants";
 import { mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI } from "./utils";
-import { mPrLong } from "./ai-prompts";
+import { mPrLong, withHrPrefix } from "./ai-prompts";
 
 type CaiFunc = (content: any, retries?: number) => Promise<string>;
 type DispatchFunc = (action: any) => void;
@@ -66,10 +66,10 @@ Rispondi SOLO JSON valido: {"licenza":"nome breve","nome_prodotto":"nome complet
       const currentState = getState();
       const updatedIt = currentState.items[idx];
       const exInfoRw = updatedIt.excelInfo || getExcelInfo(updatedIt.sku);
-      const dl = await cAI([{
+      const dl = withHrPrefix(await cAI([{
         type: "text",
         text: mPrLong(cfg.br, updatedIt.tp, updatedIt.nm, updatedIt.ds, updatedIt.cl, updatedIt.ai?.licenza || null, updatedIt.cp, exInfoRw),
-      }]);
+      }]));
 
       dispatch({ type: "SET_ITEM", idx, payload: { dl, reworking: false } });
     } catch (e) {
@@ -125,7 +125,7 @@ Rispondi SOLO JSON: {"modello_dettaglio":"2-3 parole","dettagli_descrizione":"ma
       dispatch({ type: "SET_ITEM", idx, payload: { ai: mergedAi, nm, cl, tg, ds, corrHint: "" } });
 
       // Regen long desc
-      const dl = await cAI([{ type: "text", text: mPrLong(cfg.br, it.tp, nm, ds, cl, mergedAi.licenza || null, it.cp, exInfo) }]);
+      const dl = withHrPrefix(await cAI([{ type: "text", text: mPrLong(cfg.br, it.tp, nm, ds, cl, mergedAi.licenza || null, it.cp, exInfo) }]));
 
       dispatch({ type: "SET_ITEM", idx, payload: { dl, reworking: false } });
     } catch (e) {
@@ -143,7 +143,7 @@ Rispondi SOLO JSON: {"modello_dettaglio":"2-3 parole","dettagli_descrizione":"ma
     dispatch({ type: "SET_ITEM", idx, payload: { dl: "Generazione in corso..." } });
     try {
       const exInfo = it.excelInfo || getExcelInfo(it.sku);
-      const dl = await cAI([{ type: "text", text: mPrLong(cfg.br, it.tp, it.nm, it.ds, it.cl, it.ai?.licenza || null, it.cp, exInfo) }]);
+      const dl = withHrPrefix(await cAI([{ type: "text", text: mPrLong(cfg.br, it.tp, it.nm, it.ds, it.cl, it.ai?.licenza || null, it.cp, exInfo) }]));
       dispatch({ type: "SET_ITEM", idx, payload: { dl } });
     } catch (e: any) {
       dispatch({ type: "SET_ITEM", idx, payload: { dl: "Errore: " + e.message } });

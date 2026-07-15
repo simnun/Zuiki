@@ -130,8 +130,8 @@ export function matchSizeFromTaglie(modelSize: string, taglie: string): string |
   if (!modelSize || !taglie) return null;
   const t = taglie.trim().toUpperCase();
   if (t === "UN" || t === "UNICA" || t === "TU") return "Unica";
-  // Split by comma or space to get size groups
-  const groups = taglie.split(/[,\s]+/).map(g => g.trim()).filter(Boolean);
+  // Split by comma, semicolon or space to get size groups (size guides use ";" e.g. "S;M;L;XL;XXL")
+  const groups = taglie.split(/[,;\s]+/).map(g => g.trim()).filter(Boolean);
   const ms = modelSize.trim().toUpperCase();
   for (const group of groups) {
     // Split group by "/" to check individual sizes within a group

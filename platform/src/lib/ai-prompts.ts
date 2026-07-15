@@ -14,8 +14,8 @@ export function mPr(br: string, tipo: string, n: number, modelNames: string[], e
 - Stagione: ${exInfo.stagione || "N/D"}
 - Tipo articolo: ${exInfo.tipoArticolo || "N/D"}
 - Brand: ${exInfo.brand || "N/D"}
-- Caratteristica modello: ${exInfo.caratteristica || "N/D"}${exInfo.composizione ? `\n- Composizione: ${exInfo.composizione}` : ""}
-Integra queste informazioni nella descrizione dove opportuno (es: vestibilità, caratteristiche).`
+- Caratteristica modello: ${exInfo.caratteristica || "N/D"}
+Integra queste informazioni nella descrizione dove opportuno (es: vestibilità, caratteristiche). NON menzionare la composizione/materiali/tessuti nella descrizione.`
     : "";
 
   return `Sei un catalogatore moda per ${br === "zuiki" ? "Zuiki" : "Loveskin"}.
@@ -25,6 +25,8 @@ ${m}${knownLic}${modelInfo}${excelInfo}
 ATTENZIONE STAMPE/LOGHI/PERSONAGGI: Se vedi QUALSIASI stampa, logo, immagine, disegno, scritta, personaggio, simbolo o decorazione grafica sul capo e NON sei SICURO AL 100% di cosa sia (es: potrebbe essere un personaggio di un cartone, un logo di un brand, un animale di una licenza, una scritta di un marchio), imposta "dubbio_licenza" su true e descrivi in "dubbio_descrizione" ESATTAMENTE cosa vedi nell'immagine (forma, colore, posizione, testo se presente). Non tirare a indovinare: se hai anche il minimo dubbio, segnalalo.
 
 REGOLA COLORE: NON menzionare MAI il colore del prodotto in "dettagli_descrizione". La descrizione va sull'articolo genitore e i figli possono avere colori diversi.
+
+REGOLA COMPOSIZIONE: NON menzionare MAI la composizione, i materiali o i tessuti (es: cotone, poliestere, elastan, viscosa, percentuali) in "dettagli_descrizione". Questa informazione è già indicata a parte dopo la descrizione.
 
 REGOLA TIPO ARTICOLO IN DESCRIZIONE: La "dettagli_descrizione" DEVE iniziare nominando il tipo articolo (es: "T-shirt con...", "Canotta a...", "Jeans a..."). Prima nomina il tipo, poi descrivi i dettagli.
 
@@ -37,7 +39,7 @@ FOTO FRONTALE: Se ci sono più foto, indica l'indice (0-based) della foto che mo
 FOTO STILL LIFE: Se ci sono più foto, indica gli indici (0-based) delle foto scattate SENZA modella (still life, flat lay, prodotto appoggiato). Se tutte le foto hanno la modella o c'è una sola foto, usa un array vuoto [].
 
 Rispondi SOLO JSON valido (no markdown, no backtick, no testo extra):
-{"modello_dettaglio":"2-3 parole MODELLO/VESTIBILITÀ senza tipo articolo e senza colore","dettagli_descrizione":"INIZIA con il tipo articolo, poi descrivi dettagli visibili: cuciture, tasche, chiusure, stampe, scollo, maniche, vestibilità. Italiano corretto con punteggiatura. Max 3 frasi. NON menzionare il colore.","licenza":"Personaggio/brand SICURO AL 100% (Disney, Mickey Mouse, Snoopy, Hello Kitty, Marvel ecc.) oppure null se non sei sicuro","dubbio_licenza":true/false,"dubbio_descrizione":"Descrizione dettagliata di cosa vedi: forma, colore, posizione, testo. Solo se dubbio_licenza=true, altrimenti null","colore_madre":"SOLO colore base tra: ${COL.join(", ")}","categoria_seo":"macro minuscolo attaccato","sottocategoria_seo":"sotto minuscolo attaccato","foto_frontale_idx":0,"foto_still_life_indices":[]${modelNames?.length ? ',"modella_riconosciuta":"nome modella o null"' : ""}${br === "loveskin" ? ',"vestibilita":"per reggiseni: pushup/bralette/balconcino/triangolo o null. Per slip: brasiliana/perizoma/vitaalta/classico o null. Altrimenti null","is_sporty":"true se capo sportivo/athleisure, false altrimenti"' : ""}}`;
+{"modello_dettaglio":"2-3 parole MODELLO/VESTIBILITÀ senza tipo articolo e senza colore","dettagli_descrizione":"INIZIA con il tipo articolo, poi descrivi dettagli visibili: cuciture, tasche, chiusure, stampe, scollo, maniche, vestibilità. Italiano corretto con punteggiatura. Max 3 frasi. NON menzionare il colore. NON menzionare la composizione, i materiali o i tessuti.","licenza":"Personaggio/brand SICURO AL 100% (Disney, Mickey Mouse, Snoopy, Hello Kitty, Marvel ecc.) oppure null se non sei sicuro","dubbio_licenza":true/false,"dubbio_descrizione":"Descrizione dettagliata di cosa vedi: forma, colore, posizione, testo. Solo se dubbio_licenza=true, altrimenti null","colore_madre":"SOLO colore base tra: ${COL.join(", ")}","categoria_seo":"macro minuscolo attaccato","sottocategoria_seo":"sotto minuscolo attaccato","foto_frontale_idx":0,"foto_still_life_indices":[]${modelNames?.length ? ',"modella_riconosciuta":"nome modella o null"' : ""}${br === "loveskin" ? ',"vestibilita":"per reggiseni: pushup/bralette/balconcino/triangolo o null. Per slip: brasiliana/perizoma/vitaalta/classico o null. Altrimenti null","is_sporty":"true se capo sportivo/athleisure, false altrimenti"' : ""}}`;
 }
 
 export function mPrLong(br: string, tipo: string, nome: string, descBreve: string, colore: string, licenza: string | null, comp: string, exInfo: any) {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { authorize } from '@/lib/auth-helpers'
-import { prisma } from '@/lib/db'
+import { prisma, withRetry } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 
 const FALLBACK_USERS: Record<string, any[]> = {
@@ -21,14 +21,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params
 
   try {
-    const users = await prisma.user.findMany({
+    const users = await withRetry(() => prisma.user.findMany({
       where: { companyId: id },
       select: {
         id: true, email: true, firstName: true, lastName: true,
         role: true, isActive: true, createdAt: true,
       },
       orderBy: { createdAt: 'asc' },
-    })
+    }))
     if (users.length > 0) return NextResponse.json(users)
     return NextResponse.json(FALLBACK_USERS[id] || [])
   } catch {

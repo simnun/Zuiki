@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma, withRetry } from '@/lib/db'
 import { authorize } from '@/lib/auth-helpers'
 
 // Fallback data when DB is unreachable
@@ -24,17 +24,19 @@ export async function GET() {
   }
 
   try {
-    const companies = await prisma.company.findMany({
+    // Retry on transient/cold-start connection failures so real companies
+    // don't vanish behind the hardcoded fallback after a fresh deploy.
+    const companies = await withRetry(() => prisma.company.findMany({
       include: {
         _count: { select: { users: true, shootingSessions: true } },
       },
       orderBy: { name: 'asc' },
-    })
+    }))
     if (companies.length > 0) return NextResponse.json(companies)
-    // DB returned empty — use fallback
+    // DB genuinely empty — use fallback
     return NextResponse.json(FALLBACK_COMPANIES)
   } catch {
-    // DB unreachable — return fallback
+    // DB unreachable even after retries — return fallback
     return NextResponse.json(FALLBACK_COMPANIES)
   }
 }

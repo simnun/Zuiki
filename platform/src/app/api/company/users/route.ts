@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth-helpers'
-import { prisma, ensureCompanyExists } from '@/lib/db'
+import { prisma, ensureCompanyExists, withRetry } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 
 const FALLBACK_USERS: Record<string, any[]> = {
@@ -19,19 +19,18 @@ export async function GET() {
   if (!user.companyId) return NextResponse.json({ error: 'No company' }, { status: 400 })
 
   try {
-    const users = await Promise.race([
-      prisma.user.findMany({
-        where: { companyId: user.companyId },
-        select: {
-          id: true, email: true, firstName: true, lastName: true,
-          role: true, isActive: true, createdAt: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      }),
-      new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
-    ])
+    // Retry on transient/cold-start connection failures so real users don't
+    // vanish behind the hardcoded fallback after a fresh deploy.
+    const users = await withRetry(() => prisma.user.findMany({
+      where: { companyId: user.companyId! },
+      select: {
+        id: true, email: true, firstName: true, lastName: true,
+        role: true, isActive: true, createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    }))
     if (users && users.length > 0) return NextResponse.json(users)
-    // DB returned empty — use fallback if available
+    // DB genuinely empty — use fallback if available
     return NextResponse.json(FALLBACK_USERS[user.companyId] || [])
   } catch {
     return NextResponse.json(FALLBACK_USERS[user.companyId] || [])

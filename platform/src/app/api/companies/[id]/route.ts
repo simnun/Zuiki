@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma, ensureCompanyExists } from '@/lib/db'
+import { prisma, ensureCompanyExists, withRetry } from '@/lib/db'
 import { authorize } from '@/lib/auth-helpers'
 
 // Fallback company data
@@ -27,13 +27,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
 
   try {
-    const company = await prisma.company.findUnique({
+    const company = await withRetry(() => prisma.company.findUnique({
       where: { id },
       include: {
         users: { select: { id: true, email: true, firstName: true, lastName: true, role: true, isActive: true } },
         _count: { select: { shootingSessions: true } },
       },
-    })
+    }))
 
     if (!company) {
       // Not found in DB — try fallback

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma, withRetry } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
 
 async function verifyModelAccess(modelId: string, user: { companyId: string | null; role: string }) {
@@ -36,12 +36,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const base64 = buffer.toString('base64')
       const dataUrl = `data:${file.type};base64,${base64}`
 
-      const photo = await prisma.modelFacePhoto.create({
+      const photo = await withRetry(() => prisma.modelFacePhoto.create({
         data: {
           modelId: id,
           photoUrl: dataUrl,
         },
-      })
+      }))
 
       uploaded.push(photo)
     }

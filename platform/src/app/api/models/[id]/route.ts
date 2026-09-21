@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma, withRetry } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth-helpers'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -35,15 +35,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params
 
-  const existing = await prisma.model.findUnique({ where: { id } })
-  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (existing.companyId !== user.companyId && user.role !== 'super_admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
   try {
+    const existing = await withRetry(() => prisma.model.findUnique({ where: { id } }))
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (existing.companyId !== user.companyId && user.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const body = await req.json()
-    const model = await prisma.model.update({
+    const model = await withRetry(() => prisma.model.update({
       where: { id },
       data: {
         name: body.name,
@@ -54,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         sizeShoe: body.sizeShoe,
       },
       include: { facePhotos: true },
-    })
+    }))
 
     return NextResponse.json(model)
   } catch (err: unknown) {

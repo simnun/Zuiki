@@ -145,6 +145,7 @@ export default function StepSetup() {
     const sizeBottom = [tmpTi, tmpTiLetter].filter(Boolean).join("/");
 
     // Save to database API
+    let dbId: string | undefined;
     try {
       const res = await fetch('/api/models', {
         method: 'POST',
@@ -153,6 +154,7 @@ export default function StepSetup() {
       });
       if (res.ok) {
         const savedModel = await res.json();
+        dbId = savedModel.id;
         // Upload face photos if any
         if (tmpFaces.length) {
           for (const dataUrl of tmpFaces) {
@@ -164,11 +166,17 @@ export default function StepSetup() {
             } catch { /* ignore individual photo upload errors */ }
           }
         }
+      } else {
+        // Never fail silently: the model would look saved but vanish on reload.
+        const err = await res.json().catch(() => null);
+        alert(`Attenzione: la modella NON e stata salvata nel database.\n[${res.status}] ${err?.error || res.statusText}\n\nLa trovi nella sessione corrente, ma verra persa al ricaricamento.`);
       }
-    } catch { /* ignore API errors, state updated below */ }
+    } catch {
+      alert("Attenzione: la modella NON e stata salvata nel database (errore di rete).\n\nLa trovi nella sessione corrente, ma verra persa al ricaricamento.");
+    }
 
     // Update local state
-    const newMod = [...mod.filter(x => x.nome !== tmpNm), { nome: tmpNm, altezza: tmpAl, tagliaSopra: tmpTs, tagliaSotto: sizeBottom, tagliaReggiseno: tmpTr, numeroScarpe: tmpNs }];
+    const newMod = [...mod.filter(x => x.nome !== tmpNm), { nome: tmpNm, altezza: tmpAl, tagliaSopra: tmpTs, tagliaSotto: sizeBottom, tagliaReggiseno: tmpTr, numeroScarpe: tmpNs, dbId }];
     const newFacePh = { ...facePh };
     if (tmpFaces.length) {
       newFacePh[tmpNm] = [...tmpFaces];

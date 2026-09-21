@@ -40,10 +40,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
 
   try {
-    // Ensure company exists (handles fallback auth when seed hasn't run)
-    await ensureCompanyExists(companyId)
+    // Ensure company exists (handles fallback auth when seed hasn't run).
+    // Retry both steps on transient/cold-start connection failures so a save
+    // never silently fails just because the first DB call timed out.
+    await withRetry(() => ensureCompanyExists(companyId))
 
-    const model = await prisma.model.create({
+    const model = await withRetry(() => prisma.model.create({
       data: {
         companyId,
         name: body.name,
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
         sizeShoe: body.sizeShoe || null,
       },
       include: { facePhotos: true },
-    })
+    }))
 
     return NextResponse.json(model, { status: 201 })
   } catch (e: any) {

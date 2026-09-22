@@ -1,14 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   env: {
-    // AUTH_SECRET signs the session tokens. The hardcoded fallback below is a
-    // liability — anyone reading this repository could forge a valid session.
-    // Remove it as soon as AUTH_SECRET is confirmed set in the hosting env.
-    AUTH_SECRET: process.env.AUTH_SECRET || 'zuiki-catalogo-ai-secret-key-2024',
+    // Secrets are NOT declared here on purpose. Listing them in `env` bakes
+    // their value into the build output, and the previous hardcoded fallbacks
+    // put the database password and the session-signing secret in clear text
+    // in the repository. Server code reads AUTH_SECRET and DATABASE_URL
+    // straight from the runtime environment; if one is missing the app now
+    // fails loudly instead of silently using a public value.
     AUTH_TRUST_HOST: 'true',
-    // No hardcoded connection string: it used to carry the database password in
-    // clear text in the repository. Missing value now fails loudly in db.ts.
-    DATABASE_URL: process.env.DATABASE_URL,
     NEXT_PUBLIC_BUILD_TIME: new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
   },
   webpack: (config, { isServer }) => {

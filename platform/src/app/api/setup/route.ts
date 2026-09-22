@@ -361,5 +361,39 @@ export async function GET() {
   await run('seed admin user', `INSERT INTO "users" ("id","email","passwordHash","firstName","lastName","role","companyId","isActive","createdAt","updatedAt") VALUES ('user-admin-001','admin@zuiki.it','$2b$10$Zvhliwj7EoOmtKtKMhfPoeb/H99kaUABW1S0KuumBREkLenT0JLga','Admin','Zuiki','super_admin','company-zuiki-001',true,now(),now()) ON CONFLICT DO NOTHING`)
 
   const ok = errors.length === 0
-  return NextResponse.json({ ok, steps, errors }, { status: ok ? 200 : 207 })
+
+  // Read-only diagnostics. The unique index on suffix_mappings can fail with
+  // 23505 when the table already holds duplicate (companyId, suffix) rows —
+  // typically because the column was added later with DEFAULT '', leaving every
+  // pre-existing row with an empty suffix. Report the shape of the data so the
+  // cleanup can be decided on facts instead of guesses. Nothing is modified.
+  const diagnostics: Record<string, unknown> = {}
+  try {
+    const cols = await prisma.$queryRawUnsafe<Array<{ column_name: string; data_type: string }>>(
+      `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'suffix_mappings' ORDER BY ordinal_position`,
+    )
+    diagnostics.suffixMappingsColumns = cols.map(c => `${c.column_name}:${c.data_type}`)
+
+    const counts = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE "suffix" = '')::int AS empty_suffix,
+              COUNT(*) FILTER (WHERE "companyId" = '')::int AS empty_company
+       FROM "suffix_mappings"`,
+    )
+    diagnostics.suffixMappingsCounts = counts?.[0] ?? null
+
+    const dups = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT "companyId", "suffix", COUNT(*)::int AS copies
+       FROM "suffix_mappings"
+       GROUP BY "companyId", "suffix"
+       HAVING COUNT(*) > 1
+       ORDER BY COUNT(*) DESC
+       LIMIT 20`,
+    )
+    diagnostics.suffixMappingsDuplicates = dups
+  } catch (e: unknown) {
+    diagnostics.error = e instanceof Error ? e.message.slice(0, 300) : 'unknown'
+  }
+
+  return NextResponse.json({ ok, steps, errors, diagnostics }, { status: ok ? 200 : 207 })
 }

@@ -51,6 +51,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside style={{
         width: 220, background: '#1a1a1a', padding: '20px 0', flexShrink: 0,
         display: 'flex', flexDirection: 'column',
+        // Pinned to the viewport so the logout block stays reachable without
+        // scrolling to the bottom of a long list.
+        position: 'sticky', top: 0, alignSelf: 'flex-start',
+        height: '100vh', overflowY: 'auto',
       }}>
         <div style={{ padding: '0 16px', marginBottom: 32 }}>
           <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>

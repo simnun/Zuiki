@@ -10,7 +10,6 @@ import NotificationBell from '@/components/NotificationBell'
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [user, setUser] = useState<any>(null)
-  const [sideOpen, setSideOpen] = useState(true)
   const [unreadTickets, setUnreadTickets] = useState(0)
 
   useEffect(() => {
@@ -69,7 +68,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar */}
       <aside style={{
-        width: sideOpen ? 240 : 60,
+        width: 240,
         background: 'var(--card)',
         borderRight: '1px solid var(--border)',
         padding: '20px 0',
@@ -77,16 +76,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
+        // Pin to the viewport instead of flowing with the page: otherwise the
+        // account block at the bottom sits at the end of the document and is
+        // only reachable after scrolling the whole session list.
+        position: 'sticky',
+        top: 0,
+        alignSelf: 'flex-start',
+        height: '100vh',
+        overflowY: 'auto',
       }}>
         <div style={{ padding: '0 16px', marginBottom: 32, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => setSideOpen(!sideOpen)} style={{
-            background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--muted)',
-          }}>☰</button>
-          {sideOpen && (
-            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>
-              Catalogo <span style={{ color: 'var(--accent2)' }}>AI</span>
-            </span>
-          )}
+          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>
+            Catalogo <span style={{ color: 'var(--accent2)' }}>AI</span>
+          </span>
         </div>
 
         <nav style={{ flex: 1 }}>
@@ -104,14 +106,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 position: 'relative',
               }}>
                 <span style={{ fontSize: 16, width: 28, textAlign: 'center' }}>{n.icon}</span>
-                {sideOpen && n.label}
+                {n.label}
                 {/* Unread badge on Support */}
                 {isSupport && unreadTickets > 0 && (
                   <span style={{
-                    position: sideOpen ? 'static' : 'absolute',
-                    top: sideOpen ? undefined : 6,
-                    right: sideOpen ? undefined : 4,
-                    marginLeft: sideOpen ? 'auto' : undefined,
+                    position: 'static',
+                                                            marginLeft: 'auto',
                     background: '#e74c3c', color: '#fff', borderRadius: 10,
                     minWidth: 18, height: 18, fontSize: 10, fontWeight: 700,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -129,31 +129,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             borderRadius: 8, marginBottom: 8, cursor: 'pointer',
             transition: 'background .15s',
           }}>
-            {sideOpen ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#fff', fontSize: 13, fontWeight: 700,
-                }}>
-                  {(user.firstName || 'U')[0].toUpperCase()}
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                    {user.firstName} {user.lastName}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>Impostazioni</div>
-                </div>
-              </div>
-            ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
                 width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#fff', fontSize: 13, fontWeight: 700, margin: '0 auto',
+                color: '#fff', fontSize: 13, fontWeight: 700,
               }}>
                 {(user.firstName || 'U')[0].toUpperCase()}
               </div>
-            )}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                  {user.firstName} {user.lastName}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>Impostazioni</div>
+              </div>
+            </div>
           </Link>
           <button onClick={handleLogout} style={{
             display: 'block', width: '100%', padding: '10px 12px', borderRadius: 8,
@@ -161,7 +151,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             fontSize: 12, fontWeight: 600, color: 'var(--muted)', textAlign: 'center',
             cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
           }}>
-            {sideOpen ? 'Esci' : '\u2190'}
+            Esci
           </button>
         </div>
       </aside>

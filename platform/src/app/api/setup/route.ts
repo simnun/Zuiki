@@ -227,6 +227,32 @@ export async function GET() {
   await run('col suffix_mappings.suffix', `ALTER TABLE "suffix_mappings" ADD COLUMN IF NOT EXISTS "suffix" TEXT NOT NULL DEFAULT ''`)
   await run('col suffix_mappings.label', `ALTER TABLE "suffix_mappings" ADD COLUMN IF NOT EXISTS "label" TEXT NOT NULL DEFAULT ''`)
   await run('col suffix_mappings.companyId', `ALTER TABLE "suffix_mappings" ADD COLUMN IF NOT EXISTS "companyId" TEXT NOT NULL DEFAULT ''`)
+  // This table predates the current schema: it used to store the mapping in
+  // "suffixCode"/"articleType". The columns above were added later with
+  // DEFAULT '', so every pre-existing row ended up with an empty suffix — all
+  // colliding with each other and blocking the unique index. Carry the old
+  // values over instead of deleting rows; guarded so it's a no-op on a fresh
+  // database where the legacy columns never existed.
+  await run('backfill suffix_mappings.suffix from suffixCode', `
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name = 'suffix_mappings' AND column_name = 'suffixCode') THEN
+        UPDATE "suffix_mappings"
+        SET "suffix" = "suffixCode"
+        WHERE COALESCE("suffix", '') = '' AND COALESCE("suffixCode", '') <> '';
+      END IF;
+    END $$`)
+  await run('backfill suffix_mappings.label from articleType', `
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name = 'suffix_mappings' AND column_name = 'articleType') THEN
+        UPDATE "suffix_mappings"
+        SET "label" = "articleType"
+        WHERE COALESCE("label", '') = '' AND COALESCE("articleType", '') <> '';
+      END IF;
+    END $$`)
   await run('index suffix_mappings_unique', `CREATE UNIQUE INDEX IF NOT EXISTS "suffix_mappings_companyId_suffix_key" ON "suffix_mappings"("companyId", "suffix")`)
 
   await run('table license_memory', `CREATE TABLE IF NOT EXISTS "license_memory" (
@@ -391,6 +417,15 @@ export async function GET() {
        LIMIT 20`,
     )
     diagnostics.suffixMappingsDuplicates = dups
+
+    const lmCols = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'license_memory' ORDER BY ordinal_position`,
+    )
+    diagnostics.licenseMemoryColumns = lmCols.map(c => c.column_name)
+    const lmCounts = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE "license" = '')::int AS empty_license FROM "license_memory"`,
+    )
+    diagnostics.licenseMemoryCounts = lmCounts?.[0] ?? null
   } catch (e: unknown) {
     diagnostics.error = e instanceof Error ? e.message.slice(0, 300) : 'unknown'
   }

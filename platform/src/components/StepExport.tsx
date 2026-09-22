@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { useStore } from "@/lib/store";
-import { esc, wrapHtml, fmtComp, convertToJpg, toB, mT, runPool, compressForAI } from "@/lib/utils";
+import { esc, wrapHtml, fmtComp, convertToJpg, toB, mT, runPool, compressForAI, pShot } from "@/lib/utils";
 import { SCMAP, SHOT_ORDER, COL } from "@/lib/constants";
 import { genMetaTitle, genMetaKeys, classifyPhotosPrompt, classifyPhotosStrictPrompt } from "@/lib/ai-prompts";
 import type { CatalogItem } from "@/lib/catalog-types";
@@ -488,14 +488,6 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
         // STEP 1: Validate colors against allowed list
         classified = validateColors(classified, allowedColors, fallbackColor);
 
-        // STEP 2: Deduplicate shot types per color
-        const usedPerColor: Record<string, boolean> = {};
-        for (const ph of classified) {
-          if (ph.shot === "other") continue;
-          const key = ph.color + "||" + ph.shot;
-          if (usedPerColor[key]) ph.shot = "other";
-          else usedPerColor[key] = true;
-        }
 
         // STEP 3: Verification — re-check colors with a second quick AI call
         const colorCounts: Record<string, number> = {};
@@ -536,6 +528,30 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
         }));
       }
 
+      // The filename is the authority on the view, above the AI's visual guess:
+      // still-life shoots encode it in the name ("... FRONT (2)", "... REAR").
+      // Applied here so it covers every path above (first pass, strict
+      // re-classification and fallback).
+      for (const ph of classified) {
+        const fromName = pShot(ph.file?.name || "");
+        if (fromName) {
+          ph.shot = fromName.shot;
+          ph.nameSeq = fromName.seq;
+          ph.fromName = true;
+        }
+      }
+
+      // One shot type per colour, so the numbering stays predictable. Photos
+      // whose view comes from the filename are exempt: several legitimately
+      // share a view (FRONT (1), (2), (3)) and must keep it.
+      const usedShotPerColor: Record<string, boolean> = {};
+      for (const ph of classified) {
+        if (ph.shot === "other" || ph.fromName) continue;
+        const key = ph.color + "||" + ph.shot;
+        if (usedShotPerColor[key]) ph.shot = "other";
+        else usedShotPerColor[key] = true;
+      }
+
       // Group by color and sort by shot priority
       const colorGroups: Record<string, any[]> = {};
       for (const ph of classified) {
@@ -543,7 +559,13 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
         colorGroups[ph.color].push(ph);
       }
       for (const col of Object.keys(colorGroups)) {
-        colorGroups[col].sort((a: any, b: any) => (SHOT_ORDER[a.shot] ?? 5) - (SHOT_ORDER[b.shot] ?? 5));
+        // Shot priority first, then the filename's own number (FRONT (1) before
+        // FRONT (2)), then the original upload order as a stable tie-break.
+        colorGroups[col].sort((a: any, b: any) =>
+          (SHOT_ORDER[a.shot] ?? 99) - (SHOT_ORDER[b.shot] ?? 99)
+          || (a.nameSeq ?? 0) - (b.nameSeq ?? 0)
+          || (a.origIdx ?? 0) - (b.origIdx ?? 0)
+        );
       }
 
       // Generate filenames: always codicearticolo_colore_N.jpg

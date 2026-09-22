@@ -9,6 +9,38 @@ import type { AIResponse, CatalogItem, ExcelInfo, ModellaInfo, SessionConfig } f
 export const pSKU = (fn: string) =>
   fn.replace(/\.[^.]+$/, "").split("__")[0].split("_")[0].split(/\s+/)[0].toUpperCase();
 
+// Shot descriptors that still-life shoots append to the article code in the
+// filename, e.g. "A6A3341BR FRONT (2).jpg" / "A6A3341BR REAR.jpg". They tell us
+// the view with certainty, so we trust them over the AI's visual guess.
+const SHOT_FROM_NAME: Record<string, string> = {
+  FRONT: "front_34", FRONTE: "front_34", DAVANTI: "front_34", FR: "front_34",
+  REAR: "back", RETRO: "back", BACK: "back", DIETRO: "back",
+  INTERIOR: "interior", INTERNO: "interior", INSIDE: "interior", INT: "interior",
+  DETAIL: "detail", DETTAGLIO: "detail",
+};
+
+/**
+ * Reads the shot type (and its sequence number) out of a photo filename.
+ * Returns null when the filename carries no descriptor — the normal case for
+ * on-model shots, where the AI classification stays in charge.
+ *
+ * "A6A3341BR FRONT (2).jpg" -> { shot: "front_34", seq: 2 }
+ */
+export const pShot = (fn: string): { shot: string; seq: number } | null => {
+  const base = fn.replace(/\.[^.]+$/, "").toUpperCase();
+  // Drop the first token: that's the article code itself.
+  const tokens = base.split(/[\s_]+/).slice(1);
+  let shot: string | null = null;
+  let seq = 0;
+  for (const t of tokens) {
+    const word = t.replace(/[^A-Z]/g, "");
+    if (!shot && word && SHOT_FROM_NAME[word]) shot = SHOT_FROM_NAME[word];
+    const num = t.match(/\((\d+)\)|^(\d+)$/);
+    if (num && !seq) seq = parseInt(num[1] || num[2], 10);
+  }
+  return shot ? { shot, seq } : null;
+};
+
 export const gSuf = (sku: string, customSfx: Record<string, string>) => {
   const t = sku.slice(-2);
   const a = { ...SFX, ...customSfx };

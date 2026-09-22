@@ -49,7 +49,7 @@ export const MACRO_MAP: Record<string, string> = {
 };
 
 export const SHOT_ORDER: Record<string, number> = {
-  front_34: 0, scontornata: 1, back: 2, detail: 3, full_front: 4, other: 5,
+  front_34: 0, scontornata: 1, back: 2, interior: 3, detail: 4, full_front: 5, other: 6,
 };
 
 export const INTIMO_SFX = new Set(["RG", "SL"]);

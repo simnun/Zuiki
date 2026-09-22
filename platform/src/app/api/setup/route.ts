@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { authSecretFromEnv } from '@/lib/auth'
 
 // This route is public, so nothing (no cookie/header read) makes Next treat it
 // as dynamic: it would be pre-rendered at build time, running schema DDL
@@ -426,6 +427,16 @@ export async function GET() {
       `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE "license" = '')::int AS empty_license FROM "license_memory"`,
     )
     diagnostics.licenseMemoryCounts = lmCounts?.[0] ?? null
+
+    // Which secrets really come from the hosting environment, as opposed to a
+    // hardcoded fallback. Presence only, never values.
+    diagnostics.secrets = {
+      AUTH_SECRET_from_env: authSecretFromEnv,
+      DATABASE_URL_from_env: Boolean(process.env.DATABASE_URL),
+      NEXT_PUBLIC_SUPABASE_URL_from_env: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+      SUPABASE_SERVICE_ROLE_KEY_from_env: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+      ANTHROPIC_API_KEY_from_env: Boolean(process.env.ANTHROPIC_API_KEY),
+    }
   } catch (e: unknown) {
     diagnostics.error = e instanceof Error ? e.message.slice(0, 300) : 'unknown'
   }

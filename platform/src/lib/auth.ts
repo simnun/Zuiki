@@ -87,7 +87,21 @@ async function findUser(email: string) {
   return FALLBACK_USERS.find(u => u.email === email) || null
 }
 
+// AUTH_SECRET signs the session tokens.
+//
+// It must NOT go through next.config's `env` block: that inlines the value at
+// build time, so process.env always looked set even when the hosting
+// environment had nothing — which is how removing the fallback silently broke
+// login. Read it at runtime instead, and record whether it really came from the
+// environment so /api/setup can report the truth.
+const LEGACY_AUTH_SECRET = 'zuiki-catalogo-ai-secret-key-2024'
+export const authSecretFromEnv = Boolean(process.env.AUTH_SECRET)
+// TODO(security): the legacy fallback is public — it is in this repository's
+// history. Set AUTH_SECRET in the hosting environment, then delete this line.
+const AUTH_SECRET = process.env.AUTH_SECRET || LEGACY_AUTH_SECRET
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  secret: AUTH_SECRET,
   session: {
     strategy: 'jwt',
   },

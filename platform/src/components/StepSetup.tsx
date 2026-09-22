@@ -568,8 +568,8 @@ export default function StepSetup() {
                   } else if (res.status === 401 || res.status === 403) {
                     const errBody = await res.json().catch(() => ({ error: "" }));
                     const reason = res.status === 401 ? "Utente non autenticato. Effettua il login e riprova."
-                      : res.status === 403 && errBody.error === "No company" ? "Il tuo account non è associato a nessuna azienda. Contatta l'amministratore."
-                      : "Il tuo ruolo non ha i permessi per creare sessioni. Contatta l'amministratore.";
+                      : res.status === 403 && errBody.error === "No company" ? "Il tuo account non è associato a nessuna azienda, quindi la sessione non può essere salvata. Accedi con un utente di un'azienda (owner o utente)."
+                      : "Il tuo ruolo non può creare sessioni. Il super admin non appartiene a nessuna azienda: per catalogare accedi come owner o utente di un'azienda.";
                     dispatch({ type: "SET_STATE", payload: { sessErr: reason } });
                     break;
                   } else if (attempt === 2) {

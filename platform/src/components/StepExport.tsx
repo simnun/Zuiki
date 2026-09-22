@@ -659,6 +659,25 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
         </div>
       </div>
 
+      {/* Unmissable warning: without a session nothing is persisted. The old
+          truncated one-line chip made silent data loss easy to overlook. */}
+      {!sessionId && !creatingSession && (
+        <div style={{ background: "#fff5f5", border: "2px solid var(--err)", borderRadius: 12, padding: "16px 20px", marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "var(--err)", marginBottom: 6 }}>
+            ⚠️ Questa sessione NON verrà salvata
+          </div>
+          <div style={{ fontSize: 13, color: "var(--err)", marginBottom: 10, lineHeight: 1.5 }}>
+            La sessione non è stata creata sul database, quindi il lavoro di catalogazione{" "}
+            <strong>andrà perso chiudendo o ricaricando la pagina</strong>. Puoi comunque scaricare
+            subito CSV/Excel qui sotto.
+            {sessErr && <><br /><span style={{ fontWeight: 600 }}>Motivo:</span> {sessErr}</>}
+          </div>
+          <button className="btn btn-p" style={{ padding: "8px 16px", fontSize: 13 }} disabled={creatingSession} onClick={retryCreateSession}>
+            {creatingSession ? "Creazione..." : "Crea la sessione ora"}
+          </button>
+        </div>
+      )}
+
       {/* Correlations */}
       <div style={{ background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)", padding: 24, marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>

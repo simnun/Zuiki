@@ -3,14 +3,6 @@ import { getCurrentUser } from '@/lib/auth-helpers'
 import { prisma, ensureCompanyExists, withRetry } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 
-const FALLBACK_USERS: Record<string, any[]> = {
-  'company-provoloni-001': [
-    { id: 'user-owner-001', email: 'owner@provoloni.it', firstName: 'Proprietario', lastName: 'Provoloni', role: 'owner', isActive: true, createdAt: new Date().toISOString() },
-    { id: 'user-admin-prov-001', email: 'admin@provoloni.it', firstName: 'Amministrativo', lastName: 'Provoloni', role: 'admin', isActive: true, createdAt: new Date().toISOString() },
-    { id: 'user-user-001', email: 'user@provoloni.it', firstName: 'Utente', lastName: 'Provoloni', role: 'user', isActive: true, createdAt: new Date().toISOString() },
-  ],
-}
-
 // GET — list company users (owner only)
 export async function GET() {
   const user = await getCurrentUser()
@@ -19,8 +11,6 @@ export async function GET() {
   if (!user.companyId) return NextResponse.json({ error: 'No company' }, { status: 400 })
 
   try {
-    // Retry on transient/cold-start connection failures so real users don't
-    // vanish behind the hardcoded fallback after a fresh deploy.
     const users = await withRetry(() => prisma.user.findMany({
       where: { companyId: user.companyId! },
       select: {
@@ -29,11 +19,14 @@ export async function GET() {
       },
       orderBy: { createdAt: 'asc' },
     }))
-    if (users && users.length > 0) return NextResponse.json(users)
-    // DB genuinely empty — use fallback if available
-    return NextResponse.json(FALLBACK_USERS[user.companyId] || [])
-  } catch {
-    return NextResponse.json(FALLBACK_USERS[user.companyId] || [])
+    return NextResponse.json(users)
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Errore sconosciuto'
+    console.error('[API] Team users GET error:', message)
+    return NextResponse.json(
+      { error: 'Database non raggiungibile. Riprova tra qualche secondo.', detail: message.slice(0, 300) },
+      { status: 503 },
+    )
   }
 }
 

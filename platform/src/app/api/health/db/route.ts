@@ -26,6 +26,16 @@ export async function GET() {
   const connection: Record<string, unknown> = {
     databaseUrlFromEnv: Boolean(process.env.DATABASE_URL),
   }
+
+  // Presence only — never the values. Tells us which hardcoded fallbacks in
+  // next.config.mjs can be safely deleted without breaking production.
+  const env = {
+    DATABASE_URL: Boolean(process.env.DATABASE_URL),
+    AUTH_SECRET: Boolean(process.env.AUTH_SECRET),
+    NEXT_PUBLIC_SUPABASE_URL: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    SUPABASE_SERVICE_ROLE_KEY: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    ANTHROPIC_API_KEY: Boolean(process.env.ANTHROPIC_API_KEY),
+  }
   try {
     // Never expose user/password.
     const u = new URL(raw)
@@ -79,6 +89,7 @@ export async function GET() {
         ? 'Database raggiungibile: i conteggi qui sotto sono i dati reali'
         : 'Database raggiungibile ma alcune query falliscono (vedi errori)',
     connection,
+    env,
     checks,
   })
 }

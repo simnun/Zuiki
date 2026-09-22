@@ -2,20 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma, withRetry } from '@/lib/db'
 import { authorize } from '@/lib/auth-helpers'
 
-// Fallback data when DB is unreachable
-const FALLBACK_COMPANIES = [
-  {
-    id: 'company-provoloni-001',
-    name: 'Provoloni SPA',
-    slug: 'provoloni-spa',
-    logoUrl: null,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    _count: { users: 3, shootingSessions: 0 },
-  },
-]
-
 export async function GET() {
   try {
     await authorize(['super_admin'])
@@ -24,20 +10,24 @@ export async function GET() {
   }
 
   try {
-    // Retry on transient/cold-start connection failures so real companies
-    // don't vanish behind the hardcoded fallback after a fresh deploy.
     const companies = await withRetry(() => prisma.company.findMany({
       include: {
         _count: { select: { users: true, shootingSessions: true } },
       },
       orderBy: { name: 'asc' },
     }))
-    if (companies.length > 0) return NextResponse.json(companies)
-    // DB genuinely empty — use fallback
-    return NextResponse.json(FALLBACK_COMPANIES)
-  } catch {
-    // DB unreachable even after retries — return fallback
-    return NextResponse.json(FALLBACK_COMPANIES)
+    // An empty list means the DB really has no companies — report that
+    // honestly instead of inventing one.
+    return NextResponse.json(companies)
+  } catch (e: unknown) {
+    // Never substitute demo data for a real outage: a hardcoded "Provoloni SPA"
+    // made a dead database look like ordinary (wrong) content for days.
+    const message = e instanceof Error ? e.message : 'Errore sconosciuto'
+    console.error('[API] Companies GET error:', message)
+    return NextResponse.json(
+      { error: 'Database non raggiungibile. Riprova tra qualche secondo.', detail: message.slice(0, 300) },
+      { status: 503 },
+    )
   }
 }
 

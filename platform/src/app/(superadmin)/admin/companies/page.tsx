@@ -7,17 +7,37 @@ type Company = { id: string; name: string; slug: string; isActive: boolean; crea
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', slug: '' })
   const [msg, setMsg] = useState('')
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
-  const loadCompanies = useCallback(() => {
-    fetch('/api/companies').then(r => r.json()).then(d => {
-      setCompanies(Array.isArray(d) ? d : [])
-      setLoading(false)
-    })
+  const loadCompanies = useCallback(async () => {
+    setLoading(true)
+    setLoadError('')
+    // Retry transient/cold-start DB failures instead of showing an empty list.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt))
+      try {
+        const res = await fetch('/api/companies')
+        if (res.ok) {
+          const d = await res.json()
+          setCompanies(Array.isArray(d) ? d : [])
+          setLoading(false)
+          return
+        }
+        if (res.status < 500) {
+          const e = await res.json().catch(() => null)
+          setLoadError(e?.error || `Errore ${res.status}`)
+          setLoading(false)
+          return
+        }
+      } catch { /* network error → retry */ }
+    }
+    setLoadError('Database non raggiungibile. Le aziende esistono ma non è stato possibile leggerle.')
+    setLoading(false)
   }, [])
 
   useEffect(() => { loadCompanies() }, [loadCompanies])
@@ -85,7 +105,13 @@ export default function CompaniesPage() {
       )}
 
       {/* Company list */}
-      {loading ? <div className="spinner" /> : (
+      {loading ? <div className="spinner" /> : loadError ? (
+        <div className="card" style={{ padding: '40px 24px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--err)', fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Impossibile caricare le aziende</p>
+          <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>{loadError}</p>
+          <button className="btn btn-p" onClick={() => loadCompanies()}>Riprova</button>
+        </div>
+      ) : (
         <div className="card" style={{ overflow: 'hidden' }}>
           <table className="tbl">
             <thead><tr><th>Nome</th><th>Slug</th><th>Utenti</th><th>Sessioni</th><th>Stato</th><th></th></tr></thead>

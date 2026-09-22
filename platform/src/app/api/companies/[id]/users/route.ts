@@ -3,14 +3,6 @@ import { authorize } from '@/lib/auth-helpers'
 import { prisma, withRetry } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 
-const FALLBACK_USERS: Record<string, any[]> = {
-  'company-provoloni-001': [
-    { id: 'user-owner-001', email: 'owner@provoloni.it', firstName: 'Proprietario', lastName: 'Provoloni', role: 'owner', isActive: true, createdAt: new Date().toISOString() },
-    { id: 'user-admin-prov-001', email: 'admin@provoloni.it', firstName: 'Amministrativo', lastName: 'Provoloni', role: 'admin', isActive: true, createdAt: new Date().toISOString() },
-    { id: 'user-user-001', email: 'user@provoloni.it', firstName: 'Utente', lastName: 'Provoloni', role: 'user', isActive: true, createdAt: new Date().toISOString() },
-  ],
-}
-
 // GET — list users for a company (super_admin only)
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -29,10 +21,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       },
       orderBy: { createdAt: 'asc' },
     }))
-    if (users.length > 0) return NextResponse.json(users)
-    return NextResponse.json(FALLBACK_USERS[id] || [])
-  } catch {
-    return NextResponse.json(FALLBACK_USERS[id] || [])
+    return NextResponse.json(users)
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Errore sconosciuto'
+    console.error('[API] Company users GET error:', message)
+    return NextResponse.json(
+      { error: 'Database non raggiungibile. Riprova tra qualche secondo.', detail: message.slice(0, 300) },
+      { status: 503 },
+    )
   }
 }
 

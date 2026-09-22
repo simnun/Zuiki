@@ -87,18 +87,17 @@ async function findUser(email: string) {
   return FALLBACK_USERS.find(u => u.email === email) || null
 }
 
-// AUTH_SECRET signs the session tokens.
+// AUTH_SECRET signs the session tokens. No fallback on purpose: a hardcoded
+// one would be public (this repository's history), letting anyone forge a
+// session for any role.
 //
-// It must NOT go through next.config's `env` block: that inlines the value at
-// build time, so process.env always looked set even when the hosting
-// environment had nothing — which is how removing the fallback silently broke
-// login. Read it at runtime instead, and record whether it really came from the
-// environment so /api/setup can report the truth.
-const LEGACY_AUTH_SECRET = 'zuiki-catalogo-ai-secret-key-2024'
+// It must NOT be declared in next.config's `env` block either: that inlines the
+// value at build time, so process.env looks set even when the hosting
+// environment has nothing — which is exactly how a missing secret went
+// unnoticed. Read it at runtime, and expose whether it is really there so
+// /api/setup can report the truth instead of a guess.
 export const authSecretFromEnv = Boolean(process.env.AUTH_SECRET)
-// TODO(security): the legacy fallback is public — it is in this repository's
-// history. Set AUTH_SECRET in the hosting environment, then delete this line.
-const AUTH_SECRET = process.env.AUTH_SECRET || LEGACY_AUTH_SECRET
+const AUTH_SECRET = process.env.AUTH_SECRET
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: AUTH_SECRET,

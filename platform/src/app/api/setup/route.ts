@@ -17,15 +17,28 @@ export async function GET() {
   const errors: string[] = []
 
   const run = async (label: string, sql: string) => {
-    try {
-      await prisma.$executeRawUnsafe(sql)
-      steps.push(`✓ ${label}`)
-    } catch (e: any) {
-      // Ignore "already exists" errors
-      if (e.message?.includes('already exists') || e.message?.includes('duplicate')) {
-        steps.push(`~ ${label} (already exists)`)
-      } else {
-        errors.push(`✗ ${label}: ${e.message}`)
+    // Retry connection failures: the first statements of a run routinely hit a
+    // cold pgbouncer connection and time out, which used to report already
+    // applied objects as errors. Every statement here is idempotent, so a retry
+    // is always safe.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await prisma.$executeRawUnsafe(sql)
+        steps.push(`✓ ${label}`)
+        return
+      } catch (e: any) {
+        const msg = e?.message || ''
+        // Ignore "already exists" errors
+        if (msg.includes('already exists') || msg.includes('duplicate')) {
+          steps.push(`~ ${label} (already exists)`)
+          return
+        }
+        const retryable = msg.includes('timeout') || msg.includes('connect') || msg.includes('Connection')
+        if (!retryable || attempt === 2) {
+          errors.push(`✗ ${label}: ${msg}`)
+          return
+        }
+        await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
       }
     }
   }

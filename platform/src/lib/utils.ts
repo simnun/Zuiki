@@ -1,8 +1,13 @@
 import { SFX, SUP, SCMAP, MACRO_MAP, COL, INTIMO_SFX, ABBIG_SFX, INTIMO_CAT_MAP } from "./constants";
 import type { AIResponse, CatalogItem, ExcelInfo, ModellaInfo, SessionConfig } from "./catalog-types";
 
+// Extract the article code from a photo filename.
+// Separators in use: "__", "_" and whitespace. Whitespace matters because many
+// shoots name files "<CODICE> FRONT (1).jpg" / "<CODICE> REAR.jpg": without
+// cutting at the space the whole filename became the SKU, so every photo
+// turned into its own article and nothing matched the Excel.
 export const pSKU = (fn: string) =>
-  fn.replace(/\.[^.]+$/, "").split("__")[0].split("_")[0].toUpperCase();
+  fn.replace(/\.[^.]+$/, "").split("__")[0].split("_")[0].split(/\s+/)[0].toUpperCase();
 
 export const gSuf = (sku: string, customSfx: Record<string, string>) => {
   const t = sku.slice(-2);

@@ -133,8 +133,15 @@ export async function ensureCompanyExists(companyId: string) {
 }
 
 /**
- * Ensures a fallback user exists in the DB before updating their record.
- * Creates the user (and their company if needed) when they only exist in fallback auth.
+ * Ensures a user row exists and returns the id actually stored in the DB.
+ *
+ * Fallback auth (used when the DB is slow at login) hands out hardcoded ids
+ * like 'user-user-001', while the row already in the DB for the same email was
+ * created with a generated uuid. Upserting by id then tried to INSERT a
+ * duplicate email — which is UNIQUE — so the call threw and every write that
+ * followed (creating a session, a ticket message, updating a profile) failed.
+ *
+ * Reconcile on email and always use the returned id for foreign keys.
  */
 export async function ensureUserExists(user: {
   id: string
@@ -143,21 +150,38 @@ export async function ensureUserExists(user: {
   lastName: string
   role: string
   companyId: string | null
-}) {
+}): Promise<string> {
   if (user.companyId) {
     await ensureCompanyExists(user.companyId)
   }
-  await prisma.user.upsert({
-    where: { id: user.id },
-    update: {},
-    create: {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role as any,
-      companyId: user.companyId,
-      passwordHash: '',
-    },
+
+  const existing = await prisma.user.findUnique({
+    where: { email: user.email },
+    select: { id: true },
   })
+  if (existing) return existing.id
+
+  try {
+    const created = await prisma.user.create({
+      data: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role as any,
+        companyId: user.companyId,
+        passwordHash: '',
+      },
+      select: { id: true },
+    })
+    return created.id
+  } catch {
+    // Lost a race with a concurrent request that created the same user.
+    const raced = await prisma.user.findUnique({
+      where: { email: user.email },
+      select: { id: true },
+    })
+    if (raced) return raced.id
+    throw new Error(`Impossibile creare o trovare l'utente ${user.email}`)
+  }
 }

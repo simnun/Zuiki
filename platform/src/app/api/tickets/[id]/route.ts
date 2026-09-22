@@ -67,7 +67,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
   const body = await req.json()
 
-  await ensureUserExists(user)
+  const senderId = await ensureUserExists(user)
 
   let newMessageId: string | null = null
 
@@ -77,7 +77,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const msg = await prisma.ticketMessage.create({
         data: {
           ticketId: id,
-          senderId: user.id,
+          senderId,
           message: body.message,
           replyToId: body.replyToId || null,
         },
@@ -88,7 +88,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const msg = await prisma.ticketMessage.create({
         data: {
           ticketId: id,
-          senderId: user.id,
+          senderId,
           message: body.message,
         },
       })

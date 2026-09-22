@@ -34,13 +34,14 @@ export async function POST(req: NextRequest) {
   const { brand, season, year, shootingDate, shootType, modelIds, mannequin } = body
 
   try {
-    // Ensure user and company exist in DB (with retry for transient connection issues)
-    await withRetry(() => ensureUserExists(user))
+    // Ensure user and company exist in DB (with retry for transient connection issues).
+    // Use the returned id: fallback auth ids can differ from the stored row's id.
+    const createdById = await withRetry(() => ensureUserExists(user))
 
     const session = await withRetry(() => prisma.shootingSession.create({
       data: {
         companyId: user.companyId!,
-        createdById: user.id,
+        createdById,
         brand,
         season,
         year,

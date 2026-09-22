@@ -7,11 +7,11 @@ export async function PATCH(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    await ensureUserExists(user)
+    const userId = await ensureUserExists(user)
     const { firstName, lastName, phone } = await req.json()
 
     const updated = await prisma.user.update({
-      where: { id: user.id },
+      where: { id: userId },
       data: {
         ...(firstName !== undefined && { firstName }),
         ...(lastName !== undefined && { lastName }),

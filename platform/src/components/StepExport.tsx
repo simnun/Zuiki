@@ -25,6 +25,23 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
   const savingRef = useRef(false);
   const [creatingSession, setCreatingSession] = useState(false);
 
+  // Resolve an item's Excel row info. The per-item snapshot captured at upload
+  // time is the primary source (same pattern used everywhere else); the live
+  // store map is only a fallback. Using the map alone produced exports with
+  // just the header rows whenever the map no longer matched the item SKUs.
+  const resolveExcelInfo = (it: CatalogItem) => it.excelInfo || getExcelInfo(it.sku);
+
+  // Never hand the user a silently empty file.
+  const warnNoRows = () => {
+    const skus = done.slice(0, 5).map(i => i.sku).join(", ");
+    alert(
+      "Export annullato: nessun articolo corrisponde a una riga del file Excel caricato.\n\n" +
+      `Excel: ${excelFileName || "(nessuno)"} — ${Object.keys(excelMap).length} codici mappati\n` +
+      `Codici degli articoli elaborati: ${skus}${done.length > 5 ? ", ..." : ""}\n\n` +
+      "Verifica che l'Excel caricato sia quello giusto e che la colonna A contenga questi codici."
+    );
+  };
+
   // Reliable download trigger: works across browsers (some block .click() on detached anchors)
   const triggerDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -84,7 +101,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
 
       const payload = {
         items: items.map(it => {
-          const exInfo = getExcelInfo(it.sku);
+          const exInfo = resolveExcelInfo(it);
           // Store full original row + both header rows so dashboard export can reproduce the exact same file
           const rowData = (exInfo?.row != null && excelRows[exInfo.row]) ? excelRows[exInfo.row] : null;
           return {
@@ -240,7 +257,8 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
     }
 
     const processedRows = new Set<number>();
-    for (const it of done) { const ex = getExcelInfo(it.sku); if (ex) processedRows.add(ex.row); }
+    for (const it of done) { const ex = resolveExcelInfo(it); if (ex) processedRows.add(ex.row); }
+    if (!processedRows.size) { warnNoRows(); return; }
 
     // Apply the same modifications as Excel export
     const setCell = (r: number, c: number, v: string) => {
@@ -250,7 +268,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
     };
 
     for (const it of done) {
-      const ex = getExcelInfo(it.sku);
+      const ex = resolveExcelInfo(it);
       if (!ex) continue;
       const ri = ex.row;
       const altImg = (it.altImg || "").slice(0, 300);
@@ -306,10 +324,11 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
     const maxCol = ref.e.c;
 
     const processedRows = new Set<number>();
-    for (const it of done) { const ex = getExcelInfo(it.sku); if (ex) processedRows.add(ex.row); }
+    for (const it of done) { const ex = resolveExcelInfo(it); if (ex) processedRows.add(ex.row); }
+    if (!processedRows.size) { warnNoRows(); return; }
 
     for (const it of done) {
-      const ex = getExcelInfo(it.sku);
+      const ex = resolveExcelInfo(it);
       if (!ex) continue;
       const ri = ex.row;
       const setCell = (r: number, c: number, v: string) => {

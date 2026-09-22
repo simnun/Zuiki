@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
+// This route is public, so nothing (no cookie/header read) makes Next treat it
+// as dynamic: it would be pre-rendered at build time, running schema DDL
+// against the database while building. If the DB is slow or unreachable the
+// build hangs and fails with a static-generation timeout, so every deploy
+// breaks. Force it to run only per request.
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
+
 // One-time database schema initialization
 // Visit /api/setup once to create all tables
 export async function GET() {

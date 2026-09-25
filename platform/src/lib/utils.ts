@@ -64,26 +64,57 @@ export const toB = (f: File): Promise<string> =>
   });
 
 /** Compress image for AI: max 1568px on longest side, JPEG quality 0.75 */
+// Serverless request bodies are capped (4.5 MB on Vercel) and base64 inflates
+// by a third, so the payload has to shrink as the photo count grows. An article
+// with 16 shots at full size produced ~6.5 MB and the request simply died.
+export const MAX_AI_IMAGES = 14;
+
+// Photo classification only has to tell colour and shot type apart, so it runs
+// on much smaller images. It needs one result per photo, so the count cannot be
+// capped there — shrinking each image is what keeps the request in budget.
+export const AI_CLASSIFY_MAX_DIM = 640;
+
+export function aiImageMaxDim(count: number): number {
+  if (count <= 3) return 1568;   // Anthropic's recommended maximum
+  if (count <= 6) return 1280;
+  if (count <= 10) return 1024;
+  return 880;
+}
+
 export function compressForAI(f: File, maxDim = 1568): Promise<{ base64: string; mimeType: string }> {
   return new Promise((res, rej) => {
+    // Every rejection below must carry a real Error: rejecting with a DOM Event
+    // (which has no .message) is what turned genuine failures into the useless
+    // "Errore sconosciuto" shown to the user.
+    const fail = (stage: string) =>
+      rej(new Error(`Impossibile leggere l'immagine "${f.name}" (${stage}). Formato non supportato o file danneggiato.`));
+
     const r = new FileReader();
     r.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const s = Math.min(maxDim / Math.max(img.width, img.height), 1);
-        const w = Math.round(img.width * s);
-        const h = Math.round(img.height * s);
-        const c = document.createElement("canvas");
-        c.width = w;
-        c.height = h;
-        c.getContext("2d")!.drawImage(img, 0, 0, w, h);
-        const dataUrl = c.toDataURL("image/jpeg", 0.75);
-        res({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
+        try {
+          const s = Math.min(maxDim / Math.max(img.width, img.height), 1);
+          const w = Math.round(img.width * s);
+          const h = Math.round(img.height * s);
+          const c = document.createElement("canvas");
+          c.width = w;
+          c.height = h;
+          const ctx = c.getContext("2d");
+          if (!ctx) return rej(new Error(`Canvas non disponibile per "${f.name}" (memoria insufficiente?)`));
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = c.toDataURL("image/jpeg", 0.75);
+          const base64 = dataUrl.split(",")[1];
+          if (!base64) return rej(new Error(`Compressione fallita per "${f.name}"`));
+          res({ base64, mimeType: "image/jpeg" });
+        } catch (e: any) {
+          rej(new Error(`Errore durante la compressione di "${f.name}": ${e?.message || e}`));
+        }
       };
-      img.onerror = rej;
+      img.onerror = () => fail("decodifica");
       img.src = r.result as string;
     };
-    r.onerror = rej;
+    r.onerror = () => fail("lettura file");
     r.readAsDataURL(f);
   });
 }
@@ -102,6 +133,29 @@ export const gTg = (tipo: string, tsSeason: string, tiSeason: string) =>
   SUP.some(s => (tipo || "").toLowerCase().includes(s)) ? tsSeason : tiSeason;
 
 export const esc = (s: string) => '"' + (s || "").replace(/"/g, '""') + '"';
+
+/**
+ * Turn anything thrown into a readable string.
+ *
+ * Promise rejections are not always Errors: a DOM Event (from img.onerror or
+ * FileReader.onerror) has no .message, so reading it gave undefined and the UI
+ * fell back to "Errore sconosciuto", hiding the real cause.
+ */
+export function describeError(e: unknown): string {
+  if (e instanceof Error) return e.message || e.name || "Error senza messaggio";
+  if (typeof e === "string") return e;
+  if (e && typeof e === "object") {
+    const anyE = e as any;
+    if (typeof anyE.message === "string" && anyE.message) return anyE.message;
+    // DOM Event (es. img.onerror): riporta almeno tipo e target
+    if (typeof anyE.type === "string") {
+      const src = anyE.target?.src ? ` (${String(anyE.target.src).slice(0, 80)})` : "";
+      return `Evento "${anyE.type}" durante il caricamento dell'immagine${src}`;
+    }
+    try { return JSON.stringify(e).slice(0, 200); } catch { /* fallthrough */ }
+  }
+  return String(e);
+}
 
 export function friendlyErr(e: string | null) {
   const s = e || "";

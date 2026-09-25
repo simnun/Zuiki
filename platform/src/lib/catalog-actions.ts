@@ -2,7 +2,7 @@
 
 import type { CatalogItem, SessionConfig, ModellaInfo } from "./catalog-types";
 import { SCMAP } from "./constants";
-import { mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI } from "./utils";
+import { mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI, AI_CLASSIFY_MAX_DIM } from "./utils";
 import { mPrLong } from "./ai-prompts";
 
 type CaiFunc = (content: any, retries?: number) => Promise<string>;
@@ -91,7 +91,7 @@ Rispondi SOLO JSON valido: {"licenza":"nome breve","nome_prodotto":"nome complet
     try {
       const c: any[] = [];
       for (const f of it.af) {
-        const { base64, mimeType } = await compressForAI(f);
+        const { base64, mimeType } = await compressForAI(f, AI_CLASSIFY_MAX_DIM);
         c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
       }
       c.push({

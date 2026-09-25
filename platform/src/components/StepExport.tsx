@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { useStore } from "@/lib/store";
-import { esc, wrapHtml, fmtComp, convertToJpg, toB, mT, runPool, compressForAI, pShot } from "@/lib/utils";
+import { esc, wrapHtml, fmtComp, convertToJpg, toB, mT, runPool, compressForAI, pShot, AI_CLASSIFY_MAX_DIM } from "@/lib/utils";
 import { SCMAP, SHOT_ORDER, COL } from "@/lib/constants";
 import { genMetaTitle, genMetaKeys, classifyPhotosPrompt, classifyPhotosStrictPrompt } from "@/lib/ai-prompts";
 import type { CatalogItem } from "@/lib/catalog-types";
@@ -465,7 +465,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       try {
         const c: any[] = [];
         for (const f of it.af) {
-          const { base64, mimeType } = await compressForAI(f);
+          const { base64, mimeType } = await compressForAI(f, AI_CLASSIFY_MAX_DIM);
           c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
         }
         c.push({ type: "text", text: classifyPhotosPrompt(it, colori, fallbackColor) });
@@ -500,7 +500,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
           console.warn(`[${currentSku}] Invalid colors detected after first pass, re-classifying...`);
           const c2: any[] = [];
           for (const f of it.af) {
-            const { base64, mimeType } = await compressForAI(f);
+            const { base64, mimeType } = await compressForAI(f, AI_CLASSIFY_MAX_DIM);
             c2.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
           }
           c2.push({ type: "text", text: classifyPhotosStrictPrompt(it, allowedColors) });

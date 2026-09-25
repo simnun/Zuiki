@@ -2,7 +2,7 @@
 
 import { SFX, SHOT_ORDER, SCMAP, COL } from "./constants";
 import type { CatalogItem, ExcelInfo, SessionConfig, ModellaInfo } from "./catalog-types";
-import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI } from "./utils";
+import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI, describeError, MAX_AI_IMAGES, aiImageMaxDim, AI_CLASSIFY_MAX_DIM } from "./utils";
 import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt, classifyPhotosPrompt, classifyPhotosStrictPrompt } from "./ai-prompts";
 
 type CaiFunc = (content: any, retries?: number) => Promise<string>;
@@ -38,11 +38,16 @@ export function createProcessor(deps: ProcessorDeps) {
     }
     if (modelNames.length) c.push({ type: "text", text: "--- FINE FOTO RIFERIMENTO VOLTI. Le foto seguenti sono del PRODOTTO da catalogare ---" });
 
-    for (const f of files) {
-      const { base64, mimeType } = await compressForAI(f);
+    // Keep the request within the serverless body limit: cap the number of
+    // shots and shrink them as the count grows. Beyond a dozen views the AI
+    // gains nothing, while the payload grows until the call fails outright.
+    const sent = files.slice(0, MAX_AI_IMAGES);
+    const maxDim = aiImageMaxDim(sent.length);
+    for (const f of sent) {
+      const { base64, mimeType } = await compressForAI(f, maxDim);
       c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
     }
-    c.push({ type: "text", text: mPr(cfg.br, tipo, files.length, modelNames, exInfo) });
+    c.push({ type: "text", text: mPr(cfg.br, tipo, sent.length, modelNames, exInfo) });
 
     const raw = await cAI(c);
     try { return JSON.parse(raw.replace(/```json|```/g, "").trim()); }
@@ -80,7 +85,7 @@ export function createProcessor(deps: ProcessorDeps) {
 
     const c: any[] = [];
     for (const f of it.af) {
-      const { base64, mimeType } = await compressForAI(f);
+      const { base64, mimeType } = await compressForAI(f, AI_CLASSIFY_MAX_DIM);
       c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
     }
     c.push({ type: "text", text: classifyPhotosPrompt(it, colori, fallbackColor) });
@@ -117,7 +122,7 @@ export function createProcessor(deps: ProcessorDeps) {
         console.warn(`[${it.sku}] Invalid colors after validation, re-classifying...`);
         const c2: any[] = [];
         for (const f of it.af) {
-          const { base64, mimeType } = await compressForAI(f);
+          const { base64, mimeType } = await compressForAI(f, AI_CLASSIFY_MAX_DIM);
           c2.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
         }
         c2.push({ type: "text", text: classifyPhotosStrictPrompt(it, allowedColors) });
@@ -273,12 +278,17 @@ export function createProcessor(deps: ProcessorDeps) {
 
       return elapsed;
     } catch (e: any) {
+      // Never lose the cause: a rejection can be a DOM Event or a plain value,
+      // and reading .message off those yields undefined — which is how real
+      // failures ended up displayed as "Errore sconosciuto".
+      const detail = describeError(e);
       if (attempt < 2) {
-        console.log(`Auto-retry ${it.sku} (attempt ${attempt + 1}):`, e.message);
+        console.log(`Auto-retry ${it.sku} (attempt ${attempt + 1}):`, detail);
         await new Promise(r => setTimeout(r, 3000 * (attempt + 1)));
         return procOne(it, idx, attempt + 1);
       }
-      dispatch({ type: "SET_ITEM", idx, payload: { st: "err", er: e.message } });
+      console.error(`[${it.sku}] analisi fallita:`, e);
+      dispatch({ type: "SET_ITEM", idx, payload: { st: "err", er: detail } });
       return Date.now() - t0;
     }
   }

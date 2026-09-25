@@ -74,11 +74,18 @@ export const MAX_AI_IMAGES = 14;
 // capped there — shrinking each image is what keeps the request in budget.
 export const AI_CLASSIFY_MAX_DIM = 640;
 
-export function aiImageMaxDim(count: number): number {
-  if (count <= 3) return 1568;   // Anthropic's recommended maximum
-  if (count <= 6) return 1280;
-  if (count <= 10) return 1024;
-  return 880;
+// Detail is not needed equally on every shot: the first few drive the written
+// description, the rest mostly confirm views already seen. So spend the payload
+// budget there — full resolution on the leading shots, smaller on the tail —
+// instead of shrinking everything uniformly.
+// Budget with 14 photos: 3 x 1568px (~0.8 MB) + 11 x 768px (~0.7 MB) = ~1.5 MB,
+// comfortably under the 4.5 MB serverless cap.
+export const AI_HIRES_COUNT = 3;
+const AI_HIRES_DIM = 1568;   // Anthropic's recommended maximum
+const AI_TAIL_DIM = 768;
+
+export function aiImageDimFor(index: number): number {
+  return index < AI_HIRES_COUNT ? AI_HIRES_DIM : AI_TAIL_DIM;
 }
 
 export function compressForAI(f: File, maxDim = 1568): Promise<{ base64: string; mimeType: string }> {
@@ -389,25 +396,39 @@ export function convertToPng(file: File): Promise<Blob> {
   });
 }
 
+// Full original resolution on purpose: these are the photos delivered to the
+// e-commerce, so they are never downscaled (unlike the copies sent to the AI).
 export function convertToJpg(file: File, quality = 0.92): Promise<Blob> {
   return new Promise((res, rej) => {
+    // Same rule as compressForAI: reject with real Errors. Rejecting with a DOM
+    // Event left the caller with no message, so a photo could vanish from the
+    // ZIP with nothing but an empty console line to show for it.
+    const fail = (stage: string) =>
+      rej(new Error(`Conversione JPG fallita per "${file.name}" (${stage}). Formato non supportato o file danneggiato.`));
+
     const r = new FileReader();
     r.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const c = document.createElement("canvas");
-        c.width = img.width;
-        c.height = img.height;
-        c.getContext("2d")!.drawImage(img, 0, 0);
-        c.toBlob(blob => {
-          if (blob) res(blob);
-          else rej(new Error("toBlob failed"));
-        }, "image/jpeg", quality);
+        try {
+          const c = document.createElement("canvas");
+          c.width = img.width;
+          c.height = img.height;
+          const ctx = c.getContext("2d");
+          if (!ctx) return rej(new Error(`Canvas non disponibile per "${file.name}" (memoria insufficiente?)`));
+          ctx.drawImage(img, 0, 0);
+          c.toBlob(blob => {
+            if (blob) res(blob);
+            else rej(new Error(`Conversione JPG fallita per "${file.name}" (immagine troppo grande?)`));
+          }, "image/jpeg", quality);
+        } catch (e: any) {
+          rej(new Error(`Errore convertendo "${file.name}": ${e?.message || e}`));
+        }
       };
-      img.onerror = rej;
+      img.onerror = () => fail("decodifica");
       img.src = r.result as string;
     };
-    r.onerror = rej;
+    r.onerror = () => fail("lettura file");
     r.readAsDataURL(file);
   });
 }

@@ -2,7 +2,7 @@
 
 import { SFX, SHOT_ORDER, SCMAP, COL } from "./constants";
 import type { CatalogItem, ExcelInfo, SessionConfig, ModellaInfo } from "./catalog-types";
-import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI, describeError, MAX_AI_IMAGES, aiImageMaxDim, AI_CLASSIFY_MAX_DIM } from "./utils";
+import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI, describeError, MAX_AI_IMAGES, aiImageDimFor, AI_CLASSIFY_MAX_DIM } from "./utils";
 import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt, classifyPhotosPrompt, classifyPhotosStrictPrompt } from "./ai-prompts";
 
 type CaiFunc = (content: any, retries?: number) => Promise<string>;
@@ -42,9 +42,8 @@ export function createProcessor(deps: ProcessorDeps) {
     // shots and shrink them as the count grows. Beyond a dozen views the AI
     // gains nothing, while the payload grows until the call fails outright.
     const sent = files.slice(0, MAX_AI_IMAGES);
-    const maxDim = aiImageMaxDim(sent.length);
-    for (const f of sent) {
-      const { base64, mimeType } = await compressForAI(f, maxDim);
+    for (let i = 0; i < sent.length; i++) {
+      const { base64, mimeType } = await compressForAI(sent[i], aiImageDimFor(i));
       c.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64 } });
     }
     c.push({ type: "text", text: mPr(cfg.br, tipo, sent.length, modelNames, exInfo) });

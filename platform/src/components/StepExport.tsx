@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { useStore } from "@/lib/store";
-import { esc, wrapHtml, fmtComp, convertToJpg, toB, mT, runPool, compressForAI, pShot, AI_CLASSIFY_MAX_DIM } from "@/lib/utils";
+import { esc, wrapHtml, fmtComp, convertToJpg, toB, mT, runPool, compressForAI, pShot, AI_CLASSIFY_MAX_DIM, describeError } from "@/lib/utils";
 import { SCMAP, SHOT_ORDER, COL } from "@/lib/constants";
 import { genMetaTitle, genMetaKeys, classifyPhotosPrompt, classifyPhotosStrictPrompt } from "@/lib/ai-prompts";
 import type { CatalogItem } from "@/lib/catalog-types";
@@ -435,6 +435,7 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
     const zip = new JSZip();
     const total = done.length;
     const startTime = Date.now();
+    const failedPhotos: string[] = [];
     setZipProgress(0);
     setZipEta("Calcolo...");
 
@@ -573,13 +574,15 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
       const firstColorKey = Object.keys(colorGroups)[0];
       const firstPhoto = firstColorKey && colorGroups[firstColorKey][0];
       if (firstPhoto) {
-        try { const blob = await convertToJpg(firstPhoto.file); zip.file(`${currentSku}_1.jpg`, blob); } catch (e) { console.error("JPG convert error:", e); }
+        try { const blob = await convertToJpg(firstPhoto.file); zip.file(`${currentSku}_1.jpg`, blob); }
+        catch (e) { console.error("JPG convert error:", e); failedPhotos.push(`${currentSku} (principale): ${describeError(e)}`); }
       }
 
       for (const [color, photos] of Object.entries(colorGroups)) {
         const colorName = color.replace(/[^a-zA-Z0-9àèéìòùÀÈÉÌÒÙ ]/g, "").trim();
         for (let ci = 0; ci < (photos as any[]).length; ci++) {
-          try { const blob = await convertToJpg((photos as any[])[ci].file); zip.file(`${currentSku}_${colorName}_${ci + 1}.jpg`, blob); } catch (e) { console.error("JPG convert error:", e); }
+          try { const blob = await convertToJpg((photos as any[])[ci].file); zip.file(`${currentSku}_${colorName}_${ci + 1}.jpg`, blob); }
+          catch (e) { console.error("JPG convert error:", e); failedPhotos.push(`${currentSku} ${colorName} #${ci + 1}: ${describeError(e)}`); }
         }
       }
     }
@@ -591,6 +594,16 @@ export default function StepExport({ onFindCorrelations }: StepExportProps) {
     setZipEta("");
     triggerDownload(content, `foto_${cfg.br}_${SCMAP[cfg.st] || ""}${cfg.an}_${new Date().toISOString().slice(0, 10)}.zip`);
     setTimeout(() => setZipProgress(null), 1500);
+
+    // A photo that fails to convert must not disappear from the ZIP unnoticed.
+    if (failedPhotos.length) {
+      alert(
+        `Attenzione: ${failedPhotos.length} foto non sono state inserite nello ZIP.\n\n` +
+        failedPhotos.slice(0, 10).join("\n") +
+        (failedPhotos.length > 10 ? `\n... e altre ${failedPhotos.length - 10}` : "") +
+        "\n\nControlla questi file e riscarica lo ZIP."
+      );
+    }
   };
 
   // Correlation section

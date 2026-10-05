@@ -2,7 +2,7 @@ import { inngest } from '@/lib/inngest'
 import { prisma } from '@/lib/db'
 import { callAI } from '@/lib/ai/client'
 import { getSignedUrl } from '@/lib/storage'
-import { mNm, mDs, mTags, mTagsLoveskin } from '@/lib/utils'
+import { mNm, mDs, mTags, mTagsLoveskin, isCurvyArticle } from '@/lib/utils'
 import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt } from '@/lib/ai-prompts'
 import type { SessionConfig, ModellaInfo, ExcelInfo, CatalogItem as ClientCatalogItem } from '@/lib/catalog-types'
 import sharp from 'sharp'
@@ -171,7 +171,7 @@ export const processSession = inngest.createFunction(
           }
 
           const tg = cfg.br === 'zuiki'
-            ? mTags({ ds: cfg.ds, cat: ai.categoria_seo || '', sub: ai.sottocategoria_seo || '', nm, lic: ai.licenza && ai.licenza !== 'null' ? ai.licenza : null, tipo }, cfg)
+            ? mTags({ ds: cfg.ds, cat: ai.categoria_seo || '', sub: ai.sottocategoria_seo || '', nm, lic: ai.licenza && ai.licenza !== 'null' ? ai.licenza : null, tipo, curvy: isCurvyArticle(exInfo) }, cfg)
             : mTagsLoveskin({ tipo, sfx: item.suffix || '', lic: ai.licenza && ai.licenza !== 'null' ? ai.licenza : null, vestibilita: ai.vestibilita || null, sporty: !!ai.is_sporty }, cfg)
 
           const ds = mDs(ai, item.composition || '', tipo, recognizedModel, cfg, models, exInfo)

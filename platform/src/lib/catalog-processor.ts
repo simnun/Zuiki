@@ -2,7 +2,7 @@
 
 import { SFX, SHOT_ORDER, SCMAP, COL } from "./constants";
 import type { CatalogItem, ExcelInfo, SessionConfig, ModellaInfo } from "./catalog-types";
-import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI, describeError, MAX_AI_IMAGES, aiImageDimFor, AI_CLASSIFY_MAX_DIM } from "./utils";
+import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, isCurvyArticle, toB, mT, runPool, compressForAI, describeError, MAX_AI_IMAGES, aiImageDimFor, AI_CLASSIFY_MAX_DIM } from "./utils";
 import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt, classifyPhotosPrompt, classifyPhotosStrictPrompt } from "./ai-prompts";
 
 type CaiFunc = (content: any, retries?: number) => Promise<string>;
@@ -222,7 +222,7 @@ export function createProcessor(deps: ProcessorDeps) {
 
       // Tags
       const tg = cfg.br === "zuiki"
-        ? mTags({ ds: cfg.ds, cat: ai.categoria_seo || "", sub: ai.sottocategoria_seo || "", nm, lic: ai.licenza && ai.licenza !== "null" ? ai.licenza : null, tipo: it.tp }, cfg)
+        ? mTags({ ds: cfg.ds, cat: ai.categoria_seo || "", sub: ai.sottocategoria_seo || "", nm, lic: ai.licenza && ai.licenza !== "null" ? ai.licenza : null, tipo: it.tp, curvy: isCurvyArticle(exInfo) }, cfg)
         : mTagsLoveskin({ tipo: it.tp, sfx: it.sf, lic: ai.licenza && ai.licenza !== "null" ? ai.licenza : null, vestibilita: ai.vestibilita || null, sporty: !!ai.is_sporty }, cfg);
 
       // Description

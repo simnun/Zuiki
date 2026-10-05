@@ -2,7 +2,7 @@
 
 import type { CatalogItem, SessionConfig, ModellaInfo } from "./catalog-types";
 import { SCMAP } from "./constants";
-import { mNm, mDs, mTags, mTagsLoveskin, toB, mT, runPool, compressForAI, AI_CLASSIFY_MAX_DIM } from "./utils";
+import { mNm, mDs, mTags, mTagsLoveskin, isCurvyArticle, toB, mT, runPool, compressForAI, AI_CLASSIFY_MAX_DIM } from "./utils";
 import { mPrLong } from "./ai-prompts";
 
 type CaiFunc = (content: any, retries?: number) => Promise<string>;
@@ -116,10 +116,10 @@ Rispondi SOLO JSON: {"modello_dettaglio":"2-3 parole","dettagli_descrizione":"ma
       const mergedAi = { ...(it.ai || {}), ...ai };
       const nm = mNm(it.tp, mergedAi);
       const cl = ai.colore_madre || it.cl;
-      const tg = cfg.br === "zuiki"
-        ? mTags({ ds: cfg.ds, cat: ai.categoria_seo || "", sub: ai.sottocategoria_seo || "", nm, lic: ai.licenza && ai.licenza !== "null" ? ai.licenza : null, tipo: it.tp }, cfg)
-        : mTagsLoveskin({ tipo: it.tp, sfx: it.sf, lic: ai.licenza && ai.licenza !== "null" ? ai.licenza : null, vestibilita: ai.vestibilita || null, sporty: !!ai.is_sporty }, cfg);
       const exInfo = it.excelInfo || getExcelInfo(it.sku);
+      const tg = cfg.br === "zuiki"
+        ? mTags({ ds: cfg.ds, cat: ai.categoria_seo || "", sub: ai.sottocategoria_seo || "", nm, lic: ai.licenza && ai.licenza !== "null" ? ai.licenza : null, tipo: it.tp, curvy: isCurvyArticle(exInfo) }, cfg)
+        : mTagsLoveskin({ tipo: it.tp, sfx: it.sf, lic: ai.licenza && ai.licenza !== "null" ? ai.licenza : null, vestibilita: ai.vestibilita || null, sporty: !!ai.is_sporty }, cfg);
       const ds = mDs(mergedAi, it.cp, it.tp, it.recMod, cfg, mod, exInfo);
 
       dispatch({ type: "SET_ITEM", idx, payload: { ai: mergedAi, nm, cl, tg, ds, corrHint: "" } });

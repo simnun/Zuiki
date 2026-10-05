@@ -301,17 +301,29 @@ export function mDs(
   return `${lic}${ai?.dettagli_descrizione || ""}${modInfo}\n\n${compFmt ? `Composizione:\u00A0${compFmt}` : "Composizione:"}`;
 }
 
-export function mTags(o: { ds: string; cat: string; sub: string; nm: string; lic: string | null; tipo: string }, cfg: SessionConfig) {
+/**
+ * True when the Excel "marchio" column (V) marks the article as Curvy.
+ * Case-insensitive and substring-based so "CURVY", "Curvy" and "Zuiki Curvy"
+ * all match.
+ */
+export const isCurvyArticle = (exInfo: { brand?: string } | null | undefined): boolean =>
+  /curvy/i.test(exInfo?.brand || "");
+
+export function mTags(o: { ds: string; cat: string; sub: string; nm: string; lic: string | null; tipo: string; curvy?: boolean }, cfg: SessionConfig) {
   const sa = `${SCMAP[cfg.st] || "pe"}${cfg.an || "26"}`;
   const an = cfg.an || "26";
+  // Curvy is a separate line sharing the same tag structure, with "curvy" in
+  // place of "donna" (piuminidonnaai26 -> piuminicurvyai26). It replaces the
+  // word rather than adding to it: a Curvy article carries no "donna" tag.
+  const linea = o.curvy ? "curvy" : "donna";
   const t: string[] = [];
-  if (o.ds) t.push(o.ds + "donna" + sa);
-  t.push("donna" + sa);
+  if (o.ds) t.push(o.ds + linea + sa);
+  t.push(linea + sa);
   const tipoLow = (o.tipo || "").toLowerCase();
   const macroKey = MACRO_MAP[tipoLow];
-  if (macroKey) t.push(macroKey + "donna" + sa);
-  if (o.cat) t.push(o.cat + "donna" + sa);
-  if (o.sub && o.sub !== o.cat) t.push(o.sub + "donna" + sa);
+  if (macroKey) t.push(macroKey + linea + sa);
+  if (o.cat) t.push(o.cat + linea + sa);
+  if (o.sub && o.sub !== o.cat) t.push(o.sub + linea + sa);
   if (o.nm) o.nm.toLowerCase().replace(/[^a-zàèéìòù0-9\s-]/g, "").split(/\s+/).filter(w => w.length > 1).forEach(w => { if (!t.includes(w)) t.push(w); });
   if (o.lic) {
     const licTag = o.lic.toLowerCase().replace(/[^a-z0-9]/g, "");

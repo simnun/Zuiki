@@ -316,14 +316,18 @@ export function mTags(o: { ds: string; cat: string; sub: string; nm: string; lic
   // place of "donna" (piuminidonnaai26 -> piuminicurvyai26). It replaces the
   // word rather than adding to it: a Curvy article carries no "donna" tag.
   const linea = o.curvy ? "curvy" : "donna";
+  // The AI sometimes answers "donna" as the SEO category. The line is already
+  // the second half of every tag, so that produced junk like donnacurvyai26
+  // (and donnadonnaai26 on the standard line). Drop line words as categories.
+  const isLineaWord = (v: string) => ["donna", "curvy"].includes(v.trim().toLowerCase());
   const t: string[] = [];
   if (o.ds) t.push(o.ds + linea + sa);
   t.push(linea + sa);
   const tipoLow = (o.tipo || "").toLowerCase();
   const macroKey = MACRO_MAP[tipoLow];
   if (macroKey) t.push(macroKey + linea + sa);
-  if (o.cat) t.push(o.cat + linea + sa);
-  if (o.sub && o.sub !== o.cat) t.push(o.sub + linea + sa);
+  if (o.cat && !isLineaWord(o.cat)) t.push(o.cat + linea + sa);
+  if (o.sub && o.sub !== o.cat && !isLineaWord(o.sub)) t.push(o.sub + linea + sa);
   if (o.nm) o.nm.toLowerCase().replace(/[^a-zàèéìòù0-9\s-]/g, "").split(/\s+/).filter(w => w.length > 1).forEach(w => { if (!t.includes(w)) t.push(w); });
   if (o.lic) {
     const licTag = o.lic.toLowerCase().replace(/[^a-z0-9]/g, "");

@@ -2,7 +2,7 @@
 
 import { SFX, SHOT_ORDER, SCMAP, COL } from "./constants";
 import type { CatalogItem, ExcelInfo, SessionConfig, ModellaInfo } from "./catalog-types";
-import { pSKU, gSuf, mNm, mDs, mTags, mTagsLoveskin, isCurvyArticle, toB, mT, runPool, compressForAI, describeError, MAX_AI_IMAGES, aiImageDimFor, AI_CLASSIFY_MAX_DIM } from "./utils";
+import { pSKU, gSuf, resolveTipo, mNm, mDs, mTags, mTagsLoveskin, isCurvyArticle, toB, mT, runPool, compressForAI, describeError, MAX_AI_IMAGES, aiImageDimFor, AI_CLASSIFY_MAX_DIM } from "./utils";
 import { mPr, mPrLong, genMetaTitle, genMetaDescPrompt, genMetaKeys, genAltImgPrompt, classifyPhotosPrompt, classifyPhotosStrictPrompt } from "./ai-prompts";
 
 type CaiFunc = (content: any, retries?: number) => Promise<string>;
@@ -320,6 +320,18 @@ export function createProcessor(deps: ProcessorDeps) {
       }
       const allSfx = { ...SFX, ...cS };
       let { s, tipo, u } = gSuf(sku, cS);
+      // Cross-check a known suffix against the Excel type. Some codes are
+      // reused for unrelated products (PF = Portafogli but also Pantalone di
+      // felpa): when the two clearly disagree the Excel wins, otherwise the
+      // suffix stands and nothing changes for the codes that already work.
+      if (s && tipo) {
+        const exSuf = getExcelInfo(sku);
+        const resolved = resolveTipo(tipo, exSuf?.tipoArticolo);
+        if (resolved.overridden) {
+          console.log(`[${sku}] suffisso "${s}" indicava "${tipo}", Excel dice "${resolved.tipo}": uso l'Excel`);
+          tipo = resolved.tipo;
+        }
+      }
       // Auto-resolve from Excel
       if (!s && u) {
         const exi = getExcelInfo(sku);

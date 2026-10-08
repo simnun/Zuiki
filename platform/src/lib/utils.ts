@@ -47,6 +47,91 @@ export const gSuf = (sku: string, customSfx: Record<string, string>) => {
   return a[t] ? { s: t, tipo: a[t] } : { s: null, tipo: null, u: t };
 };
 
+// ── Riscontro suffisso ↔ tipo articolo dell'Excel ──────────────────────────
+// Some suffixes are reused for unrelated products: PF is both "Portafogli"
+// (accessory) and "Pantalone di felpa" (clothing). The two-letter code cannot
+// tell them apart, so the suffix guess is cross-checked against the Excel type
+// and only overridden when the two clearly disagree.
+
+const STOPWORDS = new Set(["di", "da", "con", "in", "e", "a", "il", "la", "le", "lo", "i", "gli", "un", "una", "the"]);
+
+const typeWords = (s: string): string[] =>
+  (s || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")   // via gli accenti
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !STOPWORDS.has(w));
+
+/** Two words refer to the same thing: equal, or sharing a 4-char stem
+ *  ("pantaloni"/"pantalone", "borsa"/"borse"). Short words must match exactly. */
+const wordsAkin = (a: string, b: string): boolean => {
+  if (a === b) return true;
+  if (a.length < 4 || b.length < 4) return false;
+  return a.slice(0, 4) === b.slice(0, 4);
+};
+
+/** True when two article-type strings describe roughly the same product. */
+export function typesRoughlyMatch(a: string, b: string): boolean {
+  const wa = typeWords(a), wb = typeWords(b);
+  if (!wa.length || !wb.length) return true;   // nothing to compare: no conflict
+  return wa.some(x => wb.some(y => wordsAkin(x, y)));
+}
+
+/**
+ * Decide the article type, preferring the suffix table but deferring to the
+ * Excel when the two clearly describe different products.
+ * PF + "Pantalone di felpa" -> trousers, not a wallet.
+ */
+export function resolveTipo(suffixTipo: string | null, excelTipo: string | undefined | null): {
+  tipo: string; overridden: boolean;
+} {
+  const ex = (excelTipo || "").trim();
+  if (!suffixTipo) return { tipo: ex, overridden: false };
+  if (!ex) return { tipo: suffixTipo, overridden: false };
+  if (typesRoughlyMatch(suffixTipo, ex)) return { tipo: suffixTipo, overridden: false };
+
+  // Only swap when the Excel wording still yields a macro-category. A more
+  // specific word the map doesn't know (suffix "Scarpe" vs Excel "Sandalo")
+  // is not a duplicated suffix, and switching to it would cost the macro tag:
+  // worse than the mild imprecision it would fix.
+  if (!macroFor(ex) && macroFor(suffixTipo)) return { tipo: suffixTipo, overridden: false };
+
+  return { tipo: ex, overridden: true };
+}
+
+/**
+ * Macro-category for the tags, tolerant of the Excel's own wording: an exact
+ * key first, then a stem match ("pantalone di felpa" -> "pantaloni"), so an
+ * overridden type does not silently lose its macro tag.
+ */
+export function macroFor(tipo: string): string | undefined {
+  const low = (tipo || "").toLowerCase().trim();
+  if (MACRO_MAP[low]) return MACRO_MAP[low];
+  const words = typeWords(low);
+  if (!words.length) return undefined;
+  const keys = Object.keys(MACRO_MAP);
+
+  // The head noun decides the category: "pantalone di felpa" is trousers, not
+  // a sweatshirt. Matching any word would pick whichever key came first in the
+  // map ("felpa"), which is how fleece trousers became "felpe".
+  const head = words[0];
+  for (const key of keys) {
+    const kh = typeWords(key)[0];
+    if (kh && wordsAkin(kh, head)) return MACRO_MAP[key];
+  }
+  // Fallbacks for wordings whose head noun is unknown to the map.
+  for (const key of keys) {
+    const kw = typeWords(key);
+    if (kw.every(k => words.some(w => wordsAkin(k, w)))) return MACRO_MAP[key];
+  }
+  for (const key of keys) {
+    const kw = typeWords(key);
+    if (kw.some(k => words.some(w => wordsAkin(k, w)))) return MACRO_MAP[key];
+  }
+  return undefined;
+}
+
 export const fD = (r: string) => {
   const d = r.replace(/\D/g, "");
   return d.length <= 2 ? d : d.length <= 4 ? d.slice(0, 2) + "/" + d.slice(2) : d.slice(0, 2) + "/" + d.slice(2, 4) + "/" + d.slice(4, 8);
@@ -324,7 +409,7 @@ export function mTags(o: { ds: string; cat: string; sub: string; nm: string; lic
   if (o.ds) t.push(o.ds + linea + sa);
   t.push(linea + sa);
   const tipoLow = (o.tipo || "").toLowerCase();
-  const macroKey = MACRO_MAP[tipoLow];
+  const macroKey = macroFor(tipoLow);
   if (macroKey) t.push(macroKey + linea + sa);
   if (o.cat && !isLineaWord(o.cat)) t.push(o.cat + linea + sa);
   if (o.sub && o.sub !== o.cat && !isLineaWord(o.sub)) t.push(o.sub + linea + sa);
@@ -356,11 +441,11 @@ export function mTagsLoveskin(o: { tipo: string; sfx: string; lic: string | null
     if (tipoLow.includes("slip") && o.vestibilita) t.push("slip" + o.vestibilita.toLowerCase().replace(/[^a-z]/g, "") + an);
   } else {
     t.push("loveskindaily");
-    const macroKey = MACRO_MAP[tipoLow];
+    const macroKey = macroFor(tipoLow);
     if (macroKey) t.push("loveskin" + macroKey);
     if (o.sporty) t.push("loveskinsporty");
   }
-  const macroKey = MACRO_MAP[tipoLow];
+  const macroKey = macroFor(tipoLow);
   if (macroKey && !t.includes(macroKey + "donna" + sa)) t.push(macroKey + "donna" + sa);
   if (o.lic) {
     const licTag = o.lic.toLowerCase().replace(/[^a-z0-9]/g, "");
